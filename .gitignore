@@ -1,5 +1,5 @@
 # LOCAL ARTIFACTS ********************************************************************
-data/
+#data/
 !data/partitions/.gitkeep
 !data/serializations/.gitkeep
 results/
@@ -249,3 +249,5 @@ nodeLanguageServer.*/**
 
 # Local History for Visual Studio Code
 .history/
+proto/
+
