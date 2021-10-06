@@ -6,7 +6,7 @@ import yaml
 
 cfg = yaml.full_load(open(os.path.join(os.getcwd(),"config.yml"), 'r'))
 
-def video_to_frames_contig(path, seq_length=50, resize=(128, 128)):
+def video_to_frames_contig(path, seq_length=cfg['PARAMS']['WINDOW'], resize=cfg['PARAMS']['IMG_SIZE']):
   counter = seq_length
   cap = cv2.VideoCapture(path)
   frames = [[]]
