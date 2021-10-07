@@ -6,12 +6,14 @@ DATABASE:
 
 PARAMS:
   JUST_ASKING_AMOUNT: False
+  METHOD: 'Stride'  # 'Stride' or 'Contiguous'
   SHUFFLE: True
   RANDOM_SEED: 1
   SLIDING_PROPORTION: 0.0042
   NO_SLIDING_PROPORTION: 0.117
-  WINDOW: 50
-  IMG_SIZE: 128
+  WINDOW: 25
+  STRIDE: 3  # 1 = contiguous
+  IMG_SIZE: [128, 128]
 
 PATHS:
   UNMASKED_VIDEOS: 'raw_videos/'

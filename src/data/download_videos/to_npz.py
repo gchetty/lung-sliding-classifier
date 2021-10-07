@@ -7,7 +7,9 @@ import yaml
 
 cfg = yaml.full_load(open(os.path.join(os.getcwd(),"config.yml"), 'r'))
 
-def video_to_frames_strided(path, orig_id, patient_id, df_rows, stride, seq_length=cfg['PARAMS']['WINDOW'], resize=cfg['PARAMS']['IMG_SIZE'], write_path=''):
+def video_to_frames_strided(path, orig_id, patient_id, df_rows, stride=cfg['PARAMS']['STRIDE'], seq_length=cfg['PARAMS']['WINDOW'], resize=cfg['PARAMS']['IMG_SIZE'], write_path=''):
+
+  # IF YOU CAN DETERMINE # FRAMES IN VIDEO FIRST, WE CAN CHECK VALIDITY CONDITION HERE
 
   cap = cv2.VideoCapture(path)
   frames = []
@@ -21,7 +23,7 @@ def video_to_frames_strided(path, orig_id, patient_id, df_rows, stride, seq_leng
       ret, frame = cap.read()
       if not ret:
         break
-      frame = cv2.resize(frame, resize)
+      frame = cv2.resize(frame, tuple(resize))
       frames[index].append(frame)
       index = (index + 1) % stride
 
@@ -62,7 +64,7 @@ def video_to_frames_contig(path, orig_id, patient_id, df_rows, seq_length=cfg['P
       if not ret:
         break
 
-      frame = cv2.resize(frame, resize)
+      frame = cv2.resize(frame, tuple(resize))
       frames.append(frame)
 
       counter -= 1
@@ -72,9 +74,12 @@ def video_to_frames_contig(path, orig_id, patient_id, df_rows, seq_length=cfg['P
 
   return
 
-# dont rly need separate functions anymore
-def video_to_npz(path, orig_id, patient_id, df_rows, write_path='', seq_length=50, resize=(128, 128)):
-    video_to_frames_contig(path, orig_id, patient_id, df_rows, seq_length, resize, write_path)
+def video_to_npz(path, orig_id, patient_id, df_rows, write_path='', method=cfg['PARAMS']['METHOD']):
+  if method == 'Contiguous':
+    video_to_frames_contig(path, orig_id, patient_id, df_rows, write_path=write_path)
+  else:
+    video_to_frames_strided(path, orig_id, patient_id, df_rows, write_path=write_path)
+
 
 npz_folder = cfg['PATHS']['NPZ']
 refresh_folder(npz_folder)
@@ -98,12 +103,12 @@ no_sliding_df = pd.read_csv(os.path.join(csv_out_folder, 'no_sliding.csv'))
 
 for file in os.listdir(masked_sliding_folder):
   f = os.path.join(masked_sliding_folder, file)
-  patient_id = (sliding_df[sliding_df['id'] == file[:-4]])['patient_id']
+  patient_id = ((sliding_df[sliding_df['id'] == file[:-4]])['patient_id']).values[0]
   video_to_npz(f, orig_id=file[:-4], patient_id=patient_id, df_rows=df_rows_sliding, write_path=(sliding_npz_folder + file[:-4]))
 
 for file in os.listdir(masked_no_sliding_folder):
   f = os.path.join(masked_no_sliding_folder, file)
-  patient_id = (no_sliding_df[no_sliding_df['id'] == file[:-4]])['patient_id']
+  patient_id = ((no_sliding_df[no_sliding_df['id'] == file[:-4]])['patient_id']).values[0]
   video_to_npz(f, orig_id=file[:-4], patient_id=patient_id, df_rows=df_rows_no_sliding, write_path=(no_sliding_npz_folder + file[:-4]))
 
 out_df_sliding = pd.DataFrame(df_rows_sliding, columns=['id', 'patient_id'])
