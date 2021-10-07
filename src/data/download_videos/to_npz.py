@@ -7,6 +7,43 @@ import yaml
 
 cfg = yaml.full_load(open(os.path.join(os.getcwd(),"config.yml"), 'r'))
 
+def video_to_frames_strided(path, orig_id, patient_id, df_rows, stride, seq_length=cfg['PARAMS']['WINDOW'], resize=cfg['PARAMS']['IMG_SIZE'], write_path=''):
+
+  cap = cv2.VideoCapture(path)
+  frames = []
+  for i in range(stride):
+    frames.append([])
+
+  index = 0
+
+  try:
+    while True:
+      ret, frame = cap.read()
+      if not ret:
+        break
+      frame = cv2.resize(frame, resize)
+      frames[index].append(frame)
+      index = (index + 1) % stride
+
+  finally:
+    cap.release()
+
+  # Clip is invalid if necessary sequence length is longer than mini-clips created with given stride length
+  # Last index guaranteed to have sequence of equal length or shorter by 1
+  if len(frames[-1]) < seq_length:
+    return
+
+  # Split into mini-clips with given sequence length, update df rows, and write npz files
+  counter = 1
+  for set in frames:  # iterate through each 'set' of frames (which make up 1+ mini-clips)
+    num_mini_clips = int(len(set) / seq_length)  # rounded down
+    for i in range(num_mini_clips):
+      df_rows.append([orig_id + '_' + str(counter), patient_id])
+      np.savez(write_path + '_' + str(counter), frames=set[i*seq_length:i*seq_length+seq_length])
+      counter += 1
+
+  return
+
 def video_to_frames_contig(path, orig_id, patient_id, df_rows, seq_length=cfg['PARAMS']['WINDOW'], resize=cfg['PARAMS']['IMG_SIZE'], write_path=''):
   counter = seq_length
   mini_clip_num = 1
@@ -15,8 +52,8 @@ def video_to_frames_contig(path, orig_id, patient_id, df_rows, seq_length=cfg['P
   try:
     while True:
       if counter == 0:
-        df_rows.append([orig_id + '_' + str(mini_clip_num), patient_id]) # append to what will make output dataframes
-        np.savez(write_path + '_' + str(mini_clip_num), frames=frames) # output
+        df_rows.append([orig_id + '_' + str(mini_clip_num), patient_id])  # append to what will make output dataframes
+        np.savez(write_path + '_' + str(mini_clip_num), frames=frames)  # output
         counter = seq_length
         mini_clip_num += 1
         frames = []
