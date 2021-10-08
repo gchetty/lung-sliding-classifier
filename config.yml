@@ -3,17 +3,13 @@
 # Be sure to update the readme as you add and remove parameters to this file
 
 PREPROCESS:
-  DATABASE:
-    USERNAME: 
-    PASSWORD: 
-    HOST: 
-    DATABASE: 'data'
-
   PARAMS:
-    JUST_ASKING_AMOUNT: False  # If set to True, the tool exits after querying the database and returning counts
-    METHOD: 'Stride'  # 'Stride' or 'Contiguous'
+    AMOUNT_ONLY: False  # If set to True, the tool exits after querying the database and returning counts
+    SHUFFLE: True # If you want to randomize the videos downloaded
+    RANDOM_SEED: 1 # If SHUFFLE=False, this does nothing. Otherwise, this is the seed for shuffling
     SLIDING_PROPORTION: 0.0042
     NO_SLIDING_PROPORTION: 0.117
+    METHOD: 'Stride'  # 'Stride' or 'Contiguous'
     WINDOW: 25 # Mini-clip length
     STRIDE: 3  # 1 = contiguous (METHOD='Contiguous' param overrides this)
     IMG_SIZE: [128, 128]
@@ -23,3 +19,4 @@ PREPROCESS:
     MASKED_VIDEOS: 'masked_videos/'
     CSVS_OUTPUT: 'csvs/'
     NPZ: 'npzs'
+    MASKING_TOOL: 'auto_masking_deeper.h5'

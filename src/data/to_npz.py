@@ -22,7 +22,7 @@ def video_to_frames_strided(path, orig_id, patient_id, df_rows, stride=cfg['PARA
   :param write_path: Path to directory where output mini-clips are saved
   '''
 
-  # IF YOU CAN DETERMINE # FRAMES IN VIDEO FIRST, WE CAN CHECK VALIDITY CONDITION HERE
+  #TODO: IF YOU CAN DETERMINE FRAMES IN VIDEO FIRST, WE CAN CHECK VALIDITY CONDITION HERE
 
   cap = cv2.VideoCapture(path)
   frames = []
@@ -52,7 +52,7 @@ def video_to_frames_strided(path, orig_id, patient_id, df_rows, stride=cfg['PARA
   # The id of the xth mini-clip from a main clip is the id of the main clip with _x appended to it
   counter = 1
   for set in frames:  # iterate through each 'set' of frames (which make up 1+ mini-clips)
-    num_mini_clips = int(len(set) / seq_length)  # rounded down
+    num_mini_clips = len(set) // seq_length  # rounded down
     for i in range(num_mini_clips):
       df_rows.append([orig_id + '_' + str(counter), patient_id])
       np.savez(write_path + '_' + str(counter), frames=set[i*seq_length:i*seq_length+seq_length])

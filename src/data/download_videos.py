@@ -5,8 +5,9 @@ import urllib.request
 import yaml
 from utils import refresh_folder
 
-# Load dictionary of constants stored in config.yml
+# Load dictionary of constants stored in config.yml & db credentials in database_config.yml
 cfg = yaml.full_load(open(os.path.join(os.getcwd(),"../../config.yml"), 'r'))['PREPROCESS']
+database_cfg = yaml.full_load(open(os.path.join(os.getcwd(),"../../database_config.yml"), 'r'))
 
 
 def download(df, sliding, video_out_root_folder=cfg['PATHS']['UNMASKED_VIDEOS'], csv_out_folder=cfg['PATHS']['CSVS_OUTPUT']):
@@ -18,6 +19,13 @@ def download(df, sliding, video_out_root_folder=cfg['PATHS']['UNMASKED_VIDEOS'],
     :param csv_out_folder: The folder path for outputting the .csv.
 
     '''
+    # Optionally sort, then shuffle the df (and therefore the saved csv) according to config
+    shuffle = cfg['PARAMS']['SHUFFLE']
+
+    if shuffle:
+        df = df.sort_values(['id'])
+        df = df.sample(frac=1, random_state=cfg['PARAMS']['RANDOM_SEED'])
+
     # Obtain the fraction of data we want from the database, according to config
     fraction = 0.0
     sliding_str = ''
@@ -54,10 +62,10 @@ def download(df, sliding, video_out_root_folder=cfg['PATHS']['UNMASKED_VIDEOS'],
         urllib.request.urlretrieve(row['s3_path'], video_out_folder + row['id'] + '.mp4')
 
 # Get database configs
-USERNAME = cfg['DATABASE']['USERNAME']
-PASSWORD = cfg['DATABASE']['PASSWORD']
-HOST = cfg['DATABASE']['HOST']
-DATABASE = cfg['DATABASE']['DATABASE']
+USERNAME = database_cfg['USERNAME']
+PASSWORD = database_cfg['PASSWORD']
+HOST = database_cfg['HOST']
+DATABASE = database_cfg['DATABASE']
 
 # Establish connection to database
 cnx = mysql.connector.connect(user=USERNAME, password=PASSWORD,
@@ -74,9 +82,9 @@ no_sliding_df = pd.read_sql('''SELECT * FROM clips WHERE (pleural_line_findings=
                                cnx)
 
 # If we're just asking the amount of videos available, the program will terminate after logging this information
-JUST_ASKING_AMOUNT = cfg['PARAMS']['JUST_ASKING_AMOUNT']
-if JUST_ASKING_AMOUNT:
-    print('JUST_ASKING_AMOUNT is set to True in the config file; set this to False if you wanted to download the videos.' )
+AMOUNT_ONLY = cfg['PARAMS']['AMOUNT_ONLY']
+if AMOUNT_ONLY:
+    print('AMOUNT_ONLY is set to True in the config file; set this to False if you wanted to download the videos.' )
     print('In total, there are ' + str(len(sliding_df)) + ' available videos with sliding,' + 
       ' and ' + str(len(no_sliding_df)) + ' without.')
     exit()

@@ -26,9 +26,11 @@ os.makedirs(masked_sliding_folder)
 masked_no_sliding_folder = os.path.join(masked_folder, 'no_sliding/')
 os.makedirs(masked_no_sliding_folder)
 
-# FIrst call the masking tool with the sliding parameters, then for no_sliding
-os.system('python auto_masking.py -i='+unmasked_sliding_folder + ' -o='+ masked_sliding_folder+ ' -f=mp4 -m=auto_masking_deeper.h5 -e=.95 -c=True')
-os.system('python auto_masking.py -i='+unmasked_no_sliding_folder + ' -o='+ masked_no_sliding_folder+ ' -f=mp4 -m=auto_masking_deeper.h5 -e=.95 -c=True')
+masking_tool_loc = cfg['PATHS']['MASKING_TOOL']
+
+# First call the masking tool with the sliding parameters, then for no_sliding
+os.system('python auto_masking.py -i='+unmasked_sliding_folder + ' -o='+ masked_sliding_folder+ ' -f=mp4 -m=' + masking_tool_loc + ' -e=.95 -c=True')
+os.system('python auto_masking.py -i='+unmasked_no_sliding_folder + ' -o='+ masked_no_sliding_folder+ ' -f=mp4 -m=' + masking_tool_loc + ' -e=.95 -c=True')
 
 # These folders generated from the masking tool are discarded as they cause complications in to_npz.py
 if os.path.exists(os.path.join(masked_sliding_folder, 'bad_clips/')):
