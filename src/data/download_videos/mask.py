@@ -26,7 +26,7 @@ os.makedirs(masked_sliding_folder)
 masked_no_sliding_folder = os.path.join(masked_folder, 'no_sliding/')
 os.makedirs(masked_no_sliding_folder)
 
-# FIrst call the masking tool with the sliding parameters, then for no_sliding
+# First call the masking tool with the sliding parameters, then for no_sliding
 os.system('python auto_masking.py -i='+unmasked_sliding_folder + ' -o='+ masked_sliding_folder+ ' -f=mp4 -m=auto_masking_deeper.h5 -e=.95 -c=True')
 os.system('python auto_masking.py -i='+unmasked_no_sliding_folder + ' -o='+ masked_no_sliding_folder+ ' -f=mp4 -m=auto_masking_deeper.h5 -e=.95 -c=True')
 
