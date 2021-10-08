@@ -7,7 +7,7 @@ PREPROCESS:
     USERNAME: 
     PASSWORD: 
     HOST: 
-    DATABASE:
+    DATABASE: 'data'
 
   PARAMS:
     JUST_ASKING_AMOUNT: False  # If set to True, the tool exits after querying the database and returning counts
