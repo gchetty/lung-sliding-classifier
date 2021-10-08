@@ -4,7 +4,7 @@ from utils import refresh_folder
 from shutil import rmtree
 
 # Load dictionary of constants stored in config.yml
-cfg = yaml.full_load(open(os.path.join(os.getcwd(),"config.yml"), 'r'))
+cfg = yaml.full_load(open(os.path.join(os.getcwd(),"../../config.yml"), 'r'))['PREPROCESS']
 
 # Obtain input folder paths where the downloaded videos are stored
 unmasked_folder = cfg['PATHS']['UNMASKED_VIDEOS']
@@ -26,7 +26,7 @@ os.makedirs(masked_sliding_folder)
 masked_no_sliding_folder = os.path.join(masked_folder, 'no_sliding/')
 os.makedirs(masked_no_sliding_folder)
 
-# First call the masking tool with the sliding parameters, then for no_sliding
+# FIrst call the masking tool with the sliding parameters, then for no_sliding
 os.system('python auto_masking.py -i='+unmasked_sliding_folder + ' -o='+ masked_sliding_folder+ ' -f=mp4 -m=auto_masking_deeper.h5 -e=.95 -c=True')
 os.system('python auto_masking.py -i='+unmasked_no_sliding_folder + ' -o='+ masked_no_sliding_folder+ ' -f=mp4 -m=auto_masking_deeper.h5 -e=.95 -c=True')
 

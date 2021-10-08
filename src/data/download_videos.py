@@ -6,7 +6,7 @@ import yaml
 from utils import refresh_folder
 
 # Load dictionary of constants stored in config.yml
-cfg = yaml.full_load(open(os.path.join(os.getcwd(),"config.yml"), 'r'))
+cfg = yaml.full_load(open(os.path.join(os.getcwd(),"../../config.yml"), 'r'))['PREPROCESS']
 
 
 def download(df, sliding, video_out_root_folder=cfg['PATHS']['UNMASKED_VIDEOS'], csv_out_folder=cfg['PATHS']['CSVS_OUTPUT']):
@@ -18,12 +18,6 @@ def download(df, sliding, video_out_root_folder=cfg['PATHS']['UNMASKED_VIDEOS'],
     :param csv_out_folder: The folder path for outputting the .csv.
 
     '''
-    # Optionally shuffle the df (and therefore the saved csv) according to config
-    shuffle = cfg['PARAMS']['SHUFFLE']
-
-    if shuffle:
-        df = df.sample(frac=1, random_state=cfg['PARAMS']['RANDOM_SEED'])
-    
     # Obtain the fraction of data we want from the database, according to config
     fraction = 0.0
     sliding_str = ''

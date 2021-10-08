@@ -5,7 +5,7 @@ import os
 from utils import refresh_folder
 import yaml
 
-cfg = yaml.full_load(open(os.path.join(os.getcwd(),"config.yml"), 'r'))
+cfg = yaml.full_load(open(os.path.join(os.getcwd(),"../../config.yml"), 'r'))['PREPROCESS']
 
 
 def video_to_frames_strided(path, orig_id, patient_id, df_rows, stride=cfg['PARAMS']['STRIDE'], seq_length=cfg['PARAMS']['WINDOW'], resize=cfg['PARAMS']['IMG_SIZE'], write_path=''):
