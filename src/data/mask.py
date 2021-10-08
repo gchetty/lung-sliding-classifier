@@ -31,5 +31,8 @@ os.system('python auto_masking.py -i='+unmasked_sliding_folder + ' -o='+ masked_
 os.system('python auto_masking.py -i='+unmasked_no_sliding_folder + ' -o='+ masked_no_sliding_folder+ ' -f=mp4 -m=auto_masking_deeper.h5 -e=.95 -c=True')
 
 # These folders generated from the masking tool are discarded as they cause complications in to_npz.py
-rmtree(os.path.join(masked_sliding_folder, 'bad_clips/'))
-rmtree(os.path.join(masked_no_sliding_folder, 'bad_clips/'))
+if os.path.exists(os.path.join(masked_sliding_folder, 'bad_clips/')):
+    rmtree(os.path.join(masked_sliding_folder, 'bad_clips/'))
+
+if os.path.exists(os.path.join(masked_no_sliding_folder, 'bad_clips/')):
+    rmtree(os.path.join(masked_no_sliding_folder, 'bad_clips/'))
