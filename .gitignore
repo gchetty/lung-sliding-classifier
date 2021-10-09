@@ -1,5 +1,8 @@
 # LOCAL ARTIFACTS ********************************************************************
 data/
+proto/
+*.h5
+database_config.yml
 !data/partitions/.gitkeep
 !data/serializations/.gitkeep
 results/

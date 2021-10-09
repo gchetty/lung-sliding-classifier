@@ -1,9 +1,0 @@
-This tool (so far) allows a configurable download of the clips (videos in .mp4 format) for the lung sliding classifier.
-
-Steps (Python 3.8.x tested):
-
-1. Clone the whole repo, or minimally just the download_videos folder.
-2. Create and activate a Python virtual environment, and pip install -r requirements.txt.
-3. Ensure your current working directory is the download_videos folder.
-4. Specify your database configs and other parameters in the config.yml file.
-5. Run "Python download_videos.py"
