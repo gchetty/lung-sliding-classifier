@@ -20,3 +20,12 @@ PREPROCESS:
     CSVS_OUTPUT: 'csvs/'
     NPZ: 'npzs'
     MASKING_TOOL: 'auto_masking_deeper.h5'
+
+TRAIN:
+  SPLITS:
+    TRAIN: 0.8
+    VAL: 0.1
+    TEST: 0.1
+
+  PATHS:
+    CSVS: ''
