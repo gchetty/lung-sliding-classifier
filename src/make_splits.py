@@ -2,6 +2,7 @@ import os
 import sys
 import pandas as pd
 import yaml
+from sklearn.model_selection import train_test_split
 
 cfg = yaml.full_load(open(os.path.join(os.getcwd(), '../config.yml'), 'r'))
 
@@ -24,7 +25,7 @@ def find_patient_division(df, index):
 
 # e.g. train = 0.8, val = 0.1, test = 0.1
 # column is just added for labels, same df as input
-def df_splits(df, train, val, test):
+def df_splits_2(df, train, val, test):
     if not (train + val + test == 1.0):
         return
 
@@ -38,6 +39,28 @@ def df_splits(df, train, val, test):
     split_labels = [0] * mark1 + [1] * (mark2 - mark1) + [2] * (len(df) - mark2)
     df['split'] = split_labels
     return True
+
+
+def df_splits(df, train, val, test, random_state=cfg['TRAIN']['PATHS']['RANDOM_SEED']):
+    patient_ids = pd.unique(df['patient_id'])
+    splits = train_test_split(patient_ids, train_size=train, random_state=random_state)
+    val_test_splits = train_test_split(splits[1], train_size=(val/(val+test)), shuffle=False)
+    splits[1] = val_test_splits[0]
+    splits.append(val_test_splits[1])
+
+    # Add split labels to dataframe
+    split_labels = []
+    for index, row in df.iterrows():
+        curr_id = row['patient_id']
+        if curr_id in splits[1]:
+            split_labels.append(1)
+        elif curr_id in splits[2]:
+            split_labels.append(2)
+        else:
+            split_labels.append(0)
+
+    df['split'] = split_labels
+    return
 
 
 # Import split params and check validity
