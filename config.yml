@@ -28,4 +28,4 @@ TRAIN:
     TEST: 0.1
 
   PATHS:
-    CSVS: ''
+    CSVS: 'csvs_split/'

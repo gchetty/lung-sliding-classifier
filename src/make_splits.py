@@ -66,6 +66,8 @@ df_splits(no_sliding_df, train_prop, val_prop, test_prop)
 
 # Write dataframes to csv
 csv_dir = cfg['TRAIN']['PATHS']['CSVS']
+if not os.path.exists(csv_dir):
+    os.makedirs(csv_dir)
 
 sliding_out_path = os.path.join(csv_dir, 'sliding_splits.csv')
 sliding_df.to_csv(sliding_out_path, index=False)
