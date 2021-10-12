@@ -60,6 +60,12 @@ sliding_df = sliding_df.sort_values(by=['patient_id'])
 no_sliding_df = pd.read_csv(no_sliding_path)
 no_sliding_df = no_sliding_df.sort_values(by=['patient_id'])
 
+# Can we simply shuffle the dataframes here?
+# This seems to error, making it look like df_splits requires the results to be sorted.
+# If this is true, then we will always have deterministic splits... 
+#sliding_df = sliding_df.sample(1, random_state=cfg['TRAIN']['PATHS']['RANDOM_SEED'])
+#no_sliding_df = no_sliding_df.sample(1, random_state=cfg['TRAIN']['PATHS']['RANDOM_SEED'])
+
 # Determine splits, add to previously declared dataframes
 df_splits(sliding_df, train_prop, val_prop, test_prop)
 df_splits(no_sliding_df, train_prop, val_prop, test_prop)
