@@ -6,7 +6,6 @@ from sklearn.model_selection import train_test_split
 
 cfg = yaml.full_load(open(os.path.join(os.getcwd(), '../config.yml'), 'r'))
 
-
 # helper for below
 # from a given row index, finds nearest place where subsequent entries have different patient ids
 def find_patient_division(df, index):
@@ -21,24 +20,6 @@ def find_patient_division(df, index):
             return index + counter + 1
 
         counter += 1
-
-
-# e.g. train = 0.8, val = 0.1, test = 0.1
-# column is just added for labels, same df as input
-def df_splits_2(df, train, val, test):
-    if not (train + val + test == 1.0):
-        return
-
-    mark1 = int(len(df) * train)
-    mark1 = find_patient_division(df, mark1 - 1)  # -1 because 0-indexed
-
-    mark2 = int(len(df) * val + mark1)
-    mark2 = find_patient_division(df, mark2 - 1)
-
-    # add column & return df (0, 1, 2 --> train, val, test)
-    split_labels = [0] * mark1 + [1] * (mark2 - mark1) + [2] * (len(df) - mark2)
-    df['split'] = split_labels
-    return True
 
 
 def df_splits(df, train, val, test, random_state=cfg['TRAIN']['PATHS']['RANDOM_SEED']):
@@ -68,7 +49,8 @@ train_prop = cfg['TRAIN']['SPLITS']['TRAIN']
 val_prop = cfg['TRAIN']['SPLITS']['VAL']
 test_prop = cfg['TRAIN']['SPLITS']['TEST']
 
-if (train_prop + val_prop + test_prop) > 1.0:
+s = sum([train_prop, val_prop, test_prop])
+if (s > 1.0) or (train_prop < 0) or (val_prop < 0) or (test_prop < 0):
     print('Invalid splits given in config file')
     sys.exit()
 
@@ -83,23 +65,17 @@ sliding_df = sliding_df.sort_values(by=['patient_id'])
 no_sliding_df = pd.read_csv(no_sliding_path)
 no_sliding_df = no_sliding_df.sort_values(by=['patient_id'])
 
-# Can we simply shuffle the dataframes here?
-# This seems to error, making it look like df_splits requires the results to be sorted.
-# If this is true, then we will always have deterministic splits... 
-#sliding_df = sliding_df.sample(1, random_state=cfg['TRAIN']['PATHS']['RANDOM_SEED'])
-#no_sliding_df = no_sliding_df.sample(1, random_state=cfg['TRAIN']['PATHS']['RANDOM_SEED'])
-
 # Determine splits, add to previously declared dataframes
 df_splits(sliding_df, train_prop, val_prop, test_prop)
 df_splits(no_sliding_df, train_prop, val_prop, test_prop)
 
-# Write dataframes to csv
+# Vertically concatenate dataframes
+final_df = pd.concat([sliding_df, no_sliding_df])
+
+# Write to csv
 csv_dir = cfg['TRAIN']['PATHS']['CSVS']
 if not os.path.exists(csv_dir):
     os.makedirs(csv_dir)
 
-sliding_out_path = os.path.join(csv_dir, 'sliding_splits.csv')
-sliding_df.to_csv(sliding_out_path, index=False)
-
-no_sliding_out_path = os.path.join(csv_dir, 'no_sliding_splits.csv')
-no_sliding_df.to_csv(no_sliding_out_path, index=False)
+splits_path = os.path.join(csv_dir, 'splits.csv')
+final_df.to_csv(splits_path, index=False)
