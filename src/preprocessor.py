@@ -10,6 +10,42 @@ import tensorflow_addons as tfa
 
 cfg = yaml.full_load(open(os.getcwd() + '/config.yml', 'r'))
 
+
+def random_flip_left_right_clip(x):
+    # print(x.shape)
+    r = random_ops.random_uniform_int([1], 0, 2)
+    if tf.math.equal(tf.constant([1]), r):
+        x = tf.image.flip_left_right(x)
+    return x
+
+
+def random_flip_up_down_clip(x):
+    r = random_ops.random_uniform_int([1], 0, 2)
+    if tf.math.equal(tf.constant([1]), r):
+        x = tf.image.flip_up_down(x)
+    return x
+
+
+def random_rotate_clip(x):
+    angle = random_ops.random_uniform([], -1.57, 1.57)
+    x = tfa.image.rotate(x, angle)
+    return x
+
+
+def random_shift_clip(x):
+    r = random_ops.random_uniform_int([1], 0, 2)
+    dx = 0.0
+    dy = 0.0
+    if tf.math.equal(tf.constant([1]), r):
+        h, w = x.shape[1], x.shape[2]  # (clip_length, h, w, channels)
+        dx = random_ops.random_uniform([], -0.25, 0.25) * h
+        dy = random_ops.random_uniform([], -0.0,
+                                       0.2) * w  # No upwards shift since many areas of interest are near the top
+    translations = [[dx, dy]] * x.shape[0]
+    x = tfa.image.translate(x, translations)
+    return x
+
+
 class Preprocessor:
 
     def __init__(self, preprocess_fn):
@@ -44,22 +80,6 @@ class Preprocessor:
         x = tf.map_fn(lambda x1: random_flip_left_right_clip(x1), x)
         x = tf.map_fn(lambda x1: random_flip_up_down_clip(x1), x)
         x = tf.map_fn(lambda x1: random_rotate_clip(x1), x)
+        x = tf.map_fn(lambda x1: random_shift_clip(x1), x)
         return x
 
-    def random_flip_left_right_clip(x):
-        # print(x.shape)
-        r = random_ops.random_uniform_int([1], 0, 2)
-        if tf.math.equal(tf.constant([1]), r):
-            x = tf.image.flip_left_right(x)
-        return x
-
-    def random_flip_up_down_clip(x):
-        r = random_ops.random_uniform_int([1], 0, 2)
-        if tf.math.equal(tf.constant([1]), r):
-            x = tf.image.flip_up_down(x)
-        return x
-
-    def random_rotate_clip(x):
-        angle = random_ops.random_uniform([], -1.57, 1.57)
-        x = tfa.image.rotate(x, angle)
-        return x
