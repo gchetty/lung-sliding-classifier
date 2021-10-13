@@ -27,6 +27,9 @@ TRAIN:
     VAL: 0.1
     TEST: 0.1
 
+  PARAMS:
+    BATCH_SIZE: 8
+
   PATHS:
     CSVS: 'csvs_split/'
     RANDOM_SEED: 1
