@@ -46,6 +46,17 @@ def random_shift_clip(x):
     return x
 
 
+def random_shear_clip(x):
+  r = random_ops.random_uniform_int([1], 0, 2)
+  level = 0.0
+  if tf.math.equal(tf.constant([1]), r):
+    level = random_ops.random_uniform([], 0.0, 0.25)  # may need adjustment
+  replace = tf.constant([0.0, 0.0, 0.0])
+  x = tf.map_fn(lambda x1: tfa.image.shear_x(x1, level, replace), x)
+  x = tf.map_fn(lambda x1: tfa.image.shear_y(x1, level, replace), x)
+  return x
+
+
 class Preprocessor:
 
     def __init__(self, preprocess_fn):
@@ -81,5 +92,6 @@ class Preprocessor:
         x = tf.map_fn(lambda x1: random_flip_up_down_clip(x1), x)
         x = tf.map_fn(lambda x1: random_rotate_clip(x1), x)
         x = tf.map_fn(lambda x1: random_shift_clip(x1), x)
+        x = tf.map_fn(lambda x1: random_shear_clip(x1), x)
         return x
 
