@@ -6,11 +6,12 @@ import yaml
 import os
 import pandas as pd
 import tensorflow as tf
+from preprocessor import Preprocessor
 
 cfg = yaml.full_load(open(os.path.join(os.getcwd(), '../config.yml'), 'r'))['TRAIN']
 
 
-def train_model(model_def, preprocessing_fn, hparams, save_weights=False, log_dir=None, verbose=True):
+def train_model(model_def, hparams, preprocessing_fn=lambda x: x/255.0, save_weights=False, log_dir=None, verbose=True):
     # Read in train, val, test dataframes
     CSVS_FOLDER = cfg['PATHS']['CSVS']
     train_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'train.csv'))
@@ -22,6 +23,10 @@ def train_model(model_def, preprocessing_fn, hparams, save_weights=False, log_di
     val_set = tf.data.Dataset.from_tensor_slices((val_df['filename'].tolist(), val_df['label']))
     test_set = tf.data.Dataset.from_tensor_slices((test_df['filename'].tolist(), test_df['label']))
 
-    print('no errors!')
+    preprocessor = Preprocessor(preprocessing_fn)
 
-train_model(None, None, None)
+    train_set = preprocessor.prepare(train_set, shuffle=True, augment=True)
+    val_set = preprocessor.prepare(val_set, shuffle=False, augment=False)
+    test_set = preprocessor.prepare(test_set, shuffle=False, augment=False)
+
+train_model(None, None)

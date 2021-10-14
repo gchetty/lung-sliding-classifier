@@ -8,7 +8,7 @@ import tensorflow_datasets as tfds
 from tensorflow.python.ops import random_ops
 import tensorflow_addons as tfa
 
-cfg = yaml.full_load(open(os.getcwd() + '/config.yml', 'r'))
+cfg = yaml.full_load(open(os.getcwd() + '/../config.yml', 'r'))
 
 
 def random_flip_left_right_clip(x):
