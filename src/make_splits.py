@@ -6,21 +6,6 @@ from sklearn.model_selection import train_test_split
 
 cfg = yaml.full_load(open(os.path.join(os.getcwd(), '../config.yml'), 'r'))
 
-# helper for below
-# from a given row index, finds nearest place where subsequent entries have different patient ids
-def find_patient_division(df, index):
-    counter = 0
-
-    while True:
-
-        if not (df.iloc[index - counter]['patient_id'] == df.iloc[index - counter + 1]['patient_id']):
-            return index - counter + 1
-
-        if not (df.iloc[index + counter]['patient_id'] == df.iloc[index + counter + 1]['patient_id']):
-            return index + counter + 1
-
-        counter += 1
-
 
 def df_splits(df, train, val, test, random_state=cfg['TRAIN']['PATHS']['RANDOM_SEED']):
     patient_ids = pd.unique(df['patient_id'])
