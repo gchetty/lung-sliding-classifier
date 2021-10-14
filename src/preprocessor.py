@@ -57,6 +57,26 @@ def random_shear_clip(x):
   return x
 
 
+def augment_clip(x):
+    x = tf.cast(x, tf.float32)  # idk if needed
+    x = tf.divide(x, tf.constant(255.0))  # Normalize
+    x = tf.map_fn(lambda x1: tf.image.random_brightness(x1, max_delta=0.2), x)  # delta might need tuning
+    x = tf.map_fn(lambda x1: tf.image.random_hue(x1, max_delta=0.5), x)  # delta might need tuning
+    x = tf.map_fn(lambda x1: tf.image.random_contrast(x1, 0.5, 0.9), x)
+    x = tf.map_fn(lambda x1: random_flip_left_right_clip(x1), x)
+    x = tf.map_fn(lambda x1: random_flip_up_down_clip(x1), x)
+    x = tf.map_fn(lambda x1: random_rotate_clip(x1), x)
+    #x = tf.map_fn(lambda x1: random_shift_clip(x1), x)    # DOES NOT WORK RIGHT NOW
+    x = tf.map_fn(lambda x1: random_shear_clip(x1), x)
+    return x
+
+
+def parse_fn(filename, label):
+    clip = np.load(filename, allow_pickle=True)['frames']
+    clip = tf.cast(clip, tf.float32)
+    return clip, tf.one_hot(label, 2)  # hardcoded as binary, can change
+
+
 class Preprocessor:
 
     def __init__(self, preprocess_fn):
@@ -66,7 +86,7 @@ class Preprocessor:
 
     def prepare(self, ds, shuffle=False, augment=False):
 
-        ds = ds.map(self._parse_fn, num_parallel_calls=self.autotune)
+        ds = ds.map(lambda x, y: tf.py_function(parse_fn, [x, y], (tf.float32, tf.float32)), num_parallel_calls=self.autotune)
 
         if shuffle:
             ds = ds.shuffle(1000)  # val should be dataset size - NEEDS ADJUSTMENT?
@@ -74,24 +94,15 @@ class Preprocessor:
         ds = ds.batch(self.batch_size)
 
         if augment:
-            ds = ds.map(lambda x, y: (augment(x), y), num_parallel_calls=self.autotune)
+            ds = ds.map(lambda x, y: (augment_clip(x), y), num_parallel_calls=self.autotune)
+
+        print('prepared')
 
         return ds.prefetch(buffer_size=self.autotune)
 
-    def _parse_fn(self, filename, label):
-        clip = np.load(filename, allow_pickle=True)['frames']
-        return clip, tf.one_hot(label, 2)  # hardcoded as binary, can change
 
-    def augment(x):
-        x = tf.cast(x, tf.float32)  # idk if needed
-        x = tf.divide(x, tf.constant(255.0))  # Normalize
-        x = tf.map_fn(lambda x1: tf.image.random_brightness(x1, max_delta=0.2), x)  # delta might need tuning
-        x = tf.map_fn(lambda x1: tf.image.random_hue(x1, max_delta=0.5), x)  # delta might need tuning
-        x = tf.map_fn(lambda x1: tf.image.random_contrast(x1, 0.5, 0.9), x)
-        x = tf.map_fn(lambda x1: random_flip_left_right_clip(x1), x)
-        x = tf.map_fn(lambda x1: random_flip_up_down_clip(x1), x)
-        x = tf.map_fn(lambda x1: random_rotate_clip(x1), x)
-        x = tf.map_fn(lambda x1: random_shift_clip(x1), x)
-        x = tf.map_fn(lambda x1: random_shear_clip(x1), x)
-        return x
+
+
+
+
 
