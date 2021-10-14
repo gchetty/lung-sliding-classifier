@@ -91,10 +91,21 @@ no_sliding_df['filename'] = paths0
 # Vertically concatenate dataframes
 final_df = pd.concat([sliding_df, no_sliding_df])
 
-# Write to csv
+# Split into train_df, val_df, test_df
+train_df = final_df[final_df['split']==0]
+val_df = final_df[final_df['split']==1]
+test_df = final_df[final_df['split']==2]
+
+# Write each to csv
 csv_dir = cfg['TRAIN']['PATHS']['CSVS']
 if not os.path.exists(csv_dir):
     os.makedirs(csv_dir)
 
-splits_path = os.path.join(csv_dir, 'splits.csv')
-final_df.to_csv(splits_path, index=False)
+train_df_path = os.path.join(csv_dir, 'train.csv')
+train_df.to_csv(train_df_path, index=False)
+
+val_df_path = os.path.join(csv_dir, 'val.csv')
+val_df.to_csv(val_df_path, index=False)
+
+test_df_path = os.path.join(csv_dir, 'test.csv')
+test_df.to_csv(test_df_path, index=False)
