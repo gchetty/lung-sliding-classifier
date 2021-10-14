@@ -11,7 +11,7 @@ from preprocessor import Preprocessor
 cfg = yaml.full_load(open(os.path.join(os.getcwd(), '../config.yml'), 'r'))['TRAIN']
 
 
-def train_model(model_def, hparams, preprocessing_fn=lambda x: x/255.0, save_weights=False, log_dir=None, verbose=True):
+def train_model(model_def, hparams, preprocessing_fn=(lambda x: x), save_weights=False, log_dir=None, verbose=True):
     # Read in train, val, test dataframes
     CSVS_FOLDER = cfg['PATHS']['CSVS']
     train_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'train.csv'))
