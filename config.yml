@@ -4,12 +4,12 @@
 
 PREPROCESS:
   PARAMS:
-    AMOUNT_ONLY: True  # If set to True, the tool exits after querying the database and returning counts
+    AMOUNT_ONLY: False  # If set to True, the tool exits after querying the database and returning counts
     SHUFFLE: True # If you want to randomize the videos downloaded
     RANDOM_SEED: 1 # If SHUFFLE=False, this does nothing. Otherwise, this is the seed for shuffling
     SLIDING_PROPORTION: 0.0042
     NO_SLIDING_PROPORTION: 0.117
-    METHOD: 'Stride'  # 'Stride' or 'Contiguous'
+    METHOD: 'Contiguous'  # 'Stride' or 'Contiguous'
     WINDOW: 25 # Mini-clip length
     STRIDE: 3  # 1 = contiguous (METHOD='Contiguous' param overrides this)
     IMG_SIZE: [128, 128]
@@ -18,7 +18,7 @@ PREPROCESS:
     UNMASKED_VIDEOS: 'raw_videos/'
     MASKED_VIDEOS: 'masked_videos/'
     CSVS_OUTPUT: 'csvs/'
-    NPZ: 'npzs'
+    NPZ: 'npzs\'
     MASKING_TOOL: 'auto_masking_deeper.h5'
 
 TRAIN:
@@ -28,7 +28,7 @@ TRAIN:
     TEST: 0.1
 
   PARAMS:
-    BATCH_SIZE: 8
+    BATCH_SIZE: 4
 
   PATHS:
     CSVS: 'csvs_split/'

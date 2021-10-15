@@ -76,6 +76,13 @@ def parse_fn(filename, label):
     clip = tf.cast(clip, tf.float32)
     return clip, tf.one_hot(label, 2)  # hardcoded as binary, can change
 
+def parse_tf(filename, label):
+    shape = (25, 128, 128, 3)
+    clip, label = tf.numpy_function(parse_fn, [filename, label], (tf.float32, tf.float32))
+    tf.ensure_shape(clip, shape)
+    label.set_shape((2,))
+    tf.ensure_shape(label, (2,))
+    return clip, label
 
 class Preprocessor:
 
@@ -86,7 +93,7 @@ class Preprocessor:
 
     def prepare(self, ds, shuffle=False, augment=False):
 
-        ds = ds.map(lambda x, y: tf.py_function(parse_fn, [x, y], (tf.float32, tf.float32)), num_parallel_calls=self.autotune)
+        ds = ds.map(parse_tf, num_parallel_calls=self.autotune)
 
         if shuffle:
             ds = ds.shuffle(1000)  # val should be dataset size - NEEDS ADJUSTMENT?
