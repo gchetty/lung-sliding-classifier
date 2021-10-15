@@ -15,6 +15,7 @@ from tensorflow.keras.models import Sequential, load_model
 from tensorflow.keras.optimizers import Adam, RMSprop
 from tensorflow.keras.layers import TimeDistributed
 from tensorflow.keras.layers import Conv2D, MaxPooling3D, Conv3D, MaxPooling2D, BatchNormalization, Activation
+from tensorflow.keras.callbacks import ModelCheckpoint
 
 
 cfg = yaml.full_load(open(os.path.join(os.getcwd(), '../config.yml'), 'r'))['TRAIN']
@@ -53,8 +54,9 @@ def train_model(model_def, hparams, preprocessing_fn=(lambda x: x), save_weights
     model = lrcn()
     model.summary()
 
-    model.compile(loss='categorical_crossentropy', optimizer=Adam(learning_rate=0.0001), metrics=['accuracy'])
-    model.fit(train_set, epochs=15, validation_data=val_set, class_weight=class_weight)
+    save_cp = ModelCheckpoint('models/model1', save_best_only=True)
+    model.compile(loss='categorical_crossentropy', optimizer=Adam(learning_rate=0.0000001), metrics=['accuracy'])
+    model.fit(train_set, epochs=15, validation_data=val_set, class_weight=class_weight, callbacks=[save_cp])
 
 def lrcn():
     """Build a CNN into RNN.
