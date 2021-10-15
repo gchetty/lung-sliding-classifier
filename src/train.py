@@ -38,14 +38,23 @@ def train_model(model_def, hparams, preprocessing_fn=(lambda x: x), save_weights
     val_set = preprocessor.prepare(val_set, shuffle=False, augment=False)
     test_set = preprocessor.prepare(test_set, shuffle=False, augment=False)
 
-    print(train_set.element_spec)
-    print('printed it')
+    num_no_sliding = len(train_df[train_df['label']==0])
+    num_sliding = len(train_df[train_df['label']==1])
+    total = num_no_sliding + num_sliding
+
+    # Taken from https://www.tensorflow.org/tutorials/structured_data/imbalanced_data
+    # Scaling by total/2 helps keep the loss to a similar magnitude.
+    # The sum of the weights of all examples stays the same.
+    weight_for_0 = (1 / num_no_sliding) * (total / 2.0)
+    weight_for_1 = (1 / num_sliding) * (total / 2.0)
+    class_weight = {0: weight_for_0, 1: weight_for_1}
+    print(class_weight)
+
     model = lrcn()
     model.summary()
 
     model.compile(loss='categorical_crossentropy', optimizer=Adam(learning_rate=0.0001), metrics=['accuracy'])
-    model.fit(train_set, epochs=15, 
-              validation_data=val_set)
+    model.fit(train_set, epochs=15, validation_data=val_set, class_weight=class_weight)
 
 def lrcn():
     """Build a CNN into RNN.
