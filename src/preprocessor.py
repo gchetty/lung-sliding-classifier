@@ -16,8 +16,8 @@ def random_flip_left_right_clip(x):
     :param x: Tensor of shape (Clip_length, Height, Width, 3)
     returns: A Tensor of shape (Clip_length, Height, Width, 3)
     '''
-    r = random_ops.random_uniform_int([1], 0, 2)
-    if tf.math.equal(tf.constant([1]), r):
+    r = random_ops.random_uniform([], 0, 1)
+    if r < cfg['TRAIN']['PARAMS']['AUGMENTATION_CHANCE']:
         x = tf.image.flip_left_right(x)
     return x
 
@@ -28,8 +28,8 @@ def random_flip_up_down_clip(x):
     :param x: Tensor of shape (Clip_length, Height, Width, 3)
     returns: A Tensor of shape (Clip_length, Height, Width, 3)
     '''
-    r = random_ops.random_uniform_int([1], 0, 2)
-    if tf.math.equal(tf.constant([1]), r):
+    r = random_ops.random_uniform([], 0, 1)
+    if r < cfg['TRAIN']['PARAMS']['AUGMENTATION_CHANCE']:
         x = tf.image.flip_up_down(x)
     return x
 
@@ -40,11 +40,10 @@ def random_rotate_clip(x):
     :param x: Tensor of shape (Clip_length, Height, Width, 3)
     returns: A Tensor of shape (Clip_length, Height, Width, 3)
     '''
-    angle = 0.0
-    r = random_ops.random_uniform_int([1], 0, 2)
-    if tf.math.equal(tf.constant([1]), r):
+    r = random_ops.random_uniform([], 0, 1)
+    if r < cfg['TRAIN']['PARAMS']['AUGMENTATION_CHANCE']:
         angle = random_ops.random_uniform([], -1.57, 1.57)
-    x = tfa.image.rotate(x, angle)
+        x = tfa.image.rotate(x, angle)
     return x
 
 
@@ -54,16 +53,14 @@ def random_shift_clip(x):
     :param x: Tensor of shape (Clip_length, Height, Width, 3)
     returns: A Tensor of shape (Clip_length, Height, Width, 3)
     '''
-    r = random_ops.random_uniform_int([1], 0, 2)
-    dx = 0.0
-    dy = 0.0
-    if tf.math.equal(tf.constant([1]), r):
+    r = random_ops.random_uniform([], 0, 1)
+    if r < cfg['TRAIN']['PARAMS']['AUGMENTATION_CHANCE']:
         h, w = cfg['PREPROCESS']['PARAMS']['IMG_SIZE'][0], cfg['PREPROCESS']['PARAMS']['IMG_SIZE'][1]  # (clip_length, h, w, channels)
         dx = random_ops.random_uniform([], -0.25, 0.25) * h
         dy = random_ops.random_uniform([], -0.0,
                                        0.2) * w  # No upwards shift since many areas of interest are near the top
-    translations = [[dx, dy]] * cfg['PREPROCESS']['PARAMS']['WINDOW']
-    x = tfa.image.translate(x, translations)
+        translations = [[dx, dy]] * cfg['PREPROCESS']['PARAMS']['WINDOW']
+        x = tfa.image.translate(x, translations)
     return x
 
 
@@ -73,13 +70,12 @@ def random_shear_clip(x):
     :param x: Tensor of shape (Clip_length, Height, Width, 3)
     returns: A Tensor of shape (Clip_length, Height, Width, 3)
     '''
-    r = random_ops.random_uniform_int([1], 0, 2)
-    level = 0.0
-    if tf.math.equal(tf.constant([1]), r):
+    r = random_ops.random_uniform([], 0, 1)
+    if r < cfg['TRAIN']['PARAMS']['AUGMENTATION_CHANCE']:
         level = random_ops.random_uniform([], 0.0, 0.25)  # may need adjustment
-    replace = tf.constant([0.0, 0.0, 0.0])
-    x = tf.map_fn(lambda x1: tfa.image.shear_x(x1, level, replace), x)
-    x = tf.map_fn(lambda x1: tfa.image.shear_y(x1, level, replace), x)
+        replace = tf.constant([0.0, 0.0, 0.0])
+        x = tf.map_fn(lambda x1: tfa.image.shear_x(x1, level, replace), x)
+        x = tf.map_fn(lambda x1: tfa.image.shear_y(x1, level, replace), x)
     return x
 
 
@@ -89,16 +85,15 @@ def random_zoom_clip(x):
     :param x: Tensor of shape (Clip_length, Height, Width, 3)
     :return: A Tensor of shape (Clip_length, Height, Width, 3)
     '''
-    r = random_ops.random_uniform_int([1], 0, 2)
-    prop = 1.0
-    if tf.math.equal(tf.constant([1]), r):
+    r = random_ops.random_uniform([], 0, 1)
+    if r < cfg['TRAIN']['PARAMS']['AUGMENTATION_CHANCE']:
         prop = random_ops.random_uniform([], 1.0, 1.5)  # tunable
-    h_orig = cfg['PREPROCESS']['PARAMS']['IMG_SIZE'][0]
-    w_orig = cfg['PREPROCESS']['PARAMS']['IMG_SIZE'][1]
-    h_changed = int(prop * h_orig)
-    w_changed = int(prop * w_orig)
-    x = tf.image.pad_to_bounding_box(x, int((h_changed-h_orig)/2), int((w_changed-w_orig)/2), h_changed, w_changed)
-    x = tf.image.resize(x, (h_orig, w_orig))
+        h_orig = cfg['PREPROCESS']['PARAMS']['IMG_SIZE'][0]
+        w_orig = cfg['PREPROCESS']['PARAMS']['IMG_SIZE'][1]
+        h_changed = int(prop * h_orig)
+        w_changed = int(prop * w_orig)
+        x = tf.map_fn(lambda x1: tf.image.pad_to_bounding_box(x1, int((h_changed-h_orig)/2), int((w_changed-w_orig)/2), h_changed, w_changed), x)
+        x = tf.map_fn(lambda x1: tf.image.resize(x1, (h_orig, w_orig)), x)
     return x
 
 
