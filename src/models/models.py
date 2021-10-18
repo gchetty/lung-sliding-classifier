@@ -14,18 +14,19 @@ from tensorflow.keras.optimizers import Adam
 
 cfg = yaml.full_load(open(os.path.join(os.getcwd(), '../config.yml'), 'r'))
 
+
 def get_model(model_name):
     '''
     Gets the function that returns the desired model function and its associated preprocessing function
-    :param model_name: A string in {'test1', ...} specifying the model 
-
-    returns: A Tuple (Function, Function)
+    :param model_name: A string in {'test1', ...} specifying the model
+    returns: A Tuple (Function returning compiled model, Required preprocessing function)
     '''
     if model_name == 'test1':
         model_def_fn = test1
         preprocessing_fn = (lambda x: x / 255.0)
 
     return model_def_fn, preprocessing_fn
+
 
 def test1(model_config, input_shape, metrics, n_classes):
     """Build a CNN into RNN.
