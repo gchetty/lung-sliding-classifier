@@ -37,11 +37,11 @@ def random_shift_clip(x):
     dx = 0.0
     dy = 0.0
     if tf.math.equal(tf.constant([1]), r):
-        h, w = x.shape[1], x.shape[2]  # (clip_length, h, w, channels)
+        h, w = cfg['PREPROCESS']['PARAMS']['IMG_SIZE'][0], cfg['PREPROCESS']['PARAMS']['IMG_SIZE'][1]  # (clip_length, h, w, channels)
         dx = random_ops.random_uniform([], -0.25, 0.25) * h
         dy = random_ops.random_uniform([], -0.0,
                                        0.2) * w  # No upwards shift since many areas of interest are near the top
-    translations = [[dx, dy]] * x.shape[0]
+    translations = [[dx, dy]] * cfg['PREPROCESS']['PARAMS']['WINDOW']
     x = tfa.image.translate(x, translations)
     return x
 
@@ -66,7 +66,7 @@ def augment_clip(x):
     x = tf.map_fn(lambda x1: random_flip_left_right_clip(x1), x)
     x = tf.map_fn(lambda x1: random_flip_up_down_clip(x1), x)
     x = tf.map_fn(lambda x1: random_rotate_clip(x1), x)
-    #x = tf.map_fn(lambda x1: random_shift_clip(x1), x)    # DOES NOT WORK RIGHT NOW
+    x = tf.map_fn(lambda x1: random_shift_clip(x1), x)
     x = tf.map_fn(lambda x1: random_shear_clip(x1), x)
     return x
 
