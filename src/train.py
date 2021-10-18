@@ -7,23 +7,23 @@ import os
 import pandas as pd
 import tensorflow as tf
 from preprocessor import Preprocessor
+from models.models import *
 
 
-from tensorflow.keras.layers import Dense, Flatten, Dropout, ZeroPadding3D
-from tensorflow.keras.layers import LSTM
-from tensorflow.keras.models import Sequential, load_model
-from tensorflow.keras.optimizers import Adam, RMSprop
-from tensorflow.keras.layers import TimeDistributed
-from tensorflow.keras.layers import Conv2D, MaxPooling3D, Conv3D, MaxPooling2D, BatchNormalization, Activation
+from tensorflow.keras.metrics import Precision, Recall, AUC
+from tensorflow_addons.metrics import F1Score
 from tensorflow.keras.callbacks import ModelCheckpoint
 
 
-cfg = yaml.full_load(open(os.path.join(os.getcwd(), '../config.yml'), 'r'))['TRAIN']
+cfg = yaml.full_load(open(os.path.join(os.getcwd(), '../config.yml'), 'r'))
 
 
 def train_model(model_def, hparams, preprocessing_fn=(lambda x: x), save_weights=False, log_dir=None, verbose=True):
+
+    model_def, preprocessing_fn = get_model()
+
     # Read in train, val, test dataframes
-    CSVS_FOLDER = cfg['PATHS']['CSVS']
+    CSVS_FOLDER = cfg['TRAIN']['PATHS']['CSVS']
     train_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'train.csv'))
     val_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'val.csv'))
     test_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'test.csv'))
@@ -51,66 +51,21 @@ def train_model(model_def, hparams, preprocessing_fn=(lambda x: x), save_weights
     class_weight = {0: weight_for_0, 1: weight_for_1}
     print(class_weight)
 
-    model = lrcn()
-    model.summary()
+    # Metrics
+    classes = [0, 1]
+    n_classes = len(classes)
+    threshold = 1.0 / n_classes
+    metrics = ['accuracy', AUC(name='auc'), F1Score(name='f1score', num_classes=2)]
+    metrics += [Precision(name='precision_' + str(classes[i]), thresholds=threshold, class_id=i) for i in range(n_classes)]
+    metrics += [Recall(name='recall_' + str(classes[i]), thresholds=threshold, class_id=i) for i in range(n_classes)]
 
     save_cp = ModelCheckpoint('models/model1', save_best_only=True)
-    model.compile(loss='categorical_crossentropy', optimizer=Adam(learning_rate=0.0000001), metrics=['accuracy'])
+
+    # Get model
+    hparams = cfg['TRAIN']['PARAMS']['TEST1']  # TEMPORARY LOCATION
+    input_shape = [cfg['PREPROCESS']['PARAMS']['WINDOW']] + cfg['PREPROCESS']['PARAMS']['IMG_SIZE'] + [3]
+    model = model_def(hparams, input_shape, metrics, n_classes)  # do we need output bias?
+
     model.fit(train_set, epochs=15, validation_data=val_set, class_weight=class_weight, callbacks=[save_cp])
-
-def lrcn():
-    """Build a CNN into RNN.
-    Starting version from:
-        https://github.com/udacity/self-driving-car/blob/master/
-            steering-models/community-models/chauffeur/models.py
-    Heavily influenced by VGG-16:
-        https://arxiv.org/abs/1409.1556
-    Also known as an LRCN:
-        https://arxiv.org/pdf/1411.4389.pdf
-    """
-    def add_default_block(model, kernel_filters, init, reg_lambda):
-        # conv
-        model.add(TimeDistributed(Conv2D(kernel_filters, (3, 3), padding='same',
-                                         kernel_initializer=init)))
-        model.add(TimeDistributed(BatchNormalization()))
-        model.add(TimeDistributed(Activation('relu')))
-        # conv
-        model.add(TimeDistributed(Conv2D(kernel_filters, (3, 3), padding='same',
-                                         kernel_initializer=init)))
-        model.add(TimeDistributed(BatchNormalization()))
-        model.add(TimeDistributed(Activation('relu')))
-        # max pool
-        model.add(TimeDistributed(MaxPooling2D((2, 2), strides=(2, 2))))
-
-        return model
-
-    initialiser = 'glorot_uniform'
-    reg_lambda  = 0.001
-
-    model = Sequential()
-
-    # first (non-default) block
-    model.add(TimeDistributed(Conv2D(32, (7, 7), strides=(2, 2), padding='same',
-                                     kernel_initializer=initialiser), 
-                              input_shape=(25, 128, 128, 3)))
-    model.add(TimeDistributed(BatchNormalization()))
-    model.add(TimeDistributed(Activation('relu')))
-    model.add(TimeDistributed(Conv2D(32, (3,3), kernel_initializer=initialiser)))
-    model.add(TimeDistributed(BatchNormalization()))
-    model.add(TimeDistributed(Activation('relu')))
-    model.add(TimeDistributed(MaxPooling2D((2, 2), strides=(2, 2))))
-
-    # 2nd-5th (default) blocks
-    model = add_default_block(model, 64,  init=initialiser, reg_lambda=reg_lambda)
-    model = add_default_block(model, 128, init=initialiser, reg_lambda=reg_lambda)
-    model = add_default_block(model, 256, init=initialiser, reg_lambda=reg_lambda)
-    model = add_default_block(model, 512, init=initialiser, reg_lambda=reg_lambda)
-
-    # LSTM output head
-    model.add(TimeDistributed(Flatten()))
-    model.add(LSTM(256, return_sequences=False, dropout=0.5))
-    model.add(Dense(2, activation='softmax'))
-
-    return model
 
 train_model(None, None)

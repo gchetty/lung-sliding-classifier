@@ -18,10 +18,14 @@ PREPROCESS:
     UNMASKED_VIDEOS: 'raw_videos/'
     MASKED_VIDEOS: 'masked_videos/'
     CSVS_OUTPUT: 'csvs/'
-    NPZ: 'npzs\'
+    NPZ: 'npzs/'
     MASKING_TOOL: 'auto_masking_deeper.h5'
 
 TRAIN:
+
+  MIXED_PRECISION: false
+  MODEL_DEF: 'test1'
+
   SPLITS:
     TRAIN: 0.8
     VAL: 0.1
@@ -29,6 +33,9 @@ TRAIN:
 
   PARAMS:
     BATCH_SIZE: 4
+    TEST1:
+      LR: 0.001
+      L2_LAMBDA: 0.001
 
   PATHS:
     CSVS: 'csvs_split/'
