@@ -25,6 +25,7 @@ TRAIN:
 
   MIXED_PRECISION: false
   MODEL_DEF: 'test1'
+  SAVE_BEST_ONLY: True
 
   SPLITS:
     TRAIN: 0.8
@@ -32,11 +33,14 @@ TRAIN:
     TEST: 0.1
 
   PARAMS:
+    EPOCHS: 15
     BATCH_SIZE: 4
+    SHUFFLE: True
     TEST1:
-      LR: 0.001
+      LR: 0.0000001
       L2_LAMBDA: 0.001
 
   PATHS:
     CSVS: 'csvs_split/'
+    MODEL_OUT: 'models/lrcn1/'
     RANDOM_SEED: 1

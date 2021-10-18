@@ -5,22 +5,27 @@ Script for defining TensorFlow neural network models
 import yaml
 import os
 
-from tensorflow.keras.layers import Dense, Flatten, Dropout, ZeroPadding3D
+from tensorflow.keras.layers import Dense, Flatten
 from tensorflow.keras.layers import LSTM
-from tensorflow.keras.models import Sequential, load_model
+from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import TimeDistributed
-from tensorflow.keras.layers import Conv2D, MaxPooling3D, Conv3D, MaxPooling2D, BatchNormalization, Activation
+from tensorflow.keras.layers import Conv2D, MaxPooling2D, BatchNormalization, Activation
 from tensorflow.keras.optimizers import Adam
 
 cfg = yaml.full_load(open(os.path.join(os.getcwd(), '../config.yml'), 'r'))
 
-def get_model(model_name=cfg['TRAIN']['MODEL_DEF']):
+def get_model(model_name):
+    '''
+    Gets the function that returns the desired model function and its associated preprocessing function
+    :param model_name: A string in {'test1', ...} specifying the model 
 
+    returns: A Tuple (Function, Function)
+    '''
     if model_name == 'test1':
-        model_def = test1
-        preprocessing_function = None
+        model_def_fn = test1
+        preprocessing_fn = (lambda x: x / 255.0)
 
-    return model_def, preprocessing_function
+    return model_def_fn, preprocessing_fn
 
 def test1(model_config, input_shape, metrics, n_classes):
     """Build a CNN into RNN.
