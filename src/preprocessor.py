@@ -93,8 +93,8 @@ def random_zoom_clip(x):
     prop = 1.0
     if tf.math.equal(tf.constant([1]), r):
         prop = random_ops.random_uniform([], 1.0, 1.5)  # tunable
-    h_orig = x.shape[1]
-    w_orig = x.shape[2]
+    h_orig = cfg['PREPROCESS']['PARAMS']['IMG_SIZE'][0]
+    w_orig = cfg['PREPROCESS']['PARAMS']['IMG_SIZE'][1]
     h_changed = int(prop * h_orig)
     w_changed = int(prop * w_orig)
     x = tf.image.pad_to_bounding_box(x, int((h_changed-h_orig)/2), int((w_changed-w_orig)/2), h_changed, w_changed)
