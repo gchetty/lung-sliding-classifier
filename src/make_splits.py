@@ -76,6 +76,9 @@ no_sliding_df['filename'] = paths0
 # Vertically concatenate dataframes
 final_df = pd.concat([sliding_df, no_sliding_df])
 
+# Shuffle
+final_df = final_df.sample(frac=1, random_state=2)
+
 # Split into train_df, val_df, test_df
 train_df = final_df[final_df['split']==0]
 val_df = final_df[final_df['split']==1]
