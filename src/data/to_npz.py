@@ -61,19 +61,35 @@ def video_to_frames_strided(path, orig_id, patient_id, df_rows, cap, stride=cfg[
   return
 
 
-def video_to_frames_downsampled(path, orig_id, patient_id, df_rows, cap, fr, seq_length=cfg['PARAMS']['WINDOW'], resize=cfg['PARAMS']['IMG_SIZE'], write_path=''):
+def video_to_frames_downsampled(orig_id, patient_id, df_rows, cap, fr, seq_length=cfg['PARAMS']['WINDOW'], resize=cfg['PARAMS']['IMG_SIZE'], write_path=''):
+
+  '''
+  Converts a LUS video file to mini-clips downsampled to 30 FPS with specified sequence length
+  :param orig_id: ID of the video file to be converted
+  :param patient_id: Patient ID corresponding to the video file
+  :param df_rows: list of (mini-clip_ID, patient_ID), updated in this function, and later downloaded
+  :param cap: Captured video of full clip, returned by cv2.VideoCapture()
+  :param fr: Frame rate (integer) of original clip - MUST be divisible by 30
+  :param seq_length: Length of each mini-clip
+  :param resize: [width, height], dimensions to resize frames to before saving
+  :param write_path: Path to directory where output mini-clips are saved
+  '''
+
+  # Check validity of frame rate param
+  assert(isinstance(fr, int))
+  assert(fr % 30 == 0)
 
   frames = []
   stride = fr // 30
 
-  index = 0
+  index = 0  # Position in 'frames' array where the next frame is to be appended
 
   try:
     while True:
       ret, frame = cap.read()
       if not ret:
         break
-      if index == 0:
+      if index == 0:  # Add every nth frame only
         frame = cv2.resize(frame, tuple(resize))
         frames.append(frame)
       index = (index + 1) % stride
@@ -81,6 +97,7 @@ def video_to_frames_downsampled(path, orig_id, patient_id, df_rows, cap, fr, seq
   finally:
     cap.release()
 
+  # Assemble and save mini-clips from extracted frames
   counter = 1
   num_mini_clips = len(frames) // seq_length
   for i in range(num_mini_clips):
@@ -91,14 +108,14 @@ def video_to_frames_downsampled(path, orig_id, patient_id, df_rows, cap, fr, seq
   return
 
 
-def video_to_frames_contig(path, orig_id, patient_id, df_rows, cap, seq_length=cfg['PARAMS']['WINDOW'], resize=cfg['PARAMS']['IMG_SIZE'], write_path=''):
+def video_to_frames_contig(orig_id, patient_id, df_rows, cap, seq_length=cfg['PARAMS']['WINDOW'], resize=cfg['PARAMS']['IMG_SIZE'], write_path=''):
 
   '''
   Converts a LUS video file to contiguous-frame mini-clips with specified sequence length
-  :param path: Path to video file to be converted
   :param orig_id: ID of the video file to be converted
   :param patient_id: Patient ID corresponding to the video file
   :param df_rows: list of (mini-clip_ID, patient_ID), updated in this function, and later downloaded
+  :param cap: Captured video of full clip, returned by cv2.VideoCapture()
   :param seq_length: Length of each mini-clip
   :param resize: [width, height], dimensions to resize frames to before saving
   :param write_path: Path to directory where output mini-clips are saved
@@ -155,9 +172,9 @@ def video_to_npz(path, orig_id, patient_id, df_rows, write_path='', method=cfg['
 
   if method == 'Contiguous':
     if fr == 30:
-      video_to_frames_contig(path, orig_id, patient_id, df_rows, cap, write_path=write_path)
+      video_to_frames_contig(orig_id, patient_id, df_rows, cap, write_path=write_path)
     else:
-      video_to_frames_downsampled(path, orig_id, patient_id, df_rows, cap, fr, write_path=write_path)
+      video_to_frames_downsampled(orig_id, patient_id, df_rows, cap, fr, write_path=write_path)
   else:
     return  # STRIDED NOT IMPLEMENTED
 
