@@ -74,11 +74,12 @@ cnx = mysql.connector.connect(user=USERNAME, password=PASSWORD,
 
 # Query database for sliding and no_sliding labeled data
 sliding_df = pd.read_sql('''SELECT * FROM clips WHERE (pleural_line_findings is 
-                            null OR pleural_line_findings='thickened') and labelled = 1;''', 
+                            null OR pleural_line_findings='thickened') and labelled = 1 and view = 'parenchymal';''',
                             cnx)
 
 no_sliding_df = pd.read_sql('''SELECT * FROM clips WHERE (pleural_line_findings='absent_lung_sliding' OR 
-                               pleural_line_findings='thickened|absent_lung_sliding') and labelled = 1;''', 
+                               pleural_line_findings='thickened|absent_lung_sliding') and labelled = 1 and 
+                               view = 'parenchymal';''',
                                cnx)
 
 # If we're just asking the amount of videos available, the program will terminate after logging this information
