@@ -81,7 +81,7 @@ def test1(model_config, input_shape, metrics, n_classes):
     # LSTM output head
     model.add(TimeDistributed(Flatten()))
     model.add(LSTM(256, return_sequences=False, dropout=0.5))
-    model.add(Dense(2, activation='softmax'))
+    model.add(Dense(1, activation='sigmoid'))
 
     model.summary()
 
@@ -112,9 +112,9 @@ def threeDCNN(model_config, input_shape, metrics, n_classes):
     model.add(Dense(32, activation='relu'))
     model.add(Dropout(0.2))
 
-    model.add(Dense(2, activation='softmax'))
+    model.add(Dense(1, activation='sigmoid'))
 
     model.summary()
-    model.compile(loss='categorical_crossentropy', optimizer=Adam(learning_rate=model_config['LR']), metrics=metrics)
+    model.compile(loss='binary_crossentropy', optimizer=Adam(learning_rate=model_config['LR']), metrics=metrics)
 
     return model

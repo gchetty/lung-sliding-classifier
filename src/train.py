@@ -8,6 +8,7 @@ import pandas as pd
 import tensorflow as tf
 from tensorflow.keras.metrics import Precision, Recall, AUC
 from tensorflow_addons.metrics import F1Score
+from tensorflow_model_analysis.metrics import Specificity
 from tensorflow.keras.callbacks import ModelCheckpoint
 from preprocessor import Preprocessor
 from models.models import *
@@ -64,9 +65,10 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
     classes = [0, 1]
     n_classes = len(classes)
     #threshold = 1.0 / n_classes
-    metrics = ['accuracy', AUC(name='auc'), F1Score(num_classes=2)]
+    metrics = ['accuracy', AUC(name='auc'), F1Score(num_classes=1)]
     metrics += [Precision()]
     metrics += [Recall()]
+    #metrics += [Specificity()]
 
     # Creating a ModelCheckpoint for saving the model
     save_cp = ModelCheckpoint(model_out_dir, save_best_only=cfg['TRAIN']['SAVE_BEST_ONLY'])
@@ -77,7 +79,7 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
 
     # Train and save the model
     epochs = cfg['TRAIN']['PARAMS']['EPOCHS']
-    model.fit(train_set, epochs=15, validation_data=val_set, class_weight=class_weight, callbacks=[save_cp])
+    model.fit(train_set, epochs=epochs, validation_data=val_set, class_weight=class_weight, callbacks=[save_cp])
 
 # Train and save the model
 train_model()

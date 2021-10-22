@@ -124,7 +124,7 @@ def parse_fn(filename, label):
     '''
     clip = np.load(filename, allow_pickle=True)['frames']
     clip = tf.cast(clip, tf.float32)
-    return clip, tf.one_hot(label, 2)  # hardcoded as binary, can change
+    return clip, (1 - tf.one_hot(label, 1))
 
 
 def parse_tf(filename, label):
@@ -134,11 +134,11 @@ def parse_tf(filename, label):
     :param label: Binary label for the video
     returns: Tuple of (Loaded Video, One-hot Tensor)
     '''
-    shape = (cfg['PREPROCESS']['PARAMS']['WINDOW'], 128, 128, 3)
+    shape = (cfg['PREPROCESS']['PARAMS']['WINDOW'], 224, 224, 3)
     clip, label = tf.numpy_function(parse_fn, [filename, label], (tf.float32, tf.float32))
     tf.ensure_shape(clip, shape)
-    label.set_shape((2,))
-    tf.ensure_shape(label, (2,))
+    label.set_shape((1,))
+    tf.ensure_shape(label, (1,))
     return clip, label
 
 
