@@ -2,11 +2,12 @@
 Script for training experiments, including model training, hyperparameter search, cross validation, etc
 '''
 
+from tensorflow.python.keras.metrics import TrueNegatives, TruePositives
 import yaml
 import os
 import pandas as pd
 import tensorflow as tf
-from tensorflow.keras.metrics import Precision, Recall, AUC
+from tensorflow.keras.metrics import Precision, Recall, AUC, TrueNegatives, TruePositives, FalseNegatives, FalsePositives
 from tensorflow_addons.metrics import F1Score
 from tensorflow_model_analysis.metrics import Specificity
 from tensorflow.keras.callbacks import ModelCheckpoint
@@ -68,6 +69,7 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
     metrics = ['accuracy', AUC(name='auc'), F1Score(num_classes=1)]
     metrics += [Precision()]
     metrics += [Recall()]
+    metrics += [TrueNegatives(), TruePositives(), FalseNegatives(), FalsePositives()]
     #metrics += [Specificity()]
 
     # Creating a ModelCheckpoint for saving the model
