@@ -8,7 +8,7 @@ import os
 from tensorflow.keras.layers import Dense, Flatten
 from tensorflow.keras.layers import LSTM
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import TimeDistributed
+from tensorflow.keras.layers import TimeDistributed, Conv3D, AveragePooling3D, Dropout
 from tensorflow.keras.layers import Conv2D, MaxPooling2D, BatchNormalization, Activation
 from tensorflow.keras.optimizers import Adam
 
@@ -24,7 +24,9 @@ def get_model(model_name):
     if model_name == 'test1':
         model_def_fn = test1
         preprocessing_fn = (lambda x: x / 255.0)
-
+    elif model_name == 'threeDCNN':
+        model_def_fn = threeDCNN
+        preprocessing_fn = (lambda x: x / 255.0)
     return model_def_fn, preprocessing_fn
 
 
@@ -83,6 +85,36 @@ def test1(model_config, input_shape, metrics, n_classes):
 
     model.summary()
 
+    model.compile(loss='categorical_crossentropy', optimizer=Adam(learning_rate=model_config['LR']), metrics=metrics)
+
+    return model
+
+def threeDCNN(model_config, input_shape, metrics, n_classes):
+    model = Sequential()
+
+    model.add(Conv3D(filters=32, kernel_size=(2, 3, 3), strides=1, input_shape=input_shape))
+    model.add(AveragePooling3D(pool_size=(2, 3, 3)))
+    model.add(BatchNormalization())
+    
+    model.add(Conv3D(filters=64, kernel_size=(2, 3, 3), strides=1))
+    model.add(AveragePooling3D(pool_size=(2, 3, 3)))
+    model.add(BatchNormalization())
+
+    model.add(Conv3D(filters=128, kernel_size=(2, 3, 3), strides=1))
+    model.add(AveragePooling3D(pool_size=(2, 3, 3)))
+    model.add(BatchNormalization())
+
+    model.add(Conv3D(filters=256, kernel_size=(2, 3, 3), strides=1))
+    model.add(AveragePooling3D(pool_size=(2, 3, 3)))
+    model.add(BatchNormalization())
+
+    model.add(Flatten())
+    model.add(Dense(32, activation='relu'))
+    model.add(Dropout(0.2))
+
+    model.add(Dense(2, activation='softmax'))
+
+    model.summary()
     model.compile(loss='categorical_crossentropy', optimizer=Adam(learning_rate=model_config['LR']), metrics=metrics)
 
     return model

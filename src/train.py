@@ -63,10 +63,10 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
     # Defining metrics (accuracy, AUC, F1, Precision, Recall)
     classes = [0, 1]
     n_classes = len(classes)
-    threshold = 1.0 / n_classes
-    metrics = ['accuracy', AUC(name='auc'), F1Score(name='f1score', num_classes=2)]
-    metrics += [Precision(name='precision_' + str(classes[i]), thresholds=threshold, class_id=i) for i in range(n_classes)]
-    metrics += [Recall(name='recall_' + str(classes[i]), thresholds=threshold, class_id=i) for i in range(n_classes)]
+    #threshold = 1.0 / n_classes
+    metrics = ['accuracy', AUC(name='auc'), F1Score(num_classes=2)]
+    metrics += [Precision()]
+    metrics += [Recall()]
 
     # Creating a ModelCheckpoint for saving the model
     save_cp = ModelCheckpoint(model_out_dir, save_best_only=cfg['TRAIN']['SAVE_BEST_ONLY'])
