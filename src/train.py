@@ -66,7 +66,7 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
     classes = [0, 1]
     n_classes = len(classes)
     #threshold = 1.0 / n_classes
-    metrics = ['accuracy', AUC(name='auc'), F1Score(num_classes=1)]
+    metrics = ['accuracy', AUC(name='auc'), F1Score(num_classes=1, threshold=0.5)]
     metrics += [Precision()]
     metrics += [Recall()]
     metrics += [TrueNegatives(), TruePositives(), FalseNegatives(), FalsePositives()]
