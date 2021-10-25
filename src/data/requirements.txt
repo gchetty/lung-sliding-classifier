@@ -6,3 +6,6 @@ h5py==2.10.0
 pandas==0.23.4
 opencv-python==3.4.8.29
 scikit-image==0.15.0
+sk-video
+scipy
+multiprocess

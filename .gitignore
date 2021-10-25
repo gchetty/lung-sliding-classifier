@@ -1,5 +1,9 @@
 # LOCAL ARTIFACTS ********************************************************************
-data/
+src/data/csvs/
+src/data/masked_videos/
+src/data/npzs/
+src/data/raw_videos/
+src/data/auto_masking_deeper.h5
 proto/
 *.h5
 database_config.yml
