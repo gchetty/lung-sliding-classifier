@@ -105,6 +105,10 @@ def video_to_frames_contig(path, orig_id, patient_id, df_rows, seq_length=cfg['P
   return
 
 
+def flow_frames_to_npz_contig(path, orig_id, patient_id, df_rows, seq_length=cfg['PARAMS']['WINDOW'], resize=cfg['PARAMS']['IMG_SIZE'], write_path=''):
+  print()
+
+
 def video_to_npz(path, orig_id, patient_id, df_rows, write_path='', method=cfg['PARAMS']['METHOD']):
 
   '''
@@ -117,11 +121,23 @@ def video_to_npz(path, orig_id, patient_id, df_rows, write_path='', method=cfg['
   :param method: Method of frame extraction for mini-clips, either 'Contiguous' or ' Stride'
   '''
 
-  if method == 'Contiguous':
-    video_to_frames_contig(path, orig_id, patient_id, df_rows, write_path=write_path)
-  else:
-    video_to_frames_strided(path, orig_id, patient_id, df_rows, write_path=write_path)
+  flow = cfg['PARAMS']['FLOW']
 
+  if flow == 'Yes':
+    if method == 'Contiguous':
+      flow_frames_to_npz_contig(path, orig_id, patient_id, df_rows, write_path=write_path)
+    else:
+      print('Not yet implemented!')
+  elif flow == 'No':
+    if method == 'Contiguous':
+      video_to_frames_contig(path, orig_id, patient_id, df_rows, write_path=write_path)
+    else:
+      video_to_frames_strided(path, orig_id, patient_id, df_rows, write_path=write_path)
+  else:
+    print()
+
+
+flow = cfg['PARAMS']['FLOW']
 
 # Setup directories, from config file
 npz_folder = cfg['PATHS']['NPZ']
@@ -137,6 +153,15 @@ masked_folder = cfg['PATHS']['MASKED_VIDEOS']
 masked_sliding_folder = os.path.join(masked_folder, 'sliding/')
 masked_no_sliding_folder = os.path.join(masked_folder, 'no_sliding/')
 
+flow_folder = ''
+flow_sliding_folder = ''
+flow_no_sliding_folder = ''
+
+if not (flow == 'No'):
+  flow_folder = cfg['PATHS']['FLOW_VIDEOS']
+  flow_sliding_folder = os.path.join(flow_folder, 'sliding/')
+  flow_no_sliding_folder = os.path.join(flow_folder, 'no_sliding/')
+
 # Each element is (mini-clip_id, patient_id) for download as csv
 df_rows_sliding = []
 df_rows_no_sliding = []
@@ -147,15 +172,28 @@ sliding_df = pd.read_csv(os.path.join(csv_out_folder, 'sliding.csv'))
 no_sliding_df = pd.read_csv(os.path.join(csv_out_folder, 'no_sliding.csv'))
 
 # Iterate through clips and extract & download mini-clips
-for file in os.listdir(masked_sliding_folder):
-  f = os.path.join(masked_sliding_folder, file)
-  patient_id = ((sliding_df[sliding_df['id'] == file[:-4]])['patient_id']).values[0]
-  video_to_npz(f, orig_id=file[:-4], patient_id=patient_id, df_rows=df_rows_sliding, write_path=(sliding_npz_folder + file[:-4]))
 
-for file in os.listdir(masked_no_sliding_folder):
-  f = os.path.join(masked_no_sliding_folder, file)
-  patient_id = ((no_sliding_df[no_sliding_df['id'] == file[:-4]])['patient_id']).values[0]
-  video_to_npz(f, orig_id=file[:-4], patient_id=patient_id, df_rows=df_rows_no_sliding, write_path=(no_sliding_npz_folder + file[:-4]))
+if flow == 'Yes':
+
+  print()
+
+elif flow == 'No':
+
+  for file in os.listdir(masked_sliding_folder):
+    f = os.path.join(masked_sliding_folder, file)
+    patient_id = ((sliding_df[sliding_df['id'] == file[:-4]])['patient_id']).values[0]
+    video_to_npz(f, orig_id=file[:-4], patient_id=patient_id, df_rows=df_rows_sliding,
+                 write_path=(sliding_npz_folder + file[:-4]))
+
+  for file in os.listdir(masked_no_sliding_folder):
+    f = os.path.join(masked_no_sliding_folder, file)
+    patient_id = ((no_sliding_df[no_sliding_df['id'] == file[:-4]])['patient_id']).values[0]
+    video_to_npz(f, orig_id=file[:-4], patient_id=patient_id, df_rows=df_rows_no_sliding,
+                 write_path=(no_sliding_npz_folder + file[:-4]))
+
+else:
+
+  print('Not yet implemented!')
 
 # Download dataframes linking mini-clip ids and patient ids as csv files
 out_df_sliding = pd.DataFrame(df_rows_sliding, columns=['id', 'patient_id'])
