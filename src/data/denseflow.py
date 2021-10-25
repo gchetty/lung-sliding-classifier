@@ -1,18 +1,20 @@
 import os,sys
+import yaml
 import numpy as np
 import cv2
 from PIL import Image
 from multiprocessing import Pool
 import argparse
-from IPython import embed #to debug
 import skvideo.io
 import scipy.misc
 import cv2
 import imageio
+from skimage import img_as_ubyte
+from skimage.io import imsave
 
-videos_root = "B:\\Datasets\\lung-sliding-classifier\\masked_videos\\sliding"
-data_root = "C:\\Users\\Blake\\Downloads"
-new_dir = "flows"
+videos_root = ""
+data_root = ""
+new_dir = ""
 
 def ToImg(raw_flow,bound):
     '''
@@ -46,14 +48,20 @@ def save_flows(flows,image,save_dir,num,bound):
         os.makedirs(os.path.join(data_root,new_dir,save_dir))
 
     #save the image
-    save_img=os.path.join(data_root,new_dir,save_dir,'img_{:05d}.jpg'.format(num))
-    imageio.imwrite(save_img,image)
+    #save_img=os.path.join(data_root,new_dir,save_dir,'img_{:05d}.jpg'.format(num))
+    #imsave(save_img, img_as_ubyte(image))
+    #image = image.astype(np.uint8)
+    #imageio.imwrite(save_img,image)
 
     #save the flows
     save_x=os.path.join(data_root,new_dir,save_dir,'flow_x_{:05d}.jpg'.format(num))
     save_y=os.path.join(data_root,new_dir,save_dir,'flow_y_{:05d}.jpg'.format(num))
-    flow_x_img=Image.fromarray(flow_x)
-    flow_y_img=Image.fromarray(flow_y)
+    flow_x = flow_x.astype(np.uint8)
+    flow_y = flow_y.astype(np.uint8)
+    flow_x_img = Image.fromarray(flow_x)
+    flow_y_img = Image.fromarray(flow_y)
+    #imsave(save_x, img_as_ubyte(flow_x_img))
+    #imsave(save_y, img_as_ubyte(flow_y_img))
     imageio.imwrite(save_x,flow_x_img)
     imageio.imwrite(save_y,flow_y_img)
     return 0
@@ -95,8 +103,8 @@ def dense_flow(augs):
     num0=0
     while True:
         frame=videocapture.read()[1]
-        # if num0>=len_frame:
-        #     break
+        if num0>=len_frame:
+            break
         #frame=videocapture.get(num0)
         num0+=1
         if frame_num==0:
@@ -144,6 +152,7 @@ def get_video_list():
 
 def parse_args():
     parser = argparse.ArgumentParser(description="densely extract the video frames and optical flows")
+    parser.add_argument('--videos_root', default='', type=str)
     parser.add_argument('--dataset',default='ucf101',type=str,help='set the dataset name, to find the data path')
     parser.add_argument('--data_root',default='/n/zqj/video_classification/data',type=str)
     parser.add_argument('--new_dir',default='flows',type=str)
@@ -168,6 +177,8 @@ if __name__ =='__main__':
     #videos_root=os.path.join(data_root,'videos')
 
     #specify the augments
+    videos_root = args.videos_root
+    data_root = args.data_root
     num_workers=args.num_workers
     step=args.step
     bound=args.bound
@@ -177,9 +188,9 @@ if __name__ =='__main__':
     mode=args.mode
     #get video list
     video_list,len_videos=get_video_list()
-    video_list=video_list[s_:e_]
+    #video_list=video_list[s_:e_]
 
-    len_videos=min(e_-s_,13320-s_) # if we choose the ucf101
+    #len_videos=min(e_-s_,13320-s_) # if we choose the ucf101
     print('find {} videos.'.format(len_videos))
     flows_dirs=[video.split('.')[0] for video in video_list]
     print('get videos list done! ')
