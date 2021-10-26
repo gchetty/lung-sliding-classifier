@@ -9,5 +9,12 @@ os.system('python download_videos.py')
 
 if cfg['PARAMS']['AMOUNT_ONLY']:
     exit()
+
 os.system('python mask.py')
+
+flow = cfg['PARAMS']['FLOW']
+
+if not (flow == 'No'):
+    os.system('python flow.py')
+
 os.system('python to_npz.py')

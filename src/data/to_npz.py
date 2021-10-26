@@ -153,11 +153,86 @@ def video_to_frames_contig(orig_id, patient_id, df_rows, cap, seq_length=cfg['PA
 
 
 def flow_frames_to_npz_downsampled(path, orig_id, patient_id, df_rows, fr, seq_length=cfg['PARAMS']['WINDOW'], resize=cfg['PARAMS']['IMG_SIZE'], write_path=''):
-  print()
+
+  '''
+  Converts a directory of x and y flow frames to mini-clips downsampled to 30 FPS, with flows stacked on axis = -1
+  :param path: Path to directory containing flow frames
+  :param orig_id: ID of the LUS video file associated with the flow frames
+  :param patient_id: Patient ID corresponding to the video file
+  :param df_rows: list of (mini-clip_ID, patient_ID), updated in this function, and later downloaded
+  :param fr: Frame rate (in FPS) of original LUS clip
+  :param seq_length: Length of each mini-clip
+  :param resize: [width, height], dimensions to resize frames to before saving
+  :param write_path: Path to directory where output mini-clips are saved
+  '''
+
+  frames_x = []
+  frames_y = []
+
+  stride = fr // 30
+
+  # Read all flow frames
+  for file in os.listdir(path):
+    frame = cv2.imread(os.path.join(path, file), 0)
+    frame = cv2.resize(frame, tuple(resize))
+    ind = int(file[7:12])  # flow frame number
+    if (ind - 1) % stride == 0:  # take every nth flow frame only
+      if '_x_' in file:
+        frames_x.append(frame)
+      else:
+        frames_y.append(frame)
+
+  counter = 1
+  num_mini_clips = len(frames_x) // seq_length
+
+  # Stack x and y flow (making 2 channels) and save mini-clip sequences
+  for i in range(num_mini_clips):
+    df_rows.append([orig_id + '_' + str(counter), patient_id])
+    x_seq = np.array(frames_x[i * seq_length:i * seq_length + seq_length])
+    y_seq = np.array(frames_y[i * seq_length:i * seq_length + seq_length])
+    np.savez(write_path + '_' + str(counter), frames=np.stack((x_seq, y_seq), axis=-1))
+    counter += 1
+
+  return
 
 
 def flow_frames_to_npz_contig(path, orig_id, patient_id, df_rows, seq_length=cfg['PARAMS']['WINDOW'], resize=cfg['PARAMS']['IMG_SIZE'], write_path=''):
-  print()
+
+  '''
+  Converts a directory of x and y flow frames to contiguous mini-clips, with flows stacked on axis = -1
+  :param path: Path to directory containing flow frames
+  :param orig_id: ID of the LUS video file associated with the flow frames
+  :param patient_id: Patient ID corresponding to the video file
+  :param df_rows: list of (mini-clip_ID, patient_ID), updated in this function, and later downloaded
+  :param seq_length: Length of each mini-clip
+  :param resize: [width, height], dimensions to resize frames to before saving
+  :param write_path: Path to directory where output mini-clips are saved
+  '''
+
+  frames_x = []
+  frames_y = []
+
+  # Read all flow frames
+  for file in os.listdir(path):
+    frame = cv2.imread(os.path.join(path, file), 0)
+    frame = cv2.resize(frame, tuple(resize))
+    if '_x_' in file:
+      frames_x.append(frame)
+    else:
+      frames_y.append(frame)
+
+  counter = 1
+  num_mini_clips = len(frames_x) // seq_length
+
+  # Stack x and y flow (making 2 channels) and save mini-clip sequences
+  for i in range(num_mini_clips):
+    df_rows.append([orig_id + '_' + str(counter), patient_id])
+    x_seq = np.array(frames_x[i * seq_length:i * seq_length + seq_length])
+    y_seq = np.array(frames_y[i * seq_length:i * seq_length + seq_length])
+    np.savez(write_path + '_' + str(counter), frames=np.stack((x_seq, y_seq), axis=-1))
+    counter += 1
+
+  return
 
 
 def video_to_npz(path, orig_id, patient_id, df_rows, write_path='', method=cfg['PARAMS']['METHOD']):
@@ -225,11 +300,34 @@ csv_out_folder = cfg['PATHS']['CSVS_OUTPUT']
 sliding_df = pd.read_csv(os.path.join(csv_out_folder, 'sliding.csv'))
 no_sliding_df = pd.read_csv(os.path.join(csv_out_folder, 'no_sliding.csv'))
 
+sliding_fps_df = pd.read_csv(os.path.join(csv_out_folder, 'sliding_frame_rates.csv'))
+no_sliding_fps_df = pd.read_csv(os.path.join(csv_out_folder, 'no_sliding_frame_rates.csv'))
+
 # Iterate through clips and extract & download mini-clips
 
 if flow == 'Yes':
 
-  print()
+  for id in os.listdir(flow_sliding_folder):
+    path = os.path.join(flow_sliding_folder, id)
+    patient_id = ((sliding_df[sliding_df['id'] == id])['patient_id']).values[0]
+    fr = ((sliding_fps_df[sliding_fps_df['id'] == id])['frame_rate']).values[0]
+    if fr == 30:
+      flow_frames_to_npz_contig(path, orig_id=id, patient_id=patient_id, df_rows=df_rows_sliding,
+                                write_path=(sliding_npz_folder + id))
+    else:
+      flow_frames_to_npz_downsampled(path, orig_id=id, patient_id=patient_id, df_rows=df_rows_sliding, fr=fr,
+                                     write_path=(sliding_npz_folder + id))
+
+  for id in os.listdir(flow_no_sliding_folder):
+    path = os.path.join(flow_no_sliding_folder, id)
+    patient_id = ((no_sliding_df[no_sliding_df['id'] == id])['patient_id']).values[0]
+    fr = ((no_sliding_fps_df[no_sliding_fps_df['id'] == id])['frame_rate']).values[0]
+    if fr == 30:
+      flow_frames_to_npz_contig(path, orig_id=id, patient_id=patient_id, df_rows=df_rows_no_sliding,
+                                write_path=(no_sliding_npz_folder + id))
+    else:
+      flow_frames_to_npz_downsampled(path, orig_id=id, patient_id=patient_id, df_rows=df_rows_no_sliding, fr=fr,
+                                     write_path=(no_sliding_npz_folder + id))
 
 elif flow == 'No':
 
