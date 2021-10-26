@@ -152,6 +152,10 @@ def video_to_frames_contig(orig_id, patient_id, df_rows, cap, seq_length=cfg['PA
   return
 
 
+def flow_frames_to_npz_downsampled(path, orig_id, patient_id, df_rows, fr, seq_length=cfg['PARAMS']['WINDOW'], resize=cfg['PARAMS']['IMG_SIZE'], write_path=''):
+  print()
+
+
 def flow_frames_to_npz_contig(path, orig_id, patient_id, df_rows, seq_length=cfg['PARAMS']['WINDOW'], resize=cfg['PARAMS']['IMG_SIZE'], write_path=''):
   print()
 
@@ -177,22 +181,14 @@ def video_to_npz(path, orig_id, patient_id, df_rows, write_path='', method=cfg['
   if not (fr % 30 == 0):
     return
 
-  if flow == 'Yes':
-    if method == 'Contiguous':
-      flow_frames_to_npz_contig(path, orig_id, patient_id, df_rows, write_path=write_path)
+  if method == 'Contiguous':
+    if fr == 30:
+      video_to_frames_contig(orig_id, patient_id, df_rows, cap, write_path=write_path)
     else:
-      print('Not yet implemented!')
-  elif flow == 'No':
-    if method == 'Contiguous':
-      if fr == 30:
-        video_to_frames_contig(orig_id, patient_id, df_rows, cap, write_path=write_path)
-      else:
-        video_to_frames_downsampled(orig_id, patient_id, df_rows, cap, fr, write_path=write_path)
-    else:
-      print('IMPLEMENTATION NOT COMPLETE')
-      return
+      video_to_frames_downsampled(orig_id, patient_id, df_rows, cap, fr, write_path=write_path)
   else:
-    print()
+    print('IMPLEMENTATION NOT COMPLETE')
+    return
 
 
 flow = cfg['PARAMS']['FLOW']
