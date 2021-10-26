@@ -7,12 +7,12 @@ PREPROCESS:
     AMOUNT_ONLY: False  # If set to True, the tool exits after querying the database and returning counts
     SHUFFLE: True # If you want to randomize the videos downloaded
     RANDOM_SEED: 1 # If SHUFFLE=False, this does nothing. Otherwise, this is the seed for shuffling
-    SLIDING_PROPORTION: 0.0042
-    NO_SLIDING_PROPORTION: 0.117
+    SLIDING_PROPORTION: 1
+    NO_SLIDING_PROPORTION: 1
     METHOD: 'Contiguous'  # 'Stride' or 'Contiguous'
-    WINDOW: 25 # Mini-clip length
-    STRIDE: 3  # 1 = contiguous (METHOD='Contiguous' param overrides this)
-    IMG_SIZE: [128, 128]
+    WINDOW: 90 # Mini-clip length
+    STRIDE: 1  # 1 = contiguous (METHOD='Contiguous' param overrides this)
+    IMG_SIZE: [224, 224]
 
   PATHS:
     UNMASKED_VIDEOS: 'raw_videos/'
@@ -24,24 +24,26 @@ PREPROCESS:
 TRAIN:
 
   MIXED_PRECISION: false
-  MODEL_DEF: 'test1'
+  MODEL_DEF: 'threeDCNN'
   SAVE_BEST_ONLY: True
 
   SPLITS:
-    TRAIN: 0.8
-    VAL: 0.1
-    TEST: 0.1
+    TRAIN: 0.7
+    VAL: 0.15
+    TEST: 0.15
 
   PARAMS:
     EPOCHS: 15
-    BATCH_SIZE: 4
+    BATCH_SIZE: 1
     SHUFFLE: True
     AUGMENTATION_CHANCE: 0.5
     TEST1:
       LR: 0.0000001
       L2_LAMBDA: 0.001
+    INCREASE: True
+    DECREASE: False
 
   PATHS:
     CSVS: 'csvs_split/'
-    MODEL_OUT: 'models/lrcn1/'
+    MODEL_OUT: 'models/3dcnn/'
     RANDOM_SEED: 1

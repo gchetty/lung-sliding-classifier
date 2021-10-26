@@ -28,6 +28,24 @@ def df_splits(df, train, val, test, random_state=cfg['TRAIN']['PATHS']['RANDOM_S
     df['split'] = split_labels
     return
 
+def duplicate(sliding_df, no_sliding_df, split):
+    n1 = len(sliding_df[sliding_df['split']==split])
+    new_no_sliding_df = no_sliding_df[no_sliding_df['split']==split].sample(n=1)
+    n2 = len(new_no_sliding_df)
+    while n2 < n1:
+        new_no_sliding_df = pd.concat([new_no_sliding_df, no_sliding_df[no_sliding_df['split']==split].sample(n=100)])
+        n2 = len(new_no_sliding_df)
+    return new_no_sliding_df
+
+'''
+def decrease(sliding_df, no_sliding_df, split):
+    n2 = len(no_sliding_df)
+    sliding_df = sliding_df[sliding_df['split']==split].sample(n=1)
+    n1 = len(sliding_df)
+    while n1 < n2:
+        sliding_df = pd.concat([sliding_df, sliding_df.sample(n=10)])
+        n1 = len(sliding_df)
+    return no_sliding_df'''
 
 # Import split params and check validity
 train_prop = cfg['TRAIN']['SPLITS']['TRAIN']
@@ -39,6 +57,7 @@ if (s > 1.0) or (train_prop < 0) or (val_prop < 0) or (test_prop < 0):
     print('Invalid splits given in config file')
     sys.exit()
 
+
 # CSV paths
 csv_path = os.path.join(os.getcwd(), 'data/', cfg['PREPROCESS']['PATHS']['CSVS_OUTPUT'])
 sliding_path = os.path.join(csv_path, 'sliding_mini_clips.csv')
@@ -49,6 +68,7 @@ sliding_df = pd.read_csv(sliding_path)
 sliding_df = sliding_df.sort_values(by=['patient_id'])
 no_sliding_df = pd.read_csv(no_sliding_path)
 no_sliding_df = no_sliding_df.sort_values(by=['patient_id'])
+
 
 # Determine splits, add to previously declared dataframes
 df_splits(sliding_df, train_prop, val_prop, test_prop)
@@ -73,6 +93,24 @@ for index, row in no_sliding_df.iterrows():
     paths0.append(os.path.join(os.getcwd(), 'data/', npz_dir, 'no_sliding/', row['id'] + '.npz'))
 no_sliding_df['filename'] = paths0
 
+
+'''decrease = cfg['TRAIN']['PARAMS']['DECREASE']
+if decrease:
+    sliding_df = decrease(sliding_df, no_sliding_df)'''
+
+increase = cfg['TRAIN']['PARAMS']['INCREASE']
+if increase:
+    new_no_sliding_train_df = duplicate(sliding_df, no_sliding_df, 0)
+    print(len(new_no_sliding_train_df))
+    no_sliding_df = pd.concat([no_sliding_df[no_sliding_df['split'] != 0], new_no_sliding_train_df])
+
+print('train:')
+print(str(len(sliding_df[sliding_df['split']==0])), str(len(no_sliding_df[no_sliding_df['split']==0])))
+print('val:')
+print(str(len(sliding_df[sliding_df['split']==1])), str(len(no_sliding_df[no_sliding_df['split']==1])))
+print('test:')
+print(str(len(sliding_df[sliding_df['split']==2])), str(len(no_sliding_df[no_sliding_df['split']==2])))
+
 # Vertically concatenate dataframes
 final_df = pd.concat([sliding_df, no_sliding_df])
 
@@ -83,6 +121,7 @@ final_df = final_df.sample(frac=1, random_state=2)
 train_df = final_df[final_df['split']==0]
 val_df = final_df[final_df['split']==1]
 test_df = final_df[final_df['split']==2]
+
 
 # Write each to csv
 csv_dir = cfg['TRAIN']['PATHS']['CSVS']

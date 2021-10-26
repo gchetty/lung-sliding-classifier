@@ -131,7 +131,7 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
     #
     #
     #
-    train_df, val_df, test_df = train_df.sample(n=20), val_df.sample(n=10), test_df.sample(n=10)
+    #train_df, val_df, test_df = train_df.sample(n=20), val_df.sample(n=10), test_df.sample(n=10)
 
     # Create TF datasets for training, validation and test sets
     # Note: This does NOT load the dataset into memory! We specify paths,
@@ -155,6 +155,7 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
     num_no_sliding = len(train_df[train_df['label']==0])
     num_sliding = len(train_df[train_df['label']==1])
     total = num_no_sliding + num_sliding
+
     weight_for_0 = (1 / num_no_sliding) * (total / 2.0)
     weight_for_1 = (1 / num_sliding) * (total / 2.0)
     class_weight = {0: weight_for_0, 1: weight_for_1}
