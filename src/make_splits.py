@@ -8,6 +8,15 @@ cfg = yaml.full_load(open(os.path.join(os.getcwd(), '../config.yml'), 'r'))
 
 
 def df_splits(df, train, val, test, random_state=cfg['TRAIN']['PATHS']['RANDOM_SEED']):
+    '''
+    Splits the dataframe into train, val and test (adds a split column with train=0, val=1, test=2).
+
+    :param df: The sliding or no_sliding dataframe to adjust
+    :param train: 0 < Float < 1 representing the training fraction
+    :param val:   0 < Float < 1 representing the validation fraction
+    :param test:  0 < Float < 1 representing the test fraction
+    :param random_state: An integer for setting the random seed 
+    '''
     patient_ids = pd.unique(df['patient_id'])
     splits = train_test_split(patient_ids, train_size=train, random_state=random_state)
     val_test_splits = train_test_split(splits[1], train_size=(val/(val+test)), shuffle=False)
@@ -37,16 +46,6 @@ def duplicate(sliding_df, no_sliding_df, split):
         n2 = len(new_no_sliding_df)
     return new_no_sliding_df
 
-'''
-def decrease(sliding_df, no_sliding_df, split):
-    n2 = len(no_sliding_df)
-    sliding_df = sliding_df[sliding_df['split']==split].sample(n=1)
-    n1 = len(sliding_df)
-    while n1 < n2:
-        sliding_df = pd.concat([sliding_df, sliding_df.sample(n=10)])
-        n1 = len(sliding_df)
-    return no_sliding_df'''
-
 # Import split params and check validity
 train_prop = cfg['TRAIN']['SPLITS']['TRAIN']
 val_prop = cfg['TRAIN']['SPLITS']['VAL']
@@ -56,7 +55,6 @@ s = sum([train_prop, val_prop, test_prop])
 if (s > 1.0) or (train_prop < 0) or (val_prop < 0) or (test_prop < 0):
     print('Invalid splits given in config file')
     sys.exit()
-
 
 # CSV paths
 csv_path = os.path.join(os.getcwd(), 'data/', cfg['PREPROCESS']['PATHS']['CSVS_OUTPUT'])
@@ -68,7 +66,6 @@ sliding_df = pd.read_csv(sliding_path)
 sliding_df = sliding_df.sort_values(by=['patient_id'])
 no_sliding_df = pd.read_csv(no_sliding_path)
 no_sliding_df = no_sliding_df.sort_values(by=['patient_id'])
-
 
 # Determine splits, add to previously declared dataframes
 df_splits(sliding_df, train_prop, val_prop, test_prop)
@@ -93,17 +90,13 @@ for index, row in no_sliding_df.iterrows():
     paths0.append(os.path.join(os.getcwd(), 'data/', npz_dir, 'no_sliding/', row['id'] + '.npz'))
 no_sliding_df['filename'] = paths0
 
-
-'''decrease = cfg['TRAIN']['PARAMS']['DECREASE']
-if decrease:
-    sliding_df = decrease(sliding_df, no_sliding_df)'''
-
+# Duplicate the no_sliding_df until it's approximately the same size as sliding_df, if desired
 increase = cfg['TRAIN']['PARAMS']['INCREASE']
 if increase:
     new_no_sliding_train_df = duplicate(sliding_df, no_sliding_df, 0)
-    print(len(new_no_sliding_train_df))
     no_sliding_df = pd.concat([no_sliding_df[no_sliding_df['split'] != 0], new_no_sliding_train_df])
 
+# Print the propotion of each split
 print('train:')
 print(str(len(sliding_df[sliding_df['split']==0])), str(len(no_sliding_df[no_sliding_df['split']==0])))
 print('val:')
@@ -121,7 +114,6 @@ final_df = final_df.sample(frac=1, random_state=2)
 train_df = final_df[final_df['split']==0]
 val_df = final_df[final_df['split']==1]
 test_df = final_df[final_df['split']==2]
-
 
 # Write each to csv
 csv_dir = cfg['TRAIN']['PATHS']['CSVS']

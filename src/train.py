@@ -15,7 +15,6 @@ import io
 from sklearn.metrics import confusion_matrix
 from tensorflow.keras.metrics import Precision, Recall, AUC, TrueNegatives, TruePositives, FalseNegatives, FalsePositives
 from tensorflow_addons.metrics import F1Score
-#from tensorflow_model_analysis.metrics import Specificity
 from tensorflow.keras.callbacks import ModelCheckpoint
 from preprocessor import Preprocessor
 from models.models import *
@@ -24,18 +23,14 @@ from data.utils import refresh_folder
 cfg = yaml.full_load(open(os.path.join(os.getcwd(), '../config.yml'), 'r'))
 
 
-# Basic metrics (plots) - loss, accuracy ?
-def basic_callback():
-  log_dir = "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-  return tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1, write_images=True) # can toggle write_images off
-
 def plot_confusion_matrix(cm, class_names):
     """
     Returns a matplotlib figure containing the plotted confusion matrix.
     
-    Args:
-       cm (array, shape = [n, n]): a confusion matrix of integer classes
-       class_names (array, shape = [n]): String names of the integer classes
+    :param cm: (array, shape = [n, n]): a confusion matrix of integer classes
+    :param class_names: (array, shape = [n]): String names of the integer classes
+
+    Returns: The Matplotlib figure
     """
     
     figure = plt.figure(figsize=(16, 16))
@@ -61,56 +56,54 @@ def plot_confusion_matrix(cm, class_names):
     plt.xlabel('Predicted label')
     return figure
 
+
 def plot_to_image(figure):
     """
-    Converts the matplotlib plot specified by 'figure' to a PNG image and
-    returns it. The supplied figure is closed and inaccessible after this call.
+    Converts the matplotlib plot to a PNG image and returns it.
+
+    :param figure: The Matplotlib figure
+    
+    Returns: The PNG image
     """
     
     buf = io.BytesIO()
-    
-    # EXERCISE: Use plt.savefig to save the plot to a PNG in memory.
     plt.savefig(buf, format='png')
-    
-    # Closing the figure prevents it from being displayed directly inside
-    # the notebook.
     plt.close(figure)
     buf.seek(0)
-    
-    # EXERCISE: Use tf.image.decode_png to convert the PNG buffer
-    # to a TF image. Make sure you use 4 channels.
     image = tf.image.decode_png(buf.getvalue(), channels=4)
-    
-    # EXERCISE: Use tf.expand_dims to add the batch dimension
     image = tf.expand_dims(image, 0)
-    
     return image
 
-def log_confusion_matrix(epoch, logs, model, val_df, val_dataset):
-    paths, labels = val_df['filename'], val_df['label']
 
-    # EXERCISE: Use the model to predict the values from the test_images.
+def log_confusion_matrix(epoch, logs, model, val_df, val_dataset):
+    '''
+    Logs a Confusion Matrix image to TensorBoard.
+
+    :param epoch: The epoch
+    :param logs: The Keras fit logs
+    :param model: The Keras model
+    :param val_df: The dataframe containing the validation partition
+    :param val_dataset: The TensorFlow dataset containing the validation partition
+    '''
+    paths, labels = val_df['filename'], val_df['label']
     test_pred_raw = model.predict(val_dataset).flatten()
     test_pred = (test_pred_raw > 0.5).astype(np.int)
-    print(pd.DataFrame({'Path':paths.apply(lambda x: x.split('/')[-1]), 'True Label':labels, 'Probability':test_pred_raw, 'Predicted Label':test_pred}))
-    
-    # EXERCISE: Calculate the confusion matrix using sklearn.metrics
     cm = confusion_matrix(labels, test_pred)
-    
     figure = plot_confusion_matrix(cm, class_names=['No Sliding', 'Sliding'])
     cm_image = plot_to_image(figure)
-    
-    # Log the confusion matrix as an image summary.
-    file_writer_cm = tf.summary.create_file_writer('logs/fit/temp/cm')
+    path = cfg['TRAIN']['PATHS']['TENSORBOARD']
+    file_writer_cm = tf.summary.create_file_writer(path + 'temp/cm')
 
     with file_writer_cm.as_default():
         tf.summary.image("Confusion Matrix", cm_image, step=epoch)
+
 
 def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'], 
                 hparams=cfg['TRAIN']['PARAMS']['TEST1'],
                 model_out_dir=cfg['TRAIN']['PATHS']['MODEL_OUT']):
     '''
     Trains and saves a model given specific hyperparameters
+
     :param model_def_str: A string in {'test1', ... } specifying the name of the desired model
     :param hparams: A dictionary specifying the hyperparameters to use
     :param model_out_dir: The path to save the model
@@ -120,18 +113,9 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
 
     # Read in training, validation, and test dataframes
     CSVS_FOLDER = cfg['TRAIN']['PATHS']['CSVS']
-    train_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'train.csv'))
-    val_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'val.csv'))
-    test_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'test.csv'))
-
-    # Use subset only - JUST FOR TESTING!!!
-    #
-    ##
-    #
-    #
-    #
-    #
-    #train_df, val_df, test_df = train_df.sample(n=20), val_df.sample(n=10), test_df.sample(n=10)
+    train_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'train.csv'))[:20]
+    val_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'val.csv'))[:25]
+    test_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'test.csv'))[:25]
 
     # Create TF datasets for training, validation and test sets
     # Note: This does NOT load the dataset into memory! We specify paths,
@@ -155,33 +139,31 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
     num_no_sliding = len(train_df[train_df['label']==0])
     num_sliding = len(train_df[train_df['label']==1])
     total = num_no_sliding + num_sliding
-
     weight_for_0 = (1 / num_no_sliding) * (total / 2.0)
     weight_for_1 = (1 / num_sliding) * (total / 2.0)
     class_weight = {0: weight_for_0, 1: weight_for_1}
     print(class_weight)
 
-    # Defining metrics (accuracy, AUC, F1, Precision, Recall)
-    classes = [0, 1]
-    n_classes = len(classes)
-    #threshold = 1.0 / n_classes
+    # Defining Binary Classification Metrics
     metrics = ['accuracy', AUC(name='auc'), F1Score(num_classes=1, threshold=0.5)]
-    metrics += [Precision()]
-    metrics += [Recall()]
+    metrics += [Precision(), Recall()]
     metrics += [TrueNegatives(), TruePositives(), FalseNegatives(), FalsePositives()]
-    #metrics += [Specificity(thresholds=0.5)]
 
     # Creating a ModelCheckpoint for saving the model
     save_cp = ModelCheckpoint(model_out_dir, save_best_only=cfg['TRAIN']['SAVE_BEST_ONLY'])
 
     # Get the model
     input_shape = [cfg['PREPROCESS']['PARAMS']['WINDOW']] + cfg['PREPROCESS']['PARAMS']['IMG_SIZE'] + [3]
-    model = model_def_fn(hparams, input_shape, metrics, n_classes)
+    model = model_def_fn(hparams, input_shape, metrics)
 
+    # Refresh the TensorBoard directory
+    tensorboard_path = cfg['TRAIN']['PATHS']['TENSORBOARD']
+    refresh_folder(tensorboard_path)
+
+    # Create the Confusion Matrix Callback
     def log_confusion_matrix_wrapper(epoch, logs, model=model, val_df=val_df, val_dataset=val_set):
         return log_confusion_matrix(epoch, logs, model, val_df, val_dataset)
 
-    refresh_folder('logs/fit/')
     cm_callback = tf.keras.callbacks.LambdaCallback(on_epoch_end=log_confusion_matrix_wrapper)
 
     # Train and save the model

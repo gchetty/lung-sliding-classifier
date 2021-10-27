@@ -24,7 +24,7 @@ PREPROCESS:
 TRAIN:
 
   MIXED_PRECISION: false
-  MODEL_DEF: 'threeDCNN'
+  MODEL_DEF: 'lrcn'
   SAVE_BEST_ONLY: True
 
   SPLITS:
@@ -38,12 +38,12 @@ TRAIN:
     SHUFFLE: True
     AUGMENTATION_CHANCE: 0.5
     TEST1:
-      LR: 0.0000001
+      LR: 0.000001
       L2_LAMBDA: 0.001
     INCREASE: True
-    DECREASE: False
 
   PATHS:
     CSVS: 'csvs_split/'
     MODEL_OUT: 'models/3dcnn/'
-    RANDOM_SEED: 1
+    RANDOM_SEED: 2
+    TENSORBOARD: 'logs/fit/'

@@ -17,12 +17,14 @@ cfg = yaml.full_load(open(os.path.join(os.getcwd(), '../config.yml'), 'r'))
 
 def get_model(model_name):
     '''
-    Gets the function that returns the desired model function and its associated preprocessing function
+    Gets the function that returns the desired model function and its associated preprocessing function.
+
     :param model_name: A string in {'test1', ...} specifying the model
-    returns: A Tuple (Function returning compiled model, Required preprocessing function)
+
+    Returns: A Tuple (Function returning compiled model, Required preprocessing function)
     '''
-    if model_name == 'test1':
-        model_def_fn = test1
+    if model_name == 'lrcn':
+        model_def_fn = lrcn
         preprocessing_fn = (lambda x: x / 255.0)
     elif model_name == 'threeDCNN':
         model_def_fn = threeDCNN
@@ -30,7 +32,7 @@ def get_model(model_name):
     return model_def_fn, preprocessing_fn
 
 
-def test1(model_config, input_shape, metrics, n_classes):
+def lrcn(model_config, input_shape, metrics):
     """Build a CNN into RNN.
     Starting version from:
         https://github.com/udacity/self-driving-car/blob/master/
@@ -85,11 +87,14 @@ def test1(model_config, input_shape, metrics, n_classes):
 
     model.summary()
 
-    model.compile(loss='categorical_crossentropy', optimizer=Adam(learning_rate=model_config['LR']), metrics=metrics)
+    model.compile(loss='binary_crossentropy', optimizer=Adam(learning_rate=model_config['LR']), metrics=metrics)
 
     return model
 
-def threeDCNN(model_config, input_shape, metrics, n_classes):
+def threeDCNN(model_config, input_shape, metrics):
+    '''
+    Returns a custom 3D CNN
+    '''
     model = Sequential()
 
     model.add(Conv3D(filters=32, kernel_size=(2, 3, 3), strides=1, input_shape=input_shape))

@@ -12,10 +12,13 @@ cfg = yaml.full_load(open(os.getcwd() + '/../config.yml', 'r'))
 
 def random_flip_left_right_clip(x):
     '''
-    With probability 50%, applies a left-right augmentation to a video
+    Applies a left-right augmentation to a video
+
     :param x: Tensor of shape (Clip_length, Height, Width, 3)
-    returns: A Tensor of shape (Clip_length, Height, Width, 3)
+
+    Returns: A Tensor of shape (Clip_length, Height, Width, 3)
     '''
+
     r = random_ops.random_uniform([], 0, 1)
     if r < cfg['TRAIN']['PARAMS']['AUGMENTATION_CHANCE']:
         x = tf.image.flip_left_right(x)
@@ -24,10 +27,13 @@ def random_flip_left_right_clip(x):
 
 def random_flip_up_down_clip(x):
     '''
-    With probability 50%, applies an up-down augmentation to a video
+    Applies an up-down augmentation to a video
+
     :param x: Tensor of shape (Clip_length, Height, Width, 3)
-    returns: A Tensor of shape (Clip_length, Height, Width, 3)
+
+    Returns: A Tensor of shape (Clip_length, Height, Width, 3)
     '''
+
     r = random_ops.random_uniform([], 0, 1)
     if r < cfg['TRAIN']['PARAMS']['AUGMENTATION_CHANCE']:
         x = tf.image.flip_up_down(x)
@@ -36,10 +42,13 @@ def random_flip_up_down_clip(x):
 
 def random_rotate_clip(x):
     '''
-    With probability 50%, randomly rotates a video
+    Randomly rotates a video
+
     :param x: Tensor of shape (Clip_length, Height, Width, 3)
-    returns: A Tensor of shape (Clip_length, Height, Width, 3)
+
+    Returns: A Tensor of shape (Clip_length, Height, Width, 3)
     '''
+
     r = random_ops.random_uniform([], 0, 1)
     if r < cfg['TRAIN']['PARAMS']['AUGMENTATION_CHANCE']:
         angle = random_ops.random_uniform([], -1.57, 1.57)
@@ -49,10 +58,13 @@ def random_rotate_clip(x):
 
 def random_shift_clip(x):
     '''
-    With probability 50%, applies random horizontal and vertical translation to a video
+    Applies a random horizontal and vertical translation to a video
+
     :param x: Tensor of shape (Clip_length, Height, Width, 3)
-    returns: A Tensor of shape (Clip_length, Height, Width, 3)
+
+    Returns: A Tensor of shape (Clip_length, Height, Width, 3)
     '''
+
     r = random_ops.random_uniform([], 0, 1)
     if r < cfg['TRAIN']['PARAMS']['AUGMENTATION_CHANCE']:
         h, w = cfg['PREPROCESS']['PARAMS']['IMG_SIZE'][0], cfg['PREPROCESS']['PARAMS']['IMG_SIZE'][1]  # (clip_length, h, w, channels)
@@ -66,10 +78,13 @@ def random_shift_clip(x):
 
 def random_shear_clip(x):
     '''
-    With probability 50%, applies a random shear to a video
+    Applies a random shear to a video
+
     :param x: Tensor of shape (Clip_length, Height, Width, 3)
-    returns: A Tensor of shape (Clip_length, Height, Width, 3)
+
+    Returns: A Tensor of shape (Clip_length, Height, Width, 3)
     '''
+
     r = random_ops.random_uniform([], 0, 1)
     if r < cfg['TRAIN']['PARAMS']['AUGMENTATION_CHANCE']:
         level = random_ops.random_uniform([], 0.0, 0.25)  # may need adjustment
@@ -81,10 +96,13 @@ def random_shear_clip(x):
 
 def random_zoom_clip(x):
     '''
-    With probability 50%, applies a random OUTWARDS zoom to a video
+    Applies a random OUTWARDS zoom to a video
+
     :param x: Tensor of shape (Clip_length, Height, Width, 3)
-    :return: A Tensor of shape (Clip_length, Height, Width, 3)
+
+    :Returns: A Tensor of shape (Clip_length, Height, Width, 3)
     '''
+    
     r = random_ops.random_uniform([], 0, 1)
     if r < cfg['TRAIN']['PARAMS']['AUGMENTATION_CHANCE']:
         prop = random_ops.random_uniform([], 1.0, 1.5)  # tunable
@@ -100,9 +118,12 @@ def random_zoom_clip(x):
 def augment_clip(x):
     '''
     Applies a series of transformations to a video
+
     :param x: Tensor of shape (Clip_length, Height, Width, 3)
-    returns: A Tensor of shape (Clip_length, Height, Width, 3)
+
+    Returns: A Tensor of shape (Clip_length, Height, Width, 3)
     '''
+
     x = tf.map_fn(lambda x1: tf.image.random_brightness(x1, max_delta=0.2), x)  # delta might need tuning
     x = tf.map_fn(lambda x1: tf.image.random_hue(x1, max_delta=0.5), x)  # delta might need tuning
     x = tf.map_fn(lambda x1: tf.image.random_contrast(x1, 0.5, 0.9), x)
@@ -118,10 +139,13 @@ def augment_clip(x):
 def parse_fn(filename, label):
     '''
     Loads a video from its filename and returns its label
+
     :param filename: Path to an .npz file
     :param label: Binary label for the video
-    returns: Tuple of (Loaded Video, One-hot Tensor)
+
+    Returns: Tuple of (Loaded Video, One-hot Tensor)
     '''
+
     clip = np.load(filename, allow_pickle=True)['frames']
     clip = tf.cast(clip, tf.float32)
     return clip, (1 - tf.one_hot(label, 1))
@@ -130,11 +154,16 @@ def parse_fn(filename, label):
 def parse_tf(filename, label):
     '''
     Loads a video from its filename and returns its label as proper tensors
+
     :param filename: Path to an .npz file
     :param label: Binary label for the video
-    returns: Tuple of (Loaded Video, One-hot Tensor)
+
+    Returns: Tuple of (Loaded Video, One-hot Tensor)
     '''
-    shape = (cfg['PREPROCESS']['PARAMS']['WINDOW'], 224, 224, 3)
+
+    img_size_tuple = cfg['PREPROCESS']['PARAMS']['IMG_SIZE']
+    num_frames = cfg['PREPROCESS']['PARAMS']['WINDOW']
+    shape = (num_frames, img_size_tuple[0], img_size_tuple[1], 3)
     clip, label = tf.numpy_function(parse_fn, [filename, label], (tf.float32, tf.float32))
     tf.ensure_shape(clip, shape)
     label.set_shape((1,))
@@ -152,12 +181,15 @@ class Preprocessor:
     def prepare(self, ds, df, shuffle=False, augment=False):
         '''
         Defines the pipeline for loading and preprocessing each item in a TF dataset
+
         :param ds: The TF dataset to define the pipeline for
         :param df: The DataFrame corresponding to ds
         :param shuffle: A boolean to decide if shuffling is desired
         :param augment: A boolean to decide if augmentation is desired
-        returns ds: A TF dataset with either preprocessed data or a full pipeline for eventual preprocessing
+
+        Returns: A TF dataset with either preprocessed data or a full pipeline for eventual preprocessing
         '''
+        
         # Shuffle the dataset
         if shuffle:
             shuffle_val = len(df)
