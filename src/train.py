@@ -136,8 +136,8 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
     # Taken from https://www.tensorflow.org/tutorials/structured_data/imbalanced_data
     # Scaling by total/2 helps keep the loss to a similar magnitude.
     # The sum of the weights of all examples stays the same.
-    num_no_sliding = len(train_df[train_df['label']==0])
-    num_sliding = len(train_df[train_df['label']==1])
+    num_no_sliding = len(train_df[train_df['label'] == 0])
+    num_sliding = len(train_df[train_df['label'] == 1])
     total = num_no_sliding + num_sliding
     weight_for_0 = (1 / num_no_sliding) * (total / 2.0)
     weight_for_1 = (1 / num_sliding) * (total / 2.0)

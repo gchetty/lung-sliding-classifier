@@ -186,14 +186,13 @@ class Preprocessor:
         :param df: The DataFrame corresponding to ds
         :param shuffle: A boolean to decide if shuffling is desired
         :param augment: A boolean to decide if augmentation is desired
-
-        Returns: A TF dataset with either preprocessed data or a full pipeline for eventual preprocessing
+        
+        :return: A TF dataset with either preprocessed data or a full pipeline for eventual preprocessing
         '''
         
         # Shuffle the dataset
         if shuffle:
-            shuffle_val = len(df)
-            ds = ds.shuffle(shuffle_val)
+            ds = ds.shuffle(len(df))
 
         # Load the videos and create their labels as a one-hot vector
         ds = ds.map(parse_tf, num_parallel_calls=self.autotune)
