@@ -261,8 +261,7 @@ def video_to_npz(path, orig_id, patient_id, df_rows, write_path='', method=cfg['
     else:
       video_to_frames_downsampled(orig_id, patient_id, df_rows, cap, fr, write_path=write_path)
   else:
-    print('IMPLEMENTATION NOT COMPLETE')
-    return
+    raise Exception('Stride method not yet implemented!')
 
 
 flow = cfg['PARAMS']['FLOW']
@@ -344,7 +343,7 @@ elif flow == 'No':
 
 else:
 
-  print('Not yet implemented!')
+  raise Exception('Two-stream preprocessing pipeline not yet implemented!')
 
 # Download dataframes linking mini-clip ids and patient ids as csv files
 out_df_sliding = pd.DataFrame(df_rows_sliding, columns=['id', 'patient_id'])

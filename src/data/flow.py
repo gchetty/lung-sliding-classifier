@@ -12,8 +12,7 @@ masked_no_sliding_folder = os.path.join(masked_folder, 'no_sliding/')
 
 # These input folders need to exist for this to work, so we terminate if they don't
 if (not os.path.exists(masked_folder)) or (not os.path.exists(masked_sliding_folder)) or (not os.path.exists(masked_no_sliding_folder)):
-    print('Error: You need to specify a folder for masked clips in the config file!')
-    exit()
+    raise NotADirectoryError('You need to specify a folder for masked clips in the config file!')
 
 # Ensure all contents in the folder for outputting the flow clips are deleted, but that the folder structure exist
 flow_folder = cfg['PATHS']['FLOW_VIDEOS']

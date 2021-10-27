@@ -1,3 +1,5 @@
+# Largely sourced from https://github.com/qijiezhao/py-denseflow
+
 import os
 import numpy as np
 import cv2
@@ -11,7 +13,7 @@ data_root = ""
 new_dir = ""
 
 
-def toImg(raw_flow, bound):
+def to_img(raw_flow, bound):
 
     '''
     Scale input pixels to 0-255 with bi-bound
@@ -36,12 +38,11 @@ def save_flows(flows, save_dir, num, bound):
     :param save_dir: save_dir name (always equal to the video id)
     :param num: the save id, which belongs one of the extracted frames
     :param bound: set the bi-bound to flow images
-    :return: return 0
     '''
 
     # rescale to 0~255 with the bound setting
-    flow_x = toImg(flows[..., 0], bound)
-    flow_y = toImg(flows[..., 1], bound)
+    flow_x = to_img(flows[..., 0], bound)
+    flow_y = to_img(flows[..., 1], bound)
     if not os.path.exists(os.path.join(data_root, new_dir, save_dir)):
         os.makedirs(os.path.join(data_root, new_dir, save_dir))
 
@@ -54,29 +55,27 @@ def save_flows(flows, save_dir, num, bound):
     flow_y_img = Image.fromarray(flow_y)
     imageio.imwrite(save_x, flow_x_img)
     imageio.imwrite(save_y, flow_y_img)
-    return 0
 
 
-def dense_flow(augs):
+def dense_flow(args):
 
     '''
     Extract dense_flow images from specified video
-    :param augs:the detailed augments:
-        video_name: the video name which is like: 'v_xxxxxxx',if different ,please have a modify.
-        save_dir: the destination path's final direction name.
+    :param args: the detailed arguments:
+        video_name: Name of video for which flow is to be extracted
+        save_dir: Destination path's final directory
         step: num of frames between each two extracted frames
         bound: bi-bound parameter
-    :return: no returns
     '''
 
-    video_name, save_dir, step, bound = augs
+    video_name, save_dir, step, bound = args
     video_path = os.path.join(videos_root, video_name)
 
     try:
         videocapture = cv2.VideoCapture(video_path)
     except Exception as e:
         print('{} read error! {}'.format(video_name, e))
-        return 0
+        return
 
     len_frame = videocapture.get(cv2.CAP_PROP_FRAME_COUNT)
     frame_num = 0
