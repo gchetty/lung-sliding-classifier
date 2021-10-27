@@ -24,6 +24,7 @@ def video_to_frames_strided(path, orig_id, patient_id, df_rows, stride=cfg['PARA
   '''
 
   cap = cv2.VideoCapture(path)
+
   frames = []
   for i in range(stride):
     frames.append([])
@@ -246,7 +247,7 @@ def video_to_npz(path, orig_id, patient_id, df_rows, write_path='', method=cfg['
   '''
 
   flow = cfg['PARAMS']['FLOW']
-
+  
   cap = cv2.VideoCapture(path)
   fr = round(cap.get(cv2.CAP_PROP_FPS))
 
