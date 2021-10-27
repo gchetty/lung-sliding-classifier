@@ -38,6 +38,16 @@ def df_splits(df, train, val, test, random_state=cfg['TRAIN']['PATHS']['RANDOM_S
     return
 
 def duplicate(sliding_df, no_sliding_df, split):
+    '''
+    Duplicates the no_sliding_df until it's approximately the same size as sliding_df
+
+    :param sliding_df: The dataframe storing the sliding data
+    :param no_sliding_df: The dataframe storing the non-sliding data
+    :param split: Int of 0=train, 1=val, 2=test
+
+    Returns the new no_sliding df for the given split
+    '''
+    
     n1 = len(sliding_df[sliding_df['split']==split])
     new_no_sliding_df = no_sliding_df[no_sliding_df['split']==split].sample(n=1)
     n2 = len(new_no_sliding_df)
