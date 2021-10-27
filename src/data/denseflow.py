@@ -1,74 +1,66 @@
-import os,sys
-import yaml
+import os
 import numpy as np
 import cv2
 from PIL import Image
 from multiprocessing import Pool
 import argparse
-import skvideo.io
-import scipy.misc
-import cv2
 import imageio
-from skimage import img_as_ubyte
-from skimage.io import imsave
 
 videos_root = ""
 data_root = ""
 new_dir = ""
 
-def ToImg(raw_flow,bound):
-    '''
-    this function scale the input pixels to 0-255 with bi-bound
 
+def toImg(raw_flow, bound):
+
+    '''
+    Scale input pixels to 0-255 with bi-bound
     :param raw_flow: input raw pixel value (not in 0-255)
     :param bound: upper and lower bound (-bound, bound)
     :return: pixel value scale from 0 to 255
     '''
-    flow=raw_flow
-    flow[flow>bound]=bound
-    flow[flow<-bound]=-bound
-    flow-=-bound
-    flow*=(255/float(2*bound))
+
+    flow = raw_flow
+    flow[flow > bound] = bound
+    flow[flow < -bound] = -bound
+    flow -= -bound
+    flow *= (255/float(2*bound))
     return flow
 
-def save_flows(flows,image,save_dir,num,bound):
+
+def save_flows(flows, save_dir, num, bound):
+
     '''
     To save the optical flow images and raw images
     :param flows: contains flow_x and flow_y
-    :param image: raw image
     :param save_dir: save_dir name (always equal to the video id)
     :param num: the save id, which belongs one of the extracted frames
     :param bound: set the bi-bound to flow images
     :return: return 0
     '''
-    #rescale to 0~255 with the bound setting
-    flow_x=ToImg(flows[...,0],bound)
-    flow_y=ToImg(flows[...,1],bound)
-    if not os.path.exists(os.path.join(data_root,new_dir,save_dir)):
-        os.makedirs(os.path.join(data_root,new_dir,save_dir))
 
-    #save the image
-    #save_img=os.path.join(data_root,new_dir,save_dir,'img_{:05d}.jpg'.format(num))
-    #imsave(save_img, img_as_ubyte(image))
-    #image = image.astype(np.uint8)
-    #imageio.imwrite(save_img,image)
+    # rescale to 0~255 with the bound setting
+    flow_x = toImg(flows[..., 0], bound)
+    flow_y = toImg(flows[..., 1], bound)
+    if not os.path.exists(os.path.join(data_root, new_dir, save_dir)):
+        os.makedirs(os.path.join(data_root, new_dir, save_dir))
 
-    #save the flows
-    save_x=os.path.join(data_root,new_dir,save_dir,'flow_x_{:05d}.jpg'.format(num))
-    save_y=os.path.join(data_root,new_dir,save_dir,'flow_y_{:05d}.jpg'.format(num))
+    # save the flows
+    save_x = os.path.join(data_root, new_dir, save_dir, 'flow_x_{:05d}.jpg'.format(num))
+    save_y = os.path.join(data_root, new_dir, save_dir, 'flow_y_{:05d}.jpg'.format(num))
     flow_x = flow_x.astype(np.uint8)
     flow_y = flow_y.astype(np.uint8)
     flow_x_img = Image.fromarray(flow_x)
     flow_y_img = Image.fromarray(flow_y)
-    #imsave(save_x, img_as_ubyte(flow_x_img))
-    #imsave(save_y, img_as_ubyte(flow_y_img))
-    imageio.imwrite(save_x,flow_x_img)
-    imageio.imwrite(save_y,flow_y_img)
+    imageio.imwrite(save_x, flow_x_img)
+    imageio.imwrite(save_y, flow_y_img)
     return 0
 
+
 def dense_flow(augs):
+
     '''
-    To extract dense_flow images
+    Extract dense_flow images from specified video
     :param augs:the detailed augments:
         video_name: the video name which is like: 'v_xxxxxxx',if different ,please have a modify.
         save_dir: the destination path's final direction name.
@@ -76,127 +68,118 @@ def dense_flow(augs):
         bound: bi-bound parameter
     :return: no returns
     '''
-    video_name,save_dir,step,bound=augs
-    video_path=os.path.join(videos_root,video_name)
 
-    # provide two video-read methods: cv2.VideoCapture() and skvideo.io.vread(), both of which need ffmpeg support
+    video_name, save_dir, step, bound = augs
+    video_path = os.path.join(videos_root, video_name)
 
-    # videocapture=cv2.VideoCapture(video_path)
-    # if not videocapture.isOpened():
-    #     print 'Could not initialize capturing! ', video_name
-    #     exit()
     try:
-        #videocapture=skvideo.io.vread(video_path)
         videocapture = cv2.VideoCapture(video_path)
     except Exception as e:
         print('{} read error! {}'.format(video_name, e))
         return 0
-    print(video_name)
-    # if extract nothing, exit!
-    # if videocapture.sum()==0:
-    #     print('Could not initialize capturing',video_name)
-    #     exit()
-    #len_frame=len(videocapture)
+
     len_frame = videocapture.get(cv2.CAP_PROP_FRAME_COUNT)
-    frame_num=0
-    image,prev_image,gray,prev_gray=None,None,None,None
-    num0=0
+    frame_num = 0
+    image, prev_image, gray, prev_gray = None, None, None, None
+    num0 = 0
+
     while True:
-        frame=videocapture.read()[1]
-        if num0>=len_frame:
+        frame = videocapture.read()[1]
+        if num0 >= len_frame:
             break
-        #frame=videocapture.get(num0)
-        num0+=1
-        if frame_num==0:
-            image=np.zeros_like(frame)
-            gray=np.zeros_like(frame)
-            prev_gray=np.zeros_like(frame)
-            prev_image=frame
-            prev_gray=cv2.cvtColor(prev_image,cv2.COLOR_RGB2GRAY)
-            frame_num+=1
+        num0 += 1
+        if frame_num == 0:
+            prev_image = frame
+            prev_gray = cv2.cvtColor(prev_image, cv2.COLOR_RGB2GRAY)
+            frame_num += 1
+
             # to pass the out of stepped frames
-            step_t=step
-            while step_t>1:
-                #frame=videocapture.read()
-                num0+=1
-                step_t-=1
+            step_t = step
+            while step_t > 1:
+                videocapture.read()
+                num0 += 1
+                step_t -= 1
             continue
 
-        image=frame
-        gray=cv2.cvtColor(image,cv2.COLOR_RGB2GRAY)
-        frame_0=prev_gray
-        frame_1=gray
-        ##default choose the tvl1 algorithm
-        dtvl1=cv2.createOptFlow_DualTVL1()
-        flowDTVL1=dtvl1.calc(frame_0,frame_1,None)
-        save_flows(flowDTVL1,image,save_dir,frame_num,bound) #this is to save flows and img.
-        prev_gray=gray
-        prev_image=image
-        frame_num+=1
+        image = frame
+        gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+        frame_0 = prev_gray
+        frame_1 = gray
+
+        dtvl1 = cv2.createOptFlow_DualTVL1()  # default choose the tvl1 algorithm
+        flowDTVL1 = dtvl1.calc(frame_0, frame_1, None)
+        save_flows(flowDTVL1, save_dir, frame_num, bound)  # save flow frames
+
+        prev_gray = gray
+        frame_num += 1
+
         # to pass the out of stepped frames
-        step_t=step
-        while step_t>1:
-            #frame=videocapture.read()
-            num0+=1
-            step_t-=1
+        step_t = step
+        while step_t > 1:
+            videocapture.read()
+            num0 += 1
+            step_t -= 1
 
 
 def get_video_list():
-    video_list=[]
+
+    '''
+    Retrieve sorted list of video names from videos_root directory
+    :return: Tuple of (sorted video name list, number of videos in list)
+    '''
+
+    video_list = []
     for video_ in os.listdir(videos_root):
         video_list.append(video_)
     video_list.sort()
-    return video_list,len(video_list)
-
+    return video_list, len(video_list)
 
 
 def parse_args():
+
+    '''
+    Parse command line arguments
+    :return: Parsed arguments
+    '''
+
     parser = argparse.ArgumentParser(description="densely extract the video frames and optical flows")
     parser.add_argument('--videos_root', default='', type=str)
-    parser.add_argument('--dataset',default='ucf101',type=str,help='set the dataset name, to find the data path')
-    parser.add_argument('--data_root',default='/n/zqj/video_classification/data',type=str)
-    parser.add_argument('--new_dir',default='flows',type=str)
-    parser.add_argument('--num_workers',default=4,type=int,help='num of workers to act multi-process')
-    parser.add_argument('--step',default=1,type=int,help='gap frames')
-    parser.add_argument('--bound',default=15,type=int,help='set the maximum of optical flow')
-    parser.add_argument('--s_',default=0,type=int,help='start id')
-    parser.add_argument('--e_',default=13320,type=int,help='end id')
-    parser.add_argument('--mode',default='run',type=str,help='set \'run\' if debug done, otherwise, set debug')
+    parser.add_argument('--data_root', default='/n/zqj/video_classification/data', type=str)
+    parser.add_argument('--new_dir', default='flows', type=str)
+    parser.add_argument('--num_workers', default=4, type=int, help='num of workers to act multi-process')
+    parser.add_argument('--step', default=1, type=int, help='gap frames')
+    parser.add_argument('--bound', default=15, type=int, help='set the maximum of optical flow')
+    parser.add_argument('--s_', default=0, type=int, help='start id')
+    parser.add_argument('--e_', default=13320, type=int, help='end id')
+    parser.add_argument('--mode', default='run', type=str, help='set \'run\' if debug done, otherwise, set debug')
     args = parser.parse_args()
     return args
 
-if __name__ =='__main__':
 
-    # example: if the data path not setted from args,just manually set them as belows.
-    #dataset='ucf101'
-    #data_root='/S2/MI/zqj/video_classification/data'
-    #data_root=os.path.join(data_root,dataset)
+if __name__ == '__main__':
 
-    args=parse_args()
-    #videos_root=os.path.join(args.dataset)
-    #videos_root=os.path.join(data_root,'videos')
+    args = parse_args()
 
     #specify the augments
     videos_root = args.videos_root
     data_root = args.data_root
-    num_workers=args.num_workers
-    step=args.step
-    bound=args.bound
-    s_=args.s_
-    e_=args.e_
-    new_dir=args.new_dir
-    mode=args.mode
-    #get video list
-    video_list,len_videos=get_video_list()
-    #video_list=video_list[s_:e_]
+    num_workers = args.num_workers
+    step = args.step
+    bound = args.bound
+    s_ = args.s_
+    e_ = args.e_
+    new_dir = args.new_dir
+    mode = args.mode
 
-    #len_videos=min(e_-s_,13320-s_) # if we choose the ucf101
+    #get video list
+    video_list, len_videos = get_video_list()
+
     print('find {} videos.'.format(len_videos))
-    flows_dirs=[video.split('.')[0] for video in video_list]
+    flows_dirs = [video.split('.')[0] for video in video_list]
     print('get videos list done! ')
 
-    pool=Pool(num_workers)
-    if mode=='run':
-        pool.map(dense_flow,zip(video_list,flows_dirs,[step]*len(video_list),[bound]*len(video_list)))
-    else: #mode=='debug
-        dense_flow((video_list[0],flows_dirs[0],step,bound))
+    pool = Pool(num_workers)
+    if mode == 'run':
+        pool.map(dense_flow, zip(video_list, flows_dirs, [step]*len(video_list), [bound]*len(video_list)))
+    else:  #mode=='debug
+        dense_flow((video_list[0], flows_dirs[0], step, bound))

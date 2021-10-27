@@ -12,14 +12,15 @@ database_cfg = yaml.full_load(open(os.path.join(os.getcwd(),"../../database_conf
 
 
 def download(df, sliding, fr_rows, video_out_root_folder=cfg['PATHS']['UNMASKED_VIDEOS'], csv_out_folder=cfg['PATHS']['CSVS_OUTPUT']):
+
     '''
     Downloads ultrasound videos from the database in .mp4 format, and saves .csvs for tracing their metadata.
     :param df: A Pandas DataFrame which is the result of a specific query to the database. This is the saved .csv.
     :param sliding: A boolean for whether df is holding information on sliding or non_sliding clips.
     :param video_out_root_folder: The folder path for outputting the downloaded videos.
     :param csv_out_folder: The folder path for outputting the .csv.
-
     '''
+
     # Optionally sort, then shuffle the df (and therefore the saved csv) according to config
     shuffle = cfg['PARAMS']['SHUFFLE']
 

@@ -23,8 +23,6 @@ def video_to_frames_strided(path, orig_id, patient_id, df_rows, stride=cfg['PARA
   :param write_path: Path to directory where output mini-clips are saved
   '''
 
-  #TODO: IF YOU CAN DETERMINE FRAMES IN VIDEO FIRST, WE CAN CHECK VALIDITY CONDITION HERE
-
   cap = cv2.VideoCapture(path)
   frames = []
   for i in range(stride):

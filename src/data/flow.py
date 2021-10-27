@@ -1,10 +1,9 @@
 import yaml
 import os
 from utils import refresh_folder
-from shutil import rmtree
 
 # Load dictionary of constants stored in config.yml
-cfg = yaml.full_load(open(os.path.join(os.getcwd(),"../../config.yml"), 'r'))['PREPROCESS']
+cfg = yaml.full_load(open(os.path.join(os.getcwd(), "../../config.yml"), 'r'))['PREPROCESS']
 
 # Obtain input folder paths where the masked videos are stored
 masked_folder = cfg['PATHS']['MASKED_VIDEOS']
@@ -27,6 +26,5 @@ flow_no_sliding_folder = os.path.join(flow_folder, 'no_sliding/')
 os.makedirs(flow_no_sliding_folder)
 
 # Call optical flow tool
-# HOW MANY WORKERS TO USE?
 os.system('python denseflow.py --videos_root=' + masked_sliding_folder + ' --data_root=' + flow_folder + ' --new_dir=sliding --num_workers=4')
 os.system('python denseflow.py --videos_root=' + masked_no_sliding_folder + ' --data_root=' + flow_folder + ' --new_dir=no_sliding --num_workers=4')
