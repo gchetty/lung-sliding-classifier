@@ -3,10 +3,10 @@
 import os
 import numpy as np
 import cv2
-from PIL import Image
-from multiprocessing import Pool
 import argparse
 import imageio
+from PIL import Image
+from multiprocessing import Pool
 
 videos_root = ""
 data_root = ""
@@ -16,9 +16,11 @@ new_dir = ""
 def to_img(raw_flow, bound):
 
     '''
-    Scale input pixels to 0-255 with bi-bound
+    Scales input pixels to 0-255 within given bounds
+
     :param raw_flow: input raw pixel value (not in 0-255)
     :param bound: upper and lower bound (-bound, bound)
+
     :return: pixel value scale from 0 to 255
     '''
 
@@ -33,11 +35,12 @@ def to_img(raw_flow, bound):
 def save_flows(flows, save_dir, num, bound):
 
     '''
-    To save the optical flow images and raw images
+    Saves optical flow images
+
     :param flows: contains flow_x and flow_y
     :param save_dir: save_dir name (always equal to the video id)
     :param num: the save id, which belongs one of the extracted frames
-    :param bound: set the bi-bound to flow images
+    :param bound: set the bounds to flow images
     '''
 
     # rescale to 0~255 with the bound setting
@@ -60,12 +63,13 @@ def save_flows(flows, save_dir, num, bound):
 def dense_flow(args):
 
     '''
-    Extract dense_flow images from specified video
+    Extracts dense_flow images from specified video
+
     :param args: the detailed arguments:
         video_name: Name of video for which flow is to be extracted
         save_dir: Destination path's final directory
-        step: num of frames between each two extracted frames
-        bound: bi-bound parameter
+        step: Number of frames between each two extracted frames
+        bound: Upper and lower bounds
     '''
 
     video_name, save_dir, step, bound = args
@@ -123,7 +127,8 @@ def dense_flow(args):
 def get_video_list():
 
     '''
-    Retrieve sorted list of video names from videos_root directory
+    Retrieves sorted list of video names from videos_root directory
+
     :return: Tuple of (sorted video name list, number of videos in list)
     '''
 
@@ -137,7 +142,8 @@ def get_video_list():
 def parse_args():
 
     '''
-    Parse command line arguments
+    Parses command line arguments
+
     :return: Parsed arguments
     '''
 

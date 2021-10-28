@@ -3,8 +3,8 @@ import mysql.connector
 import os
 import urllib.request
 import yaml
-from utils import refresh_folder
 import cv2
+from utils import refresh_folder
 
 # Load dictionary of constants stored in config.yml & db credentials in database_config.yml
 cfg = yaml.full_load(open(os.path.join(os.getcwd(),"../../config.yml"), 'r'))['PREPROCESS']
@@ -15,6 +15,7 @@ def download(df, sliding, fr_rows, video_out_root_folder=cfg['PATHS']['UNMASKED_
 
     '''
     Downloads ultrasound videos from the database in .mp4 format, and saves .csvs for tracing their metadata.
+
     :param df: A Pandas DataFrame which is the result of a specific query to the database. This is the saved .csv.
     :param sliding: A boolean for whether df is holding information on sliding or non_sliding clips.
     :param video_out_root_folder: The folder path for outputting the downloaded videos.

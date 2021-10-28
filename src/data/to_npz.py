@@ -2,8 +2,8 @@ import cv2
 import numpy as np
 import pandas as pd
 import os
-from utils import refresh_folder
 import yaml
+from utils import refresh_folder
 
 cfg = yaml.full_load(open(os.path.join(os.getcwd(),"../../config.yml"), 'r'))['PREPROCESS']
 
@@ -13,6 +13,7 @@ def video_to_frames_strided(path, orig_id, patient_id, df_rows, stride=cfg['PARA
 
   '''
   Converts a LUS video file to mini-clips with specified sequence length and stride size
+
   :param path: Path to video file to be converted
   :param orig_id: ID of the video file to be converted
   :param patient_id: Patient ID corresponding to the video file
@@ -65,6 +66,7 @@ def video_to_frames_downsampled(orig_id, patient_id, df_rows, cap, fr, seq_lengt
 
   '''
   Converts a LUS video file to mini-clips downsampled to 30 FPS with specified sequence length
+
   :param orig_id: ID of the video file to be converted
   :param patient_id: Patient ID corresponding to the video file
   :param df_rows: list of (mini-clip_ID, patient_ID), updated in this function, and later downloaded
@@ -112,6 +114,7 @@ def video_to_frames_contig(orig_id, patient_id, df_rows, cap, seq_length=cfg['PA
 
   '''
   Converts a LUS video file to contiguous-frame mini-clips with specified sequence length
+
   :param orig_id: ID of the video file to be converted
   :param patient_id: Patient ID corresponding to the video file
   :param df_rows: list of (mini-clip_ID, patient_ID), updated in this function, and later downloaded
@@ -155,6 +158,7 @@ def flow_frames_to_npz_downsampled(path, orig_id, patient_id, df_rows, fr, seq_l
 
   '''
   Converts a directory of x and y flow frames to mini-clips downsampled to 30 FPS, with flows stacked on axis = -1
+
   :param path: Path to directory containing flow frames
   :param orig_id: ID of the LUS video file associated with the flow frames
   :param patient_id: Patient ID corresponding to the video file
@@ -199,6 +203,7 @@ def flow_frames_to_npz_contig(path, orig_id, patient_id, df_rows, seq_length=cfg
 
   '''
   Converts a directory of x and y flow frames to contiguous mini-clips, with flows stacked on axis = -1
+
   :param path: Path to directory containing flow frames
   :param orig_id: ID of the LUS video file associated with the flow frames
   :param patient_id: Patient ID corresponding to the video file
@@ -238,6 +243,7 @@ def video_to_npz(path, orig_id, patient_id, df_rows, write_path='', method=cfg['
 
   '''
   Converts a LUS video file to mini-clips
+  
   :param path: Path to video file to be converted
   :param orig_id: ID of the video file to be converted
   :param patient_id: Patient ID corresponding to the video file
