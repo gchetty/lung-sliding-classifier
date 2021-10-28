@@ -16,7 +16,7 @@ def random_flip_left_right_clip(x):
 
     :param x: Tensor of shape (Clip_length, Height, Width, 3)
 
-    Returns: A Tensor of shape (Clip_length, Height, Width, 3)
+    :return: A Tensor of shape (Clip_length, Height, Width, 3)
     '''
 
     r = random_ops.random_uniform([], 0, 1)
@@ -31,7 +31,7 @@ def random_flip_up_down_clip(x):
 
     :param x: Tensor of shape (Clip_length, Height, Width, 3)
 
-    Returns: A Tensor of shape (Clip_length, Height, Width, 3)
+    :return: A Tensor of shape (Clip_length, Height, Width, 3)
     '''
 
     r = random_ops.random_uniform([], 0, 1)
@@ -46,7 +46,7 @@ def random_rotate_clip(x):
 
     :param x: Tensor of shape (Clip_length, Height, Width, 3)
 
-    Returns: A Tensor of shape (Clip_length, Height, Width, 3)
+    :return: A Tensor of shape (Clip_length, Height, Width, 3)
     '''
 
     r = random_ops.random_uniform([], 0, 1)
@@ -62,7 +62,7 @@ def random_shift_clip(x):
 
     :param x: Tensor of shape (Clip_length, Height, Width, 3)
 
-    Returns: A Tensor of shape (Clip_length, Height, Width, 3)
+    :return: A Tensor of shape (Clip_length, Height, Width, 3)
     '''
 
     r = random_ops.random_uniform([], 0, 1)
@@ -82,7 +82,7 @@ def random_shear_clip(x):
 
     :param x: Tensor of shape (Clip_length, Height, Width, 3)
 
-    Returns: A Tensor of shape (Clip_length, Height, Width, 3)
+    :return: A Tensor of shape (Clip_length, Height, Width, 3)
     '''
 
     r = random_ops.random_uniform([], 0, 1)
@@ -100,7 +100,7 @@ def random_zoom_clip(x):
 
     :param x: Tensor of shape (Clip_length, Height, Width, 3)
 
-    :Returns: A Tensor of shape (Clip_length, Height, Width, 3)
+    :return: A Tensor of shape (Clip_length, Height, Width, 3)
     '''
     
     r = random_ops.random_uniform([], 0, 1)
@@ -121,7 +121,7 @@ def augment_clip(x):
 
     :param x: Tensor of shape (Clip_length, Height, Width, 3)
 
-    Returns: A Tensor of shape (Clip_length, Height, Width, 3)
+    :return: A Tensor of shape (Clip_length, Height, Width, 3)
     '''
 
     x = tf.map_fn(lambda x1: tf.image.random_brightness(x1, max_delta=0.2), x)  # delta might need tuning
@@ -143,7 +143,7 @@ def parse_fn(filename, label):
     :param filename: Path to an .npz file
     :param label: Binary label for the video
 
-    Returns: Tuple of (Loaded Video, One-hot Tensor)
+    :return: Tuple of (Loaded Video, One-hot Tensor)
     '''
 
     clip = np.load(filename, allow_pickle=True)['frames']
@@ -158,7 +158,7 @@ def parse_tf(filename, label):
     :param filename: Path to an .npz file
     :param label: Binary label for the video
 
-    Returns: Tuple of (Loaded Video, One-hot Tensor)
+    :return: Tuple of (Loaded Video, One-hot Tensor)
     '''
 
     img_size_tuple = cfg['PREPROCESS']['PARAMS']['IMG_SIZE']
@@ -186,13 +186,14 @@ class Preprocessor:
         :param df: The DataFrame corresponding to ds
         :param shuffle: A boolean to decide if shuffling is desired
         :param augment: A boolean to decide if augmentation is desired
-        
+
         :return: A TF dataset with either preprocessed data or a full pipeline for eventual preprocessing
         '''
         
         # Shuffle the dataset
         if shuffle:
-            ds = ds.shuffle(len(df))
+            shuffle_val = len(df)
+            ds = ds.shuffle(shuffle_val)
 
         # Load the videos and create their labels as a one-hot vector
         ds = ds.map(parse_tf, num_parallel_calls=self.autotune)
@@ -211,10 +212,3 @@ class Preprocessor:
         ds = ds.prefetch(buffer_size=self.autotune)
 
         return ds
-
-
-
-
-
-
-

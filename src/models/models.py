@@ -21,7 +21,7 @@ def get_model(model_name):
 
     :param model_name: A string in {'test1', ...} specifying the model
 
-    Returns: A Tuple (Function returning compiled model, Required preprocessing function)
+    :return: A Tuple (Function returning compiled model, Required preprocessing function)
     '''
     if model_name == 'lrcn':
         model_def_fn = lrcn

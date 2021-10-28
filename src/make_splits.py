@@ -37,7 +37,7 @@ def df_splits(df, train, val, test, random_state=cfg['TRAIN']['PATHS']['RANDOM_S
     df['split'] = split_labels
     return
 
-def duplicate(sliding_df, no_sliding_df, split):
+def minority_oversample(sliding_df, no_sliding_df, split):
     '''
     Duplicates the no_sliding_df until it's approximately the same size as sliding_df
 
@@ -45,7 +45,7 @@ def duplicate(sliding_df, no_sliding_df, split):
     :param no_sliding_df: The dataframe storing the non-sliding data
     :param split: Int of 0=train, 1=val, 2=test
 
-    Returns the new no_sliding df for the given split
+    :return: the new no_sliding df for the given split
     '''
     
     n1 = len(sliding_df[sliding_df['split']==split])
@@ -103,16 +103,13 @@ no_sliding_df['filename'] = paths0
 # Duplicate the no_sliding_df until it's approximately the same size as sliding_df, if desired
 increase = cfg['TRAIN']['PARAMS']['INCREASE']
 if increase:
-    new_no_sliding_train_df = duplicate(sliding_df, no_sliding_df, 0)
+    new_no_sliding_train_df = minority_oversample(sliding_df, no_sliding_df, 0)
     no_sliding_df = pd.concat([no_sliding_df[no_sliding_df['split'] != 0], new_no_sliding_train_df])
 
-# Print the propotion of each split
-print('train:')
-print(str(len(sliding_df[sliding_df['split']==0])), str(len(no_sliding_df[no_sliding_df['split']==0])))
-print('val:')
-print(str(len(sliding_df[sliding_df['split']==1])), str(len(no_sliding_df[no_sliding_df['split']==1])))
-print('test:')
-print(str(len(sliding_df[sliding_df['split']==2])), str(len(no_sliding_df[no_sliding_df['split']==2])))
+# Print the proportion of each split
+print('Train: Sliding=={}, No Sliding=={}'.format(len(sliding_df[sliding_df['split']==0]), len(no_sliding_df[no_sliding_df['split']==0])))
+print('Tal: Sliding=={}, No Sliding=={}'.format(len(sliding_df[sliding_df['split']==1]), len(no_sliding_df[no_sliding_df['split']==1])))
+print('Test: Sliding=={}, No Sliding=={}'.format(len(sliding_df[sliding_df['split']==2]), len(no_sliding_df[no_sliding_df['split']==2])))
 
 # Vertically concatenate dataframes
 final_df = pd.concat([sliding_df, no_sliding_df])
