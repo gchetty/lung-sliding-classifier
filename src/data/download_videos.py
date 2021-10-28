@@ -3,6 +3,7 @@ import mysql.connector
 import os
 import urllib.request
 import yaml
+import cv2
 from utils import refresh_folder
 
 # Load dictionary of constants stored in config.yml & db credentials in database_config.yml
@@ -10,15 +11,17 @@ cfg = yaml.full_load(open(os.path.join(os.getcwd(),"../../config.yml"), 'r'))['P
 database_cfg = yaml.full_load(open(os.path.join(os.getcwd(),"../../database_config.yml"), 'r'))
 
 
-def download(df, sliding, video_out_root_folder=cfg['PATHS']['UNMASKED_VIDEOS'], csv_out_folder=cfg['PATHS']['CSVS_OUTPUT']):
+def download(df, sliding, fr_rows, video_out_root_folder=cfg['PATHS']['UNMASKED_VIDEOS'], csv_out_folder=cfg['PATHS']['CSVS_OUTPUT']):
+
     '''
     Downloads ultrasound videos from the database in .mp4 format, and saves .csvs for tracing their metadata.
+
     :param df: A Pandas DataFrame which is the result of a specific query to the database. This is the saved .csv.
     :param sliding: A boolean for whether df is holding information on sliding or non_sliding clips.
     :param video_out_root_folder: The folder path for outputting the downloaded videos.
     :param csv_out_folder: The folder path for outputting the .csv.
-
     '''
+
     # Optionally sort, then shuffle the df (and therefore the saved csv) according to config
     shuffle = cfg['PARAMS']['SHUFFLE']
 
@@ -59,7 +62,21 @@ def download(df, sliding, video_out_root_folder=cfg['PATHS']['UNMASKED_VIDEOS'],
 
     # Iterate through df to download the videos and preserve their id in the name
     for index, row in df.iterrows():
-        urllib.request.urlretrieve(row['s3_path'], video_out_folder + row['id'] + '.mp4')
+        out_path = video_out_folder + row['id'] + '.mp4'
+        urllib.request.urlretrieve(row['s3_path'], out_path)
+
+        # Get frame rate
+        cap = cv2.VideoCapture(out_path)
+        fr = round(cap.get(cv2.CAP_PROP_FPS))
+
+        # Discard video if frame rate is not multiple of 30
+        if not (fr % 30 == 0):
+            os.remove(out_path)
+            return
+
+        # Add to frame rate CSV rows
+        fr_rows.append([row['id'], fr])
+
 
 # Get database configs
 USERNAME = database_cfg['USERNAME']
@@ -93,6 +110,21 @@ if AMOUNT_ONLY:
 print('In total, there are ' + str(len(sliding_df)) + ' available videos with sliding,' + 
       ' and ' + str(len(no_sliding_df)) + ' without.')
 
+# Store rows for frame rate csv
+fr_sliding_rows = []
+fr_no_sliding_rows = []
+
 # Call download with each dataframe
-download(sliding_df, sliding=True)
-download(no_sliding_df, sliding=False)
+download(sliding_df, sliding=True, fr_rows=fr_sliding_rows)
+download(no_sliding_df, sliding=False, fr_rows=fr_no_sliding_rows)
+
+# Save frame rate CSVs
+csv_out_folder = cfg['PATHS']['CSVS_OUTPUT']
+
+out_df_sliding = pd.DataFrame(fr_sliding_rows, columns=['id', 'frame_rate'])
+csv_out_path_sliding = os.path.join(csv_out_folder, 'sliding_frame_rates.csv')
+out_df_sliding.to_csv(csv_out_path_sliding, index=False)
+
+out_df_no_sliding = pd.DataFrame(fr_no_sliding_rows, columns=['id', 'frame_rate'])
+csv_out_path_no_sliding = os.path.join(csv_out_folder, 'no_sliding_frame_rates.csv')
+out_df_no_sliding.to_csv(csv_out_path_no_sliding, index=False)
