@@ -8,6 +8,15 @@ cfg = yaml.full_load(open(os.path.join(os.getcwd(), '../config.yml'), 'r'))
 
 
 def df_splits(df, train, val, test, random_state=cfg['TRAIN']['PATHS']['RANDOM_SEED']):
+    '''
+    Splits the dataframe into train, val and test (adds a split column with train=0, val=1, test=2).
+
+    :param df: The sliding or no_sliding dataframe to adjust
+    :param train: 0 < Float < 1 representing the training fraction
+    :param val:   0 < Float < 1 representing the validation fraction
+    :param test:  0 < Float < 1 representing the test fraction
+    :param random_state: An integer for setting the random seed 
+    '''
     patient_ids = pd.unique(df['patient_id'])
     splits = train_test_split(patient_ids, train_size=train, random_state=random_state)
     val_test_splits = train_test_split(splits[1], train_size=(val/(val+test)), shuffle=False)
@@ -28,6 +37,24 @@ def df_splits(df, train, val, test, random_state=cfg['TRAIN']['PATHS']['RANDOM_S
     df['split'] = split_labels
     return
 
+def minority_oversample(sliding_df, no_sliding_df, split):
+    '''
+    Duplicates the no_sliding_df until it's approximately the same size as sliding_df
+
+    :param sliding_df: The dataframe storing the sliding data
+    :param no_sliding_df: The dataframe storing the non-sliding data
+    :param split: Int of 0=train, 1=val, 2=test
+
+    :return: the new no_sliding df for the given split
+    '''
+    
+    n1 = len(sliding_df[sliding_df['split']==split])
+    new_no_sliding_df = no_sliding_df[no_sliding_df['split']==split].sample(n=1)
+    n2 = len(new_no_sliding_df)
+    while n2 < n1:
+        new_no_sliding_df = pd.concat([new_no_sliding_df, no_sliding_df[no_sliding_df['split']==split].sample(n=100)])
+        n2 = len(new_no_sliding_df)
+    return new_no_sliding_df
 
 # Import split params and check validity
 train_prop = cfg['TRAIN']['SPLITS']['TRAIN']
@@ -72,6 +99,17 @@ paths0 = []
 for index, row in no_sliding_df.iterrows():
     paths0.append(os.path.join(os.getcwd(), 'data/', npz_dir, 'no_sliding/', row['id'] + '.npz'))
 no_sliding_df['filename'] = paths0
+
+# Duplicate the no_sliding_df until it's approximately the same size as sliding_df, if desired
+increase = cfg['TRAIN']['PARAMS']['INCREASE']
+if increase:
+    new_no_sliding_train_df = minority_oversample(sliding_df, no_sliding_df, 0)
+    no_sliding_df = pd.concat([no_sliding_df[no_sliding_df['split'] != 0], new_no_sliding_train_df])
+
+# Print the proportion of each split
+print('Train: Sliding=={}, No Sliding=={}'.format(len(sliding_df[sliding_df['split']==0]), len(no_sliding_df[no_sliding_df['split']==0])))
+print('Tal: Sliding=={}, No Sliding=={}'.format(len(sliding_df[sliding_df['split']==1]), len(no_sliding_df[no_sliding_df['split']==1])))
+print('Test: Sliding=={}, No Sliding=={}'.format(len(sliding_df[sliding_df['split']==2]), len(no_sliding_df[no_sliding_df['split']==2])))
 
 # Vertically concatenate dataframes
 final_df = pd.concat([sliding_df, no_sliding_df])

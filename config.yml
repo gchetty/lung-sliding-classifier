@@ -8,11 +8,11 @@ PREPROCESS:
     FLOW: 'Yes'  # Yes for flow only, No for no flow, and Mixed for videos and flow
     SHUFFLE: True # If you want to randomize the videos downloaded
     RANDOM_SEED: 1 # If SHUFFLE=False, this does nothing. Otherwise, this is the seed for shuffling
-    SLIDING_PROPORTION: 0.001
-    NO_SLIDING_PROPORTION: 0.01
+    SLIDING_PROPORTION: 1
+    NO_SLIDING_PROPORTION: 1
     METHOD: 'Contiguous'  # 'Stride' or 'Contiguous'
     WINDOW: 90 # Mini-clip length
-    STRIDE: 3  # 1 = contiguous (METHOD='Contiguous' param overrides this)
+    STRIDE: 1  # 1 = contiguous (METHOD='Contiguous' param overrides this)
     IMG_SIZE: [224, 224]
 
   PATHS:
@@ -24,26 +24,27 @@ PREPROCESS:
     MASKING_TOOL: 'auto_masking_deeper.h5'
 
 TRAIN:
-
-  MIXED_PRECISION: False
-  MODEL_DEF: 'test1'
+  MIXED_PRECISION: false
+  MODEL_DEF: 'lrcn'
   SAVE_BEST_ONLY: True
 
   SPLITS:
-    TRAIN: 0.8
-    VAL: 0.1
-    TEST: 0.1
+    TRAIN: 0.7
+    VAL: 0.15
+    TEST: 0.15
 
   PARAMS:
-    EPOCHS: 5
-    BATCH_SIZE: 2
+    EPOCHS: 15
+    BATCH_SIZE: 1
     SHUFFLE: True
     AUGMENTATION_CHANCE: 0.5
     TEST1:
-      LR: 0.0000001
+      LR: 0.000001
       L2_LAMBDA: 0.001
+    INCREASE: True
 
   PATHS:
     CSVS: 'csvs_split/'
-    MODEL_OUT: 'models/lrcn1/'
-    RANDOM_SEED: 1
+    MODEL_OUT: 'models/3dcnn/'
+    RANDOM_SEED: 2
+    TENSORBOARD: 'logs/fit/'
