@@ -16,6 +16,7 @@ from tensorflow.keras.callbacks import ModelCheckpoint
 from preprocessor import Preprocessor
 from visualization.visualization import log_confusion_matrix
 from models.models import *
+from custom.metrics import Specificity
 from data.utils import refresh_folder
 
 
@@ -71,7 +72,7 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
     # Defining Binary Classification Metrics
     metrics =  [Accuracy(), AUC(name='auc'), F1Score(num_classes=1, threshold=0.5)]
     metrics += [Precision(), Recall()]
-    metrics += [TrueNegatives(), TruePositives(), FalseNegatives(), FalsePositives()]
+    metrics += [TrueNegatives(), TruePositives(), FalseNegatives(), FalsePositives(), Specificity()]
 
     # Get the model
     input_shape = [cfg['PREPROCESS']['PARAMS']['WINDOW']] + cfg['PREPROCESS']['PARAMS']['IMG_SIZE'] + [3]
