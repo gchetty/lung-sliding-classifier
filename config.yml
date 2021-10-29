@@ -21,7 +21,7 @@ PREPROCESS:
     FLOW_VIDEOS: 'flow_videos/'
     CSVS_OUTPUT: 'csvs/'
     NPZ: 'npzs/'
-    FLOW_NPZ: 'flow_npzs'
+    FLOW_NPZ: 'flow_npzs/'
     MASKING_TOOL: 'auto_masking_deeper.h5'
 
 TRAIN:

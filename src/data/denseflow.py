@@ -72,20 +72,22 @@ def dense_flow(args):
         bound: Upper and lower bounds
     '''
 
-    video_name, save_dir, step, bound = args
-    video_path = os.path.join(videos_root, video_name)
+    video_root, video_name, save_dir, step, bound = args
+    video_path = os.path.join(video_root, video_name)
 
+    print(video_path)
+    
     try:
         videocapture = cv2.VideoCapture(video_path)
     except Exception as e:
         print('{} read error! {}'.format(video_name, e))
         return
-
+    
     len_frame = videocapture.get(cv2.CAP_PROP_FRAME_COUNT)
     frame_num = 0
     image, prev_image, gray, prev_gray = None, None, None, None
     num0 = 0
-
+    
     while True:
         frame = videocapture.read()[1]
         if num0 >= len_frame:
@@ -103,16 +105,16 @@ def dense_flow(args):
                 num0 += 1
                 step_t -= 1
             continue
-
+        
         image = frame
         gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
         frame_0 = prev_gray
         frame_1 = gray
-
+        
         dtvl1 = cv2.createOptFlow_DualTVL1()  # default choose the tvl1 algorithm
         flowDTVL1 = dtvl1.calc(frame_0, frame_1, None)
         save_flows(flowDTVL1, save_dir, frame_num, bound)  # save flow frames
-
+        
         prev_gray = gray
         frame_num += 1
 
@@ -183,8 +185,12 @@ if __name__ == '__main__':
     flows_dirs = [video.split('.')[0] for video in video_list]
     print('get videos list done! ')
 
+    video_root = args.videos_root
+
     pool = Pool(num_workers)
     if mode == 'run':
-        pool.map(dense_flow, zip(video_list, flows_dirs, [step]*len(video_list), [bound]*len(video_list)))
+        for i in range(len(video_list)):
+            dense_flow((videos_root, video_list[i], flows_dirs[i], step, bound))
+        #pool.map(dense_flow, zip(video_root, video_list, flows_dirs, [step]*len(video_list), [bound]*len(video_list)))
     else:  #mode=='debug
-        dense_flow((video_list[0], flows_dirs[0], step, bound))
+        dense_flow((videos_root, video_list[0], flows_dirs[0], step, bound))
