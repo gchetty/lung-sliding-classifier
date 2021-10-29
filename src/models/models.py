@@ -4,13 +4,16 @@ Script for defining TensorFlow neural network models
 
 import yaml
 import os
+import tensorflow as tf
 
 from tensorflow.keras.layers import Dense, Flatten
 from tensorflow.keras.layers import LSTM
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import TimeDistributed, Conv3D, AveragePooling3D, Dropout
+from tensorflow.keras.layers import TimeDistributed, Conv3D, AveragePooling3D, Dropout, Input, Add
 from tensorflow.keras.layers import Conv2D, MaxPooling2D, BatchNormalization, Activation
 from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.applications.xception import Xception
+from tensorflow.keras.applications.xception import preprocess_input as xception_preprocess
 
 cfg = yaml.full_load(open(os.path.join(os.getcwd(), '../config.yml'), 'r'))
 
@@ -29,7 +32,96 @@ def get_model(model_name):
     elif model_name == 'threeDCNN':
         model_def_fn = threeDCNN
         preprocessing_fn = (lambda x: x / 255.0)
+    elif model_name == 'xception_raw':
+        model_def_fn = xception_raw
+        preprocessing_fn = xception_preprocess
+
     return model_def_fn, preprocessing_fn
+
+
+def xception_raw(model_config, input_shape, metrics):
+
+    '''
+    Time-distributed raw (not pre-trained) Xception feature extractor, with LSTM and output head on top
+
+    :param model_config:
+    :param input_shape:
+    :param metrics:
+
+    :return: Compiled tensorflow model
+    '''
+
+    lr = model_config['LR']
+    dropout = model_config['DROPOUT']
+    optimizer = Adam(learning_rate=lr)
+
+    base = Xception(include_top=False, weights=None, input_shape=input_shape[1:], pooling='avg')
+
+    x_input = Input(input_shape, name='input')
+
+    # First block
+    x = TimeDistributed(base.layers[1], name=base.layers[1].name)(x_input)
+    for i in range(2, 7):
+        x = TimeDistributed(base.layers[i], name=base.layers[i].name)(x)
+    prev_add = x
+
+    # Second block
+    for i in range(7, 12):
+        x = TimeDistributed(base.layers[i], name=base.layers[i].name)(x)
+    x = TimeDistributed(base.layers[13], name=base.layers[13].name)(x)  # batch norm
+    x = TimeDistributed(base.layers[14], name=base.layers[14].name)(x)  # max pooling
+    skip = TimeDistributed(base.layers[12], name=base.layers[12].name)(prev_add)  # Conv2d residual branch
+    x = TimeDistributed(Add(), name=base.layers[15].name)([x, skip])
+    prev_add = x
+
+    # Third block
+    for i in range(16, 22):
+        x = TimeDistributed(base.layers[i], name=base.layers[i].name)(x)
+    x = TimeDistributed(base.layers[23], name=base.layers[23].name)(x)
+    x = TimeDistributed(base.layers[24], name=base.layers[24].name)(x)
+    skip = TimeDistributed(base.layers[22], name=base.layers[22].name)(prev_add)  # Conv2d residual branch
+    x = TimeDistributed(Add(), name=base.layers[25].name)([x, skip])
+    prev_add = x
+
+    # Fourth block
+    for i in range(26, 32):
+        x = TimeDistributed(base.layers[i], name=base.layers[i].name)(x)
+    x = TimeDistributed(base.layers[33], name=base.layers[33].name)(x)
+    x = TimeDistributed(base.layers[34], name=base.layers[34].name)(x)
+    skip = TimeDistributed(base.layers[32], name=base.layers[32].name)(prev_add)  # Conv2d residual branch
+    x = TimeDistributed(Add(), name=base.layers[35].name)([x, skip])
+    prev_add = x
+
+    # Blocks 5 through 12
+    for n in range(0, 71, 10):
+        for i in range(36 + n, 45 + n):
+            x = TimeDistributed(base.layers[i], name=base.layers[i].name)(x)
+        x = TimeDistributed(Add(), name=base.layers[45 + n].name)([x, prev_add])
+        prev_add = x
+
+    # Block 13
+    for i in range(116, 122):
+        x = TimeDistributed(base.layers[i], name=base.layers[i].name)(x)
+    x = TimeDistributed(base.layers[123], name=base.layers[123].name)(x)
+    x = TimeDistributed(base.layers[124], name=base.layers[124].name)(x)
+    skip = TimeDistributed(base.layers[122], name=base.layers[122].name)(prev_add)  # Conv2d residual branch
+    x = TimeDistributed(Add(), name=base.layers[125].name)([x, skip])
+
+    # Block 14
+    for layer in base.layers[126:]:
+        x = TimeDistributed(layer, name=layer.name)(x)
+
+    # LSTM and output head
+    x = LSTM(256, return_sequences=False, dropout=dropout)(x)
+    x = Dense(128, activation='relu')(x)
+    outputs = Dense(1, activation='sigmoid')(x)
+
+    model = tf.keras.Model(inputs=x_input, outputs=outputs)
+    model.summary()
+
+    model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=metrics)
+
+    return model
 
 
 def lrcn(model_config, input_shape, metrics):

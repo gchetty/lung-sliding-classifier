@@ -24,7 +24,7 @@ cfg = yaml.full_load(open(os.path.join(os.getcwd(), '../config.yml'), 'r'))
 
 
 def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'], 
-                hparams=cfg['TRAIN']['PARAMS']['TEST1'],
+                hparams=cfg['TRAIN']['PARAMS']['XCEPTION_RAW'],  # SHOULD REALLY MAKE THIS MORE DYNAMIC
                 model_out_dir=cfg['TRAIN']['PATHS']['MODEL_OUT']):
     '''
     Trains and saves a model given specific hyperparameters
@@ -38,9 +38,9 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
 
     # Read in training, validation, and test dataframes
     CSVS_FOLDER = cfg['TRAIN']['PATHS']['CSVS']
-    train_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'train.csv'))[:20]
-    val_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'val.csv'))[:20]
-    test_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'test.csv'))[:20]
+    train_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'train.csv'))#[:20]
+    val_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'val.csv'))#[:20]
+    test_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'test.csv'))#[:20]
 
     # Create TF datasets for training, validation and test sets
     # Note: This does NOT load the dataset into memory! We specify paths,
