@@ -9,7 +9,7 @@ import tensorflow as tf
 from tensorflow.keras.layers import Dense, Flatten
 from tensorflow.keras.layers import LSTM
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import TimeDistributed, Conv3D, AveragePooling3D, Dropout, Input, Add
+from tensorflow.keras.layers import TimeDistributed, Conv3D, AveragePooling3D, Dropout, Input, Add, InputLayer
 from tensorflow.keras.layers import Conv2D, MaxPooling2D, BatchNormalization, Activation
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.applications.xception import Xception
@@ -139,7 +139,7 @@ def vgg16_raw(model_config, input_shape, metrics):
 
     model = tf.keras.models.Sequential()
 
-    model.add(Input(input_shape=(90, 224, 224, 2)))
+    model.add(InputLayer(input_shape=input_shape))
 
     for layer in base.layers[1:]:
         model.add(TimeDistributed(layer))
