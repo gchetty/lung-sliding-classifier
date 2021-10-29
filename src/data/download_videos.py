@@ -73,10 +73,9 @@ def download(df, sliding, fr_rows, video_out_root_folder=cfg['PATHS']['UNMASKED_
         # Discard video if frame rate is not multiple of 30
         if not (fr % 30 == 0):
             os.remove(out_path)
-            return
-
-        # Add to frame rate CSV rows
-        fr_rows.append([row['id'], fr])
+        else:
+            # Add to frame rate CSV rows
+            fr_rows.append([row['id'], fr])
 
 
 # Get database configs
