@@ -14,6 +14,8 @@ from tensorflow.keras.layers import Conv2D, MaxPooling2D, BatchNormalization, Ac
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.applications.xception import Xception
 from tensorflow.keras.applications.xception import preprocess_input as xception_preprocess
+from tensorflow.keras.applications.vgg16 import VGG16
+from tensorflow.keras.applications.vgg16 import preprocess_input as vgg16_preprocess
 
 cfg = yaml.full_load(open(os.path.join(os.getcwd(), '../config.yml'), 'r'))
 
@@ -35,6 +37,9 @@ def get_model(model_name):
     elif model_name == 'xception_raw':
         model_def_fn = xception_raw
         preprocessing_fn = xception_preprocess
+    elif model_name == 'vgg16_raw':
+        model_def_fn = vgg16_raw
+        preprocessing_fn = vgg16_preprocess
 
     return model_def_fn, preprocessing_fn
 
@@ -117,6 +122,31 @@ def xception_raw(model_config, input_shape, metrics):
     outputs = Dense(1, activation='sigmoid')(x)
 
     model = tf.keras.Model(inputs=x_input, outputs=outputs)
+    model.summary()
+
+    model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=metrics)
+
+    return model
+
+
+def vgg16_raw(model_config, input_shape, metrics):
+
+    lr = model_config['LR']
+    dropout = model_config['DROPOUT']
+    optimizer = Adam(learning_rate=lr)
+
+    base = VGG16(include_top=False, weights=None, input_shape=input_shape[1:], pooling='avg')
+
+    model = tf.keras.models.Sequential()
+
+    model.add(Input(input_shape=(90, 224, 224, 2)))
+
+    for layer in base.layers[1:]:
+        model.add(TimeDistributed(layer))
+
+    model.add(LSTM(256, return_sequences=False, dropout=dropout))
+    model.add(Dense(1, activation='sigmoid'))
+
     model.summary()
 
     model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=metrics)

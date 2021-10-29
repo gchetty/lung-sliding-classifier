@@ -26,7 +26,7 @@ PREPROCESS:
 
 TRAIN:
   MIXED_PRECISION: false
-  MODEL_DEF: 'xception_raw'  # xception_raw, lrcn, threeDCNN
+  MODEL_DEF: 'vgg16_raw'  # xception_raw, lrcn, threeDCNN
   SAVE_BEST_ONLY: True
 
   SPLITS:
@@ -43,6 +43,9 @@ TRAIN:
       LR: 0.000001
       L2_LAMBDA: 0.001
     XCEPTION_RAW:
+      LR: 0.0001
+      DROPOUT: 0.5
+    VGG16_RAW:
       LR: 0.0001
       DROPOUT: 0.5
     INCREASE: True
