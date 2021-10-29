@@ -108,7 +108,7 @@ if increase:
 
 # Print the proportion of each split
 print('Train: Sliding=={}, No Sliding=={}'.format(len(sliding_df[sliding_df['split']==0]), len(no_sliding_df[no_sliding_df['split']==0])))
-print('Tal: Sliding=={}, No Sliding=={}'.format(len(sliding_df[sliding_df['split']==1]), len(no_sliding_df[no_sliding_df['split']==1])))
+print('Val: Sliding=={}, No Sliding=={}'.format(len(sliding_df[sliding_df['split']==1]), len(no_sliding_df[no_sliding_df['split']==1])))
 print('Test: Sliding=={}, No Sliding=={}'.format(len(sliding_df[sliding_df['split']==2]), len(no_sliding_df[no_sliding_df['split']==2])))
 
 # Vertically concatenate dataframes
