@@ -273,18 +273,23 @@ def video_to_npz(path, orig_id, patient_id, df_rows, write_path='', method=cfg['
 flow = cfg['PARAMS']['FLOW']
 
 # Setup directories, from config file
-npz_folder = cfg['PATHS']['NPZ']
-refresh_folder(npz_folder)
-
-sliding_npz_folder = os.path.join(npz_folder, 'sliding/')
-os.makedirs(sliding_npz_folder)
-
-no_sliding_npz_folder = os.path.join(npz_folder, 'no_sliding/')
-os.makedirs(no_sliding_npz_folder)
-
 masked_folder = cfg['PATHS']['MASKED_VIDEOS']
 masked_sliding_folder = os.path.join(masked_folder, 'sliding/')
 masked_no_sliding_folder = os.path.join(masked_folder, 'no_sliding/')
+
+npz_folder = ''
+sliding_npz_folder = ''
+no_sliding_npz_folder = ''
+
+if not (flow == 'Yes'):
+  npz_folder = cfg['PATHS']['NPZ']
+  refresh_folder(npz_folder)
+
+  sliding_npz_folder = os.path.join(npz_folder, 'sliding/')
+  os.makedirs(sliding_npz_folder)
+
+  no_sliding_npz_folder = os.path.join(npz_folder, 'no_sliding/')
+  os.makedirs(no_sliding_npz_folder)
 
 flow_folder = ''
 flow_sliding_folder = ''
