@@ -290,10 +290,23 @@ flow_folder = ''
 flow_sliding_folder = ''
 flow_no_sliding_folder = ''
 
+flow_npz_folder = ''
+flow_sliding_npz_folder = ''
+flow_no_sliding_npz_folder = ''
+
 if not (flow == 'No'):
   flow_folder = cfg['PATHS']['FLOW_VIDEOS']
   flow_sliding_folder = os.path.join(flow_folder, 'sliding/')
   flow_no_sliding_folder = os.path.join(flow_folder, 'no_sliding/')
+
+  flow_npz_folder = cfg['PATHS']['FLOW_NPZ']
+  refresh_folder(flow_npz_folder)
+
+  flow_sliding_npz_folder = os.path.join(flow_npz_folder, 'sliding/')
+  os.makedirs(flow_sliding_npz_folder)
+
+  flow_no_sliding_npz_folder = os.path.join(flow_npz_folder, 'no_sliding/')
+  os.makedirs(flow_no_sliding_npz_folder)
 
 # Each element is (mini-clip_id, patient_id) for download as csv
 df_rows_sliding = []
@@ -317,10 +330,10 @@ if flow == 'Yes':
     fr = ((sliding_fps_df[sliding_fps_df['id'] == id])['frame_rate']).values[0]
     if fr == 30:
       flow_frames_to_npz_contig(path, orig_id=id, patient_id=patient_id, df_rows=df_rows_sliding,
-                                write_path=(sliding_npz_folder + id))
+                                write_path=(flow_sliding_npz_folder + id))
     else:
       flow_frames_to_npz_downsampled(path, orig_id=id, patient_id=patient_id, df_rows=df_rows_sliding, fr=fr,
-                                     write_path=(sliding_npz_folder + id))
+                                     write_path=(flow_sliding_npz_folder + id))
 
   for id in os.listdir(flow_no_sliding_folder):
     path = os.path.join(flow_no_sliding_folder, id)
@@ -328,10 +341,10 @@ if flow == 'Yes':
     fr = ((no_sliding_fps_df[no_sliding_fps_df['id'] == id])['frame_rate']).values[0]
     if fr == 30:
       flow_frames_to_npz_contig(path, orig_id=id, patient_id=patient_id, df_rows=df_rows_no_sliding,
-                                write_path=(no_sliding_npz_folder + id))
+                                write_path=(flow_no_sliding_npz_folder + id))
     else:
       flow_frames_to_npz_downsampled(path, orig_id=id, patient_id=patient_id, df_rows=df_rows_no_sliding, fr=fr,
-                                     write_path=(no_sliding_npz_folder + id))
+                                     write_path=(flow_no_sliding_npz_folder + id))
 
 elif flow == 'No':
 
