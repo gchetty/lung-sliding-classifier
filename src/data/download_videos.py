@@ -68,6 +68,7 @@ def download(df, sliding, fr_rows, video_out_root_folder=cfg['PATHS']['UNMASKED_
         # Get frame rate
         cap = cv2.VideoCapture(out_path)
         fr = round(cap.get(cv2.CAP_PROP_FPS))
+        cap.release()
 
         # Discard video if frame rate is not multiple of 30
         if not (fr % 30 == 0):
