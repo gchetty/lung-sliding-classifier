@@ -185,6 +185,8 @@ if __name__ == '__main__':
 
     pool = Pool(num_workers)
     if mode == 'run':
-        pool.map(dense_flow, zip(video_list, flows_dirs, [step]*len(video_list), [bound]*len(video_list)))
+        for i in range(len(video_list)):
+            dense_flow((video_list[i], flows_dirs[i], step, bound))
+        #pool.map(dense_flow, zip(video_list, flows_dirs, [step]*len(video_list), [bound]*len(video_list)))
     else:  #mode=='debug
         dense_flow((video_list[0], flows_dirs[0], step, bound))

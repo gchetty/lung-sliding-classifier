@@ -33,6 +33,7 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
     :param hparams: A dictionary specifying the hyperparameters to use
     :param model_out_dir: The path to save the model
     '''
+    
     # Get the model function and preprocessing function 
     model_def_fn, preprocessing_fn = get_model(model_def_str)
 
