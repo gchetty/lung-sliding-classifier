@@ -111,7 +111,11 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
     metrics += [TrueNegatives(), TruePositives(), FalseNegatives(), FalsePositives(), Specificity()]
 
     # Get the model
-    input_shape = [cfg['PREPROCESS']['PARAMS']['WINDOW']] + cfg['PREPROCESS']['PARAMS']['IMG_SIZE'] + [3]
+    input_shape = None
+    if flow == 'Yes':
+        input_shape = [cfg['PREPROCESS']['PARAMS']['WINDOW']] + cfg['PREPROCESS']['PARAMS']['IMG_SIZE'] + [2]
+    elif flow == 'No':
+        input_shape = [cfg['PREPROCESS']['PARAMS']['WINDOW']] + cfg['PREPROCESS']['PARAMS']['IMG_SIZE'] + [3]
     model = model_def_fn(hparams, input_shape, metrics)
 
     # Refresh the TensorBoard directory
