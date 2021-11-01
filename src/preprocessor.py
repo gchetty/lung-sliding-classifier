@@ -87,7 +87,7 @@ def random_shear_clip(x):
 
     r = random_ops.random_uniform([], 0, 1)
     if r < cfg['TRAIN']['PARAMS']['AUGMENTATION_CHANCE']:
-        level = random_ops.random_uniform([], 0.0, 0.25)  # may need adjustment
+        level = random_ops.random_uniform([], 0.0, 0.1)  # may need adjustment
         replace = tf.constant([0.0, 0.0, 0.0])
         x = tf.map_fn(lambda x1: tfa.image.shear_x(x1, level, replace), x)
         x = tf.map_fn(lambda x1: tfa.image.shear_y(x1, level, replace), x)
@@ -124,15 +124,15 @@ def augment_clip(x):
     :return: A Tensor of shape (Clip_length, Height, Width, 3)
     '''
 
-    x = tf.map_fn(lambda x1: tf.image.random_brightness(x1, max_delta=0.2), x)  # delta might need tuning
-    x = tf.map_fn(lambda x1: tf.image.random_hue(x1, max_delta=0.5), x)  # delta might need tuning
-    x = tf.map_fn(lambda x1: tf.image.random_contrast(x1, 0.5, 0.9), x)
+    x = tf.map_fn(lambda x1: tf.image.random_brightness(x1, max_delta=0.1), x)  # delta might need tuning
+    x = tf.map_fn(lambda x1: tf.image.random_hue(x1, max_delta=0.2), x)  # delta might need tuning
+    x = tf.map_fn(lambda x1: tf.image.random_contrast(x1, 0.7, 1.0), x)
+    x = tf.map_fn(lambda x1: random_shift_clip(x1), x)
     x = tf.map_fn(lambda x1: random_flip_left_right_clip(x1), x)
     x = tf.map_fn(lambda x1: random_flip_up_down_clip(x1), x)
     x = tf.map_fn(lambda x1: random_rotate_clip(x1), x)
     x = tf.map_fn(lambda x1: random_shear_clip(x1), x)
     x = tf.map_fn(lambda x1: random_zoom_clip(x1), x)
-    x = tf.map_fn(lambda x1: random_shift_clip(x1), x)
     return x
 
 
