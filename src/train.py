@@ -6,6 +6,7 @@ from re import S
 from tensorflow.python.keras.metrics import TrueNegatives, TruePositives
 import yaml
 import os
+import datetime
 import pandas as pd
 import tensorflow as tf
 
@@ -24,7 +25,7 @@ cfg = yaml.full_load(open(os.path.join(os.getcwd(), '../config.yml'), 'r'))
 
 
 def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'], 
-                hparams=cfg['TRAIN']['PARAMS']['VGG16_RAW'],  # SHOULD REALLY MAKE THIS MORE DYNAMIC
+                hparams=cfg['TRAIN']['PARAMS']['TEST1'],  # SHOULD REALLY MAKE THIS MORE DYNAMIC
                 model_out_dir=cfg['TRAIN']['PATHS']['MODEL_OUT']):
     '''
     Trains and saves a model given specific hyperparameters
@@ -33,6 +34,7 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
     :param hparams: A dictionary specifying the hyperparameters to use
     :param model_out_dir: The path to save the model
     '''
+    
     # Get the model function and preprocessing function 
     model_def_fn, preprocessing_fn = get_model(model_def_str)
 
@@ -82,18 +84,28 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
     tensorboard_path = cfg['TRAIN']['PATHS']['TENSORBOARD']
     refresh_folder(tensorboard_path)
 
+    time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+
     # Create the Confusion Matrix Callback
     def log_confusion_matrix_wrapper(epoch, logs, model=model, val_df=val_df, val_dataset=val_set):
         return log_confusion_matrix(epoch, logs, model, val_df, val_dataset)
 
     cm_callback = tf.keras.callbacks.LambdaCallback(on_epoch_end=log_confusion_matrix_wrapper)
 
+    def basic_callback(time):
+        log_dir = "logs/fit/" + time
+        return tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1,
+                                              write_images=True)  # can toggle write_images off
+
+    basic_call = basic_callback(time)
+
     # Creating a ModelCheckpoint for saving the model
     save_cp = ModelCheckpoint(model_out_dir, save_best_only=cfg['TRAIN']['SAVE_BEST_ONLY'])
 
     # Train and save the model
     epochs = cfg['TRAIN']['PARAMS']['EPOCHS']
-    model.fit(train_set, epochs=epochs, validation_data=val_set, class_weight=class_weight, callbacks=[save_cp, cm_callback])
+    model.fit(train_set, epochs=epochs, validation_data=val_set, class_weight=class_weight, callbacks=[save_cp, cm_callback, basic_call])
+
 
 # Train and save the model
 train_model()

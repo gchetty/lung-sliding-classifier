@@ -26,7 +26,7 @@ PREPROCESS:
 
 TRAIN:
   MIXED_PRECISION: false
-  MODEL_DEF: 'vgg16_raw'  # xception_raw, lrcn, threeDCNN
+  MODEL_DEF: 'vgg16_raw'  # xception_raw, lrcn, threeDCNN, vgg16_raw
   SAVE_BEST_ONLY: True
 
   SPLITS:
@@ -53,5 +53,6 @@ TRAIN:
   PATHS:
     CSVS: 'csvs_split/'
     MODEL_OUT: 'models/3dcnn/'
-    RANDOM_SEED: 2
+    RANDOM_SEED: 2  # Why is this in paths
     TENSORBOARD: 'logs/fit/'
+    FEATURE_HEATMAPS: 'feature_heatmaps/'

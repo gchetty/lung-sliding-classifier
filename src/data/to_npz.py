@@ -371,9 +371,19 @@ else:
 
 # Download dataframes linking mini-clip ids and patient ids as csv files
 out_df_sliding = pd.DataFrame(df_rows_sliding, columns=['id', 'patient_id'])
-csv_out_path_sliding = os.path.join(csv_out_folder, 'sliding_mini_clips.csv')
-out_df_sliding.to_csv(csv_out_path_sliding, index=False)
-
 out_df_no_sliding = pd.DataFrame(df_rows_no_sliding, columns=['id', 'patient_id'])
-csv_out_path_no_sliding = os.path.join(csv_out_folder, 'no_sliding_mini_clips.csv')
+
+csv_out_path_sliding = ''
+csv_out_path_no_sliding = ''
+
+if flow == 'Yes':
+  csv_out_path_sliding = os.path.join(csv_out_folder, 'sliding_flow_mini_clips.csv')
+  csv_out_path_no_sliding = os.path.join(csv_out_folder, 'no_sliding_flow_mini_clips.csv')
+elif flow == 'No':
+  csv_out_path_sliding = os.path.join(csv_out_folder, 'sliding_mini_clips.csv')
+  csv_out_path_no_sliding = os.path.join(csv_out_folder, 'no_sliding_mini_clips.csv')
+else:
+  raise Exception('Two-stream preprocessing pipeline not yet implemented!')
+
+out_df_sliding.to_csv(csv_out_path_sliding, index=False)
 out_df_no_sliding.to_csv(csv_out_path_no_sliding, index=False)
