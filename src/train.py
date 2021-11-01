@@ -14,7 +14,7 @@ from tensorflow.keras.metrics import Precision, Recall, AUC, TrueNegatives, True
 from tensorflow_addons.metrics import F1Score
 from tensorflow.keras.callbacks import ModelCheckpoint
 
-from preprocessor import Preprocessor
+from preprocessor import Preprocessor, FlowPreprocessor
 from visualization.visualization import log_confusion_matrix
 from models.models import *
 from custom.metrics import Specificity
@@ -34,30 +34,64 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
     :param hparams: A dictionary specifying the hyperparameters to use
     :param model_out_dir: The path to save the model
     '''
+
+    flow = cfg['PREPROCESS']['PARAMS']['FLOW']
     
     # Get the model function and preprocessing function 
     model_def_fn, preprocessing_fn = get_model(model_def_str)
 
-    # Read in training, validation, and test dataframes
     CSVS_FOLDER = cfg['TRAIN']['PATHS']['CSVS']
-    train_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'train.csv'))#[:20]
-    val_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'val.csv'))#[:20]
-    test_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'test.csv'))#[:20]
 
-    # Create TF datasets for training, validation and test sets
-    # Note: This does NOT load the dataset into memory! We specify paths,
-    #       and labels so that TensorFlow can perform dynamic loading.
-    train_set = tf.data.Dataset.from_tensor_slices((train_df['filename'].tolist(), train_df['label']))
-    val_set = tf.data.Dataset.from_tensor_slices((val_df['filename'].tolist(), val_df['label']))
-    test_set = tf.data.Dataset.from_tensor_slices((test_df['filename'].tolist(), test_df['label']))
+    train_df = None
+    val_df = None
+    test_df = None
 
-    # Create preprocessing object given the preprocessing function for model_def
-    preprocessor = Preprocessor(preprocessing_fn)
+    train_set = None
+    val_set = None
+    test_set = None
 
-    # Define the preprocessing pipelines for train, test and validation
-    train_set = preprocessor.prepare(train_set, train_df, shuffle=True, augment=True)
-    val_set = preprocessor.prepare(val_set, val_df, shuffle=False, augment=False)
-    test_set = preprocessor.prepare(test_set, test_df, shuffle=False, augment=False)
+    if not (flow == 'Yes'):
+
+        # Read in training, validation, and test dataframes
+        train_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'train.csv'))#[:20]
+        val_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'val.csv'))#[:20]
+        test_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'test.csv'))#[:20]
+
+        # Create TF datasets for training, validation and test sets
+        # Note: This does NOT load the dataset into memory! We specify paths,
+        #       and labels so that TensorFlow can perform dynamic loading.
+        train_set = tf.data.Dataset.from_tensor_slices((train_df['filename'].tolist(), train_df['label']))
+        val_set = tf.data.Dataset.from_tensor_slices((val_df['filename'].tolist(), val_df['label']))
+        test_set = tf.data.Dataset.from_tensor_slices((test_df['filename'].tolist(), test_df['label']))
+
+        # Create preprocessing object given the preprocessing function for model_def
+        preprocessor = Preprocessor(preprocessing_fn)
+
+        # Define the preprocessing pipelines for train, test and validation
+        train_set = preprocessor.prepare(train_set, train_df, shuffle=True, augment=True)
+        val_set = preprocessor.prepare(val_set, val_df, shuffle=False, augment=False)
+        test_set = preprocessor.prepare(test_set, test_df, shuffle=False, augment=False)
+
+    if not (flow == 'No'):
+
+        train_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'flow_train.csv'))  # [:20]
+        val_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'flow_val.csv'))  # [:20]
+        test_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'flow_test.csv'))  # [:20]
+
+        # Create TF datasets for training, validation and test sets
+        # Note: This does NOT load the dataset into memory! We specify paths,
+        #       and labels so that TensorFlow can perform dynamic loading.
+        train_set = tf.data.Dataset.from_tensor_slices((train_df['filename'].tolist(), train_df['label']))
+        val_set = tf.data.Dataset.from_tensor_slices((val_df['filename'].tolist(), val_df['label']))
+        test_set = tf.data.Dataset.from_tensor_slices((test_df['filename'].tolist(), test_df['label']))
+
+        # Create preprocessing object given the preprocessing function for model_def
+        preprocessor = FlowPreprocessor(preprocessing_fn)
+
+        # Define the preprocessing pipelines for train, test and validation
+        train_set = preprocessor.prepare(train_set, train_df, shuffle=True)
+        val_set = preprocessor.prepare(val_set, val_df, shuffle=False)
+        test_set = preprocessor.prepare(test_set, test_df, shuffle=False)
 
     # Create dictionary for class weights:
     # Taken from https://www.tensorflow.org/tutorials/structured_data/imbalanced_data

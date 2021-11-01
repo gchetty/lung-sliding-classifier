@@ -146,7 +146,8 @@ def parse_fn(filename, label):
     :return: Tuple of (Loaded Video, One-hot Tensor)
     '''
 
-    clip = np.load(filename, allow_pickle=True)['frames']
+    with np.load(filename, allow_pickle=True) as loaded_file:
+        clip = loaded_file['frames']
     clip = tf.cast(clip, tf.float32)
     return clip, (1 - tf.one_hot(label, 1))
 
@@ -164,6 +165,17 @@ def parse_tf(filename, label):
     img_size_tuple = cfg['PREPROCESS']['PARAMS']['IMG_SIZE']
     num_frames = cfg['PREPROCESS']['PARAMS']['WINDOW']
     shape = (num_frames, img_size_tuple[0], img_size_tuple[1], 3)
+    clip, label = tf.numpy_function(parse_fn, [filename, label], (tf.float32, tf.float32))
+    tf.ensure_shape(clip, shape)
+    label.set_shape((1,))
+    tf.ensure_shape(label, (1,))
+    return clip, label
+
+
+def parse_flow(filename, label):
+    img_size_tuple = cfg['PREPROCESS']['PARAMS']['IMG_SIZE']
+    num_frames = cfg['PREPROCESS']['PARAMS']['WINDOW']
+    shape = (num_frames, img_size_tuple[0], img_size_tuple[1], 2)
     clip, label = tf.numpy_function(parse_fn, [filename, label], (tf.float32, tf.float32))
     tf.ensure_shape(clip, shape)
     label.set_shape((1,))
@@ -205,6 +217,49 @@ class Preprocessor:
         if augment:
             ds = ds.map(lambda x, y: (augment_clip(x), y), num_parallel_calls=self.autotune)
         
+        # Map the preprocessing (scaling, resizing) function to each element
+        ds = ds.map(lambda x, y: (self.preprocessing_fn(x), y), num_parallel_calls=self.autotune)
+
+        # Allows later elements to be prepared while the current element is being processed
+        ds = ds.prefetch(buffer_size=self.autotune)
+
+        return ds
+
+class FlowPreprocessor:
+
+    def __init__(self, preprocessing_fn):
+        self.batch_size = cfg['TRAIN']['PARAMS']['BATCH_SIZE']
+        self.autotune = tf.data.AUTOTUNE
+        self.preprocessing_fn = preprocessing_fn
+
+    def prepare(self, ds, df, shuffle=False, augment=False):
+
+        '''
+        Defines the pipeline for loading and preprocessing each item in a TF dataset
+
+        :param ds: The TF dataset to define the pipeline for
+        :param df: The DataFrame corresponding to ds
+        :param shuffle: A boolean to decide if shuffling is desired
+        :param augment: A boolean to decide if augmentation is desired
+
+        :return: A TF dataset with either preprocessed data or a full pipeline for eventual preprocessing
+        '''
+
+        # Shuffle the dataset
+        if shuffle:
+            shuffle_val = len(df)
+            ds = ds.shuffle(shuffle_val)
+
+        # Load the videos and create their labels as a one-hot vector
+        ds = ds.map(parse_flow, num_parallel_calls=self.autotune)
+
+        # Define batch size
+        ds = ds.batch(self.batch_size, num_parallel_calls=self.autotune)
+
+        # Optionally apply a series of augmentations
+        #if augment:
+        #    ds = ds.map(lambda x, y: (augment_clip(x), y), num_parallel_calls=self.autotune)
+
         # Map the preprocessing (scaling, resizing) function to each element
         ds = ds.map(lambda x, y: (self.preprocessing_fn(x), y), num_parallel_calls=self.autotune)
 

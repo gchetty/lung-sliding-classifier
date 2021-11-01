@@ -68,8 +68,20 @@ if (s > 1.0) or (train_prop < 0) or (val_prop < 0) or (test_prop < 0):
 
 # CSV paths
 csv_path = os.path.join(os.getcwd(), 'data/', cfg['PREPROCESS']['PATHS']['CSVS_OUTPUT'])
-sliding_path = os.path.join(csv_path, 'sliding_mini_clips.csv')
-no_sliding_path = os.path.join(csv_path, 'no_sliding_mini_clips.csv')
+
+flow = cfg['PREPROCESS']['PARAMS']['FLOW']
+
+sliding_path = ''
+no_sliding_path = ''
+
+if flow == 'Yes':
+    sliding_path = os.path.join(csv_path, 'sliding_flow_mini_clips.csv')
+    no_sliding_path = os.path.join(csv_path, 'no_sliding_flow_mini_clips.csv')
+elif flow == 'No':
+    sliding_path = os.path.join(csv_path, 'sliding_mini_clips.csv')
+    no_sliding_path = os.path.join(csv_path, 'no_sliding_mini_clips.csv')
+else:
+    raise Exception('Two-stream preprocessing pipeline not yet implemented!')
 
 # Input csvs of mini-clips
 sliding_df = pd.read_csv(sliding_path)
