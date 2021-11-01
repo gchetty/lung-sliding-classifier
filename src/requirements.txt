@@ -4,3 +4,4 @@ scikit-learn==1.0
 tensorflow==2.6.0
 tensorflow-addons==0.14.0
 PyYAML==6.0
+matplotlib
