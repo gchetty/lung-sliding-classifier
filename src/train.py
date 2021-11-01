@@ -106,7 +106,7 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
     print(class_weight)
 
     # Defining Binary Classification Metrics
-    metrics =  [Accuracy(), AUC(name='auc'), F1Score(num_classes=1, threshold=0.5)]
+    metrics = [Accuracy(), AUC(name='auc'), F1Score(num_classes=1, threshold=0.5)]
     metrics += [Precision(), Recall()]
     metrics += [TrueNegatives(), TruePositives(), FalseNegatives(), FalsePositives(), Specificity()]
 

@@ -100,7 +100,11 @@ l0 = [0] * len(no_sliding_df)
 no_sliding_df['label'] = l0
 
 # Add file path to dataframes
-npz_dir = cfg['PREPROCESS']['PATHS']['NPZ']
+npz_dir = ''
+if flow == 'Yes':
+    npz_dir = cfg['PREPROCESS']['PATHS']['FLOW_NPZ']
+elif flow == 'No':
+    npz_dir = cfg['PREPROCESS']['PATHS']['NPZ']
 
 paths1 = []
 for index, row in sliding_df.iterrows():
@@ -139,11 +143,19 @@ csv_dir = cfg['TRAIN']['PATHS']['CSVS']
 if not os.path.exists(csv_dir):
     os.makedirs(csv_dir)
 
-train_df_path = os.path.join(csv_dir, 'train.csv')
+train_df_path = ''
+val_df_path = ''
+test_df_path = ''
+
+if flow == 'Yes':
+    train_df_path = os.path.join(csv_dir, 'flow_train.csv')
+    val_df_path = os.path.join(csv_dir, 'flow_val.csv')
+    test_df_path = os.path.join(csv_dir, 'flow_test.csv')
+elif flow == 'No':
+    train_df_path = os.path.join(csv_dir, 'train.csv')
+    val_df_path = os.path.join(csv_dir, 'val.csv')
+    test_df_path = os.path.join(csv_dir, 'test.csv')
+
 train_df.to_csv(train_df_path, index=False)
-
-val_df_path = os.path.join(csv_dir, 'val.csv')
 val_df.to_csv(val_df_path, index=False)
-
-test_df_path = os.path.join(csv_dir, 'test.csv')
 test_df.to_csv(test_df_path, index=False)
