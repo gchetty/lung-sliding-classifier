@@ -9,8 +9,8 @@ import tensorflow as tf
 from tensorflow.keras.layers import Dense, Flatten
 from tensorflow.keras.layers import LSTM
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import TimeDistributed, Conv3D, AveragePooling3D, Dropout, Input, Add, InputLayer
-from tensorflow.keras.layers import Conv2D, MaxPooling2D, BatchNormalization, Activation
+from tensorflow.keras.layers import TimeDistributed, Conv3D, AveragePooling3D, Dropout, Input, Add, InputLayer, MaxPooling3D,\
+    Conv2D, MaxPooling2D, BatchNormalization, Activation, GlobalAveragePooling3D
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.applications.xception import Xception
 from tensorflow.keras.applications.xception import preprocess_input as xception_preprocess
@@ -219,25 +219,26 @@ def threeDCNN(model_config, input_shape, metrics):
     '''
     model = Sequential()
 
-    model.add(Conv3D(filters=32, kernel_size=(2, 3, 3), strides=1, input_shape=input_shape))
-    model.add(AveragePooling3D(pool_size=(2, 3, 3)))
+    model.add(Conv3D(filters=32, kernel_size=(2, 3, 3), strides=1, activation='relu', input_shape=input_shape))
+    model.add(MaxPooling3D(pool_size=(2, 3, 3)))
     model.add(BatchNormalization())
     
-    model.add(Conv3D(filters=64, kernel_size=(2, 3, 3), strides=1))
-    model.add(AveragePooling3D(pool_size=(2, 3, 3)))
+    model.add(Conv3D(filters=64, kernel_size=(2, 3, 3), strides=1, activation='relu'))
+    model.add(MaxPooling3D(pool_size=(2, 3, 3)))
     model.add(BatchNormalization())
 
-    model.add(Conv3D(filters=128, kernel_size=(2, 3, 3), strides=1))
-    model.add(AveragePooling3D(pool_size=(2, 3, 3)))
+    model.add(Conv3D(filters=128, kernel_size=(2, 3, 3), strides=1, activation='relu'))
+    model.add(MaxPooling3D(pool_size=(2, 3, 3)))
     model.add(BatchNormalization())
 
-    model.add(Conv3D(filters=256, kernel_size=(2, 3, 3), strides=1))
-    model.add(AveragePooling3D(pool_size=(2, 3, 3)))
+    model.add(Conv3D(filters=256, kernel_size=(2, 3, 3), strides=1, activation='relu'))
+    model.add(MaxPooling3D(pool_size=(2, 3, 3)))
     model.add(BatchNormalization())
 
-    model.add(Flatten())
-    model.add(Dense(32, activation='relu'))
+    model.add(GlobalAveragePooling3D())
     model.add(Dropout(0.2))
+    model.add(Dense(32, activation='relu'))
+    #model.add(Dropout(0.2))
 
     model.add(Dense(1, activation='sigmoid'))
 
