@@ -53,5 +53,6 @@ TRAIN:
   PATHS:
     CSVS: 'csvs_split/'
     MODEL_OUT: 'models/3dcnn/'
-    RANDOM_SEED: 2
+    RANDOM_SEED: 2  # Why is this in paths
     TENSORBOARD: 'logs/fit/'
+    FEATURE_HEATMAPS: 'feature_heatmaps/'
