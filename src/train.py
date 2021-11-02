@@ -138,7 +138,7 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
 
     # Train and save the model
     epochs = cfg['TRAIN']['PARAMS']['EPOCHS']
-    model.fit(train_set, epochs=epochs, validation_data=val_set, class_weight=class_weight, callbacks=[save_cp, cm_callback, basic_call])
+    model.fit(train_set, epochs=epochs, validation_data=val_set, class_weight=class_weight, callbacks=[save_cp, cm_callback])
 
 
 # Train and save the model
