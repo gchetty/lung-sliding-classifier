@@ -40,6 +40,9 @@ def get_model(model_name):
     elif model_name == 'vgg16_raw':
         model_def_fn = vgg16_raw
         preprocessing_fn = vgg16_preprocess
+    elif model_name == 'res3d':
+        model_def_fn = res3d
+        preprocessing_fn = (lambda x: x / 255.0)
 
     return model_def_fn, preprocessing_fn
 
@@ -213,6 +216,7 @@ def lrcn(model_config, input_shape, metrics):
 
     return model
 
+
 def threeDCNN(model_config, input_shape, metrics):
     '''
     Returns a custom 3D CNN
@@ -244,5 +248,62 @@ def threeDCNN(model_config, input_shape, metrics):
 
     model.summary()
     model.compile(loss='binary_crossentropy', optimizer=Adam(learning_rate=model_config['LR']), metrics=metrics)
+
+    return model
+
+
+def res3d(model_config, input_shape, metrics):
+
+    lr = model_config['LR']
+    dropout = model_config['DROPOUT']
+    optimizer = Adam(learning_rate=lr)
+
+    inputs = Input(shape=input_shape)
+
+    # block 1 (input)
+    x = Conv3D(filters=32, kernel_size=(2, 3, 3), strides=1, activation='relu')(inputs)
+    x = MaxPooling3D(pool_size=(2, 3, 3))(x)
+    x = BatchNormalization()(x)
+    x = Conv3D(filters=64, kernel_size=(2, 3, 3), strides=1, activation='relu')(x)
+    x = MaxPooling3D(pool_size=(2, 3, 3))(x)
+    x = BatchNormalization()(x)
+    prev = x
+
+    # block 2 - conv, relu, BN, conv, add, relu, BN
+    x = Conv3D(filters=64, kernel_size=(2, 3, 3), strides=1, activation='relu', padding='same')(x)
+    x = BatchNormalization()(x)
+    x = Conv3D(filters=64, kernel_size=(2, 3, 3), strides=1, padding='same')(x)
+    x = Add()([x, prev])
+    x = Activation(activation='relu')(x)
+    x = BatchNormalization()(x)
+    prev = x
+
+    # block 3 - conv, relu, BN, conv, add, relu, BN
+    x = Conv3D(filters=64, kernel_size=(2, 3, 3), strides=1, activation='relu', padding='same')(x)
+    x = BatchNormalization()(x)
+    x = Conv3D(filters=64, kernel_size=(2, 3, 3), strides=1, padding='same')(x)
+    x = Add()([x, prev])
+    x = Activation(activation='relu')(x)
+    x = BatchNormalization()(x)
+    prev = x
+
+    # block 2 - conv, relu, BN, conv, add, relu, BN
+    x = Conv3D(filters=64, kernel_size=(2, 3, 3), strides=1, activation='relu', padding='same')(x)
+    x = BatchNormalization()(x)
+    x = Conv3D(filters=64, kernel_size=(2, 3, 3), strides=1, padding='same')(x)
+    x = Add()([x, prev])
+    x = Activation(activation='relu')(x)
+    x = BatchNormalization()(x)
+
+    # block 4 (output)
+    x = GlobalAveragePooling3D()(x)
+    x = Dropout(dropout)(x)
+    x = Dense(64, activation='relu')(x)
+    outputs = Dense(1, activation='sigmoid')(x)
+
+    model = tf.keras.Model(inputs=inputs, outputs=outputs)
+    model.summary()
+
+    model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=metrics)
 
     return model
