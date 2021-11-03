@@ -299,7 +299,7 @@ def res3d(model_config, input_shape, metrics):
     x = GlobalAveragePooling3D()(x)
     x = Dropout(dropout)(x)
     x = Dense(64, activation='relu')(x)
-    outputs = Dense(1, activation='sigmoid')(x)
+    outputs = Dense(1, activation='sigmoid', dtype='float32')(x)
 
     model = tf.keras.Model(inputs=inputs, outputs=outputs)
     model.summary()

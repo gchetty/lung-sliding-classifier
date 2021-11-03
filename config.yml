@@ -25,8 +25,8 @@ PREPROCESS:
     MASKING_TOOL: 'auto_masking_deeper.h5'
 
 TRAIN:
-  MIXED_PRECISION: false
-  PATIENCE: 5
+  MIXED_PRECISION: True
+  PATIENCE: 7
   MODEL_DEF: 'res3d'  # xception_raw, lrcn, threeDCNN, vgg16_raw
   SAVE_BEST_ONLY: True
 

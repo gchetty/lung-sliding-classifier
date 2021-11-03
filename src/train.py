@@ -35,6 +35,12 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
     :param model_out_dir: The path to save the model
     '''
 
+    # Enable mixed precision
+    mixed_precision = cfg['TRAIN']['MIXED_PRECISION']
+    if mixed_precision:
+        policy = tf.keras.mixed_precision.Policy('mixed_float16')
+        mixed_precision.set_global_policy(policy)
+
     flow = cfg['PREPROCESS']['PARAMS']['FLOW']
     
     # Get the model function and preprocessing function 
