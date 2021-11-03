@@ -130,7 +130,7 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
 
     cm_callback = tf.keras.callbacks.LambdaCallback(on_epoch_end=log_confusion_matrix_wrapper)
 
-    log_dir = "logs/fit/" + time
+    log_dir = "results/logs/fit/" + time
     basic_call = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
 
     # Creating a ModelCheckpoint for saving the model
