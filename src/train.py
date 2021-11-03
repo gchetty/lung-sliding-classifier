@@ -12,7 +12,7 @@ import tensorflow as tf
 
 from tensorflow.keras.metrics import Precision, Recall, AUC, TrueNegatives, TruePositives, FalseNegatives, FalsePositives, Accuracy
 from tensorflow_addons.metrics import F1Score, FBetaScore
-from tensorflow.keras.callbacks import ModelCheckpoint
+from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
 
 from preprocessor import Preprocessor, FlowPreprocessor
 from visualization.visualization import log_confusion_matrix
@@ -130,15 +130,21 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
 
     cm_callback = tf.keras.callbacks.LambdaCallback(on_epoch_end=log_confusion_matrix_wrapper)
 
-    log_dir = "results/logs/fit/" + time
+    # Log metrics
+    log_dir = cfg['TRAIN']['PATHS']['TENSORBOARD'] + time
     basic_call = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
 
     # Creating a ModelCheckpoint for saving the model
     save_cp = ModelCheckpoint(model_out_dir, save_best_only=cfg['TRAIN']['SAVE_BEST_ONLY'])
 
+    # Early stopping
+    early_stopping = EarlyStopping(monitor='val_loss', verbose=1, patience=cfg['TRAIN']['PATIENCE'], mode='min',
+                                   restore_best_weights=True)
+
     # Train and save the model
     epochs = cfg['TRAIN']['PARAMS']['EPOCHS']
-    model.fit(train_set, epochs=epochs, validation_data=val_set, class_weight=class_weight, callbacks=[save_cp, cm_callback, basic_call], verbose=2)
+    model.fit(train_set, epochs=epochs, validation_data=val_set, class_weight=class_weight,
+              callbacks=[save_cp, cm_callback, basic_call, early_stopping], verbose=2)
 
 
 # Train and save the model

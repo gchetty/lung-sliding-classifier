@@ -85,7 +85,7 @@ def log_confusion_matrix(epoch, logs, model, val_df, val_dataset):
     figure = plot_confusion_matrix(cm, class_names=['No Sliding', 'Sliding'])
     cm_image = plot_to_image(figure)
     path = cfg['TRAIN']['PATHS']['TENSORBOARD']
-    file_writer_cm = tf.summary.create_file_writer(path + 'temp/cm')
+    file_writer_cm = tf.summary.create_file_writer(path + '/cm')
 
     with file_writer_cm.as_default():
         tf.summary.image("Confusion Matrix", cm_image, step=epoch)

@@ -26,6 +26,7 @@ PREPROCESS:
 
 TRAIN:
   MIXED_PRECISION: false
+  PATIENCE: 5
   MODEL_DEF: 'res3d'  # xception_raw, lrcn, threeDCNN, vgg16_raw
   SAVE_BEST_ONLY: True
 
@@ -57,5 +58,5 @@ TRAIN:
     CSVS: 'csvs_split/'
     MODEL_OUT: 'results/models/res3d/'
     RANDOM_SEED: 2  # Why is this in paths
-    TENSORBOARD: 'logs/fit/'
+    TENSORBOARD: 'results/logs/fit/'
     FEATURE_HEATMAPS: 'feature_heatmaps/'
