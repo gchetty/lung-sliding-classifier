@@ -11,7 +11,7 @@ import pandas as pd
 import tensorflow as tf
 
 from tensorflow.keras.metrics import Precision, Recall, AUC, TrueNegatives, TruePositives, FalseNegatives, FalsePositives, Accuracy
-from tensorflow_addons.metrics import F1Score
+from tensorflow_addons.metrics import F1Score, FBetaScore
 from tensorflow.keras.callbacks import ModelCheckpoint
 
 from preprocessor import Preprocessor, FlowPreprocessor
@@ -106,9 +106,9 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
     print(class_weight)
 
     # Defining Binary Classification Metrics
-    metrics = ['accuracy', AUC(name='auc'), F1Score(num_classes=1, threshold=0.5)]
+    metrics = ['accuracy', AUC(name='auc'), FBetaScore(num_classes=2, average='micro', threshold=0.5)]
     metrics += [Precision(), Recall()]
-    metrics += [TrueNegatives(), TruePositives(), FalseNegatives(), FalsePositives()]  # Specificity()
+    metrics += [TrueNegatives(), TruePositives(), FalseNegatives(), FalsePositives(), Specificity()]
 
     # Get the model
     input_shape = None
