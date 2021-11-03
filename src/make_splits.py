@@ -17,11 +17,21 @@ def df_splits(df, train, val, test, random_state=cfg['TRAIN']['PATHS']['RANDOM_S
     :param test:  0 < Float < 1 representing the test fraction
     :param random_state: An integer for setting the random seed 
     '''
+
     patient_ids = pd.unique(df['patient_id'])
-    splits = train_test_split(patient_ids, train_size=train, random_state=random_state)
-    val_test_splits = train_test_split(splits[1], train_size=(val/(val+test)), shuffle=False)
-    splits[1] = val_test_splits[0]
-    splits.append(val_test_splits[1])
+    splits = []
+
+    if test == 0:
+
+        splits = train_test_split(patient_ids, train_size=train, random_state=random_state)
+        splits.append([])
+
+    else:
+
+        splits = train_test_split(patient_ids, train_size=train, random_state=random_state)
+        val_test_splits = train_test_split(splits[1], train_size=(val / (val + test)), shuffle=False)
+        splits[1] = val_test_splits[0]
+        splits.append(val_test_splits[1])
 
     # Add split labels to dataframe
     split_labels = []
