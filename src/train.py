@@ -106,9 +106,9 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
     print(class_weight)
 
     # Defining Binary Classification Metrics
-    metrics = [Accuracy(), AUC(name='auc'), F1Score(num_classes=1, threshold=0.5)]
+    metrics = ['accuracy', AUC(name='auc'), F1Score(num_classes=1, threshold=0.5)]
     metrics += [Precision(), Recall()]
-    metrics += [TrueNegatives(), TruePositives(), FalseNegatives(), FalsePositives(), Specificity()]
+    metrics += [TrueNegatives(), TruePositives(), FalseNegatives(), FalsePositives()]  # Specificity()
 
     # Get the model
     input_shape = None
@@ -138,7 +138,7 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
 
     # Train and save the model
     epochs = cfg['TRAIN']['PARAMS']['EPOCHS']
-    model.fit(train_set, epochs=epochs, validation_data=val_set, class_weight=class_weight, callbacks=[save_cp, cm_callback])
+    model.fit(train_set, epochs=epochs, validation_data=val_set, class_weight=class_weight, callbacks=[save_cp, cm_callback, basic_call], verbose=2)
 
 
 # Train and save the model
