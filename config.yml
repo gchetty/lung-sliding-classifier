@@ -26,6 +26,7 @@ PREPROCESS:
 
 TRAIN:
   MIXED_PRECISION: True
+  OUTPUT_BIAS: True
   PATIENCE: 10
   MODEL_DEF: 'res3d'  # xception_raw, lrcn, threeDCNN, vgg16_raw
   SAVE_BEST_ONLY: True
@@ -52,7 +53,7 @@ TRAIN:
     RES3D:
       LR: 0.0001
       DROPOUT: 0.5
-    INCREASE: True
+    INCREASE: False
 
   PATHS:
     CSVS: 'csvs_split/'

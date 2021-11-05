@@ -111,6 +111,8 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
     class_weight = {0: weight_for_0, 1: weight_for_1}
     print(class_weight)
 
+    counts = [num_no_sliding, num_sliding]
+
     # Defining Binary Classification Metrics
     metrics = ['accuracy', AUC(name='auc'), FBetaScore(num_classes=2, average='micro', threshold=0.5)]
     metrics += [Precision(), Recall()]
@@ -122,7 +124,8 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
         input_shape = [cfg['PREPROCESS']['PARAMS']['WINDOW']] + cfg['PREPROCESS']['PARAMS']['IMG_SIZE'] + [2]
     elif flow == 'No':
         input_shape = [cfg['PREPROCESS']['PARAMS']['WINDOW']] + cfg['PREPROCESS']['PARAMS']['IMG_SIZE'] + [3]
-    model = model_def_fn(hparams, input_shape, metrics)
+
+    model = model_def_fn(hparams, input_shape, metrics, counts)
 
     # Refresh the TensorBoard directory
     tensorboard_path = cfg['TRAIN']['PATHS']['TENSORBOARD']

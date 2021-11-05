@@ -4,6 +4,7 @@ Script for defining TensorFlow neural network models
 
 import yaml
 import os
+import math
 import tensorflow as tf
 
 from tensorflow.keras.layers import Dense, Flatten
@@ -47,7 +48,7 @@ def get_model(model_name):
     return model_def_fn, preprocessing_fn
 
 
-def xception_raw(model_config, input_shape, metrics):
+def xception_raw(model_config, input_shape, metrics, class_counts):
 
     '''
     Time-distributed raw (not pre-trained) Xception feature extractor, with LSTM and output head on top
@@ -132,7 +133,7 @@ def xception_raw(model_config, input_shape, metrics):
     return model
 
 
-def vgg16_raw(model_config, input_shape, metrics):
+def vgg16_raw(model_config, input_shape, metrics, class_counts):
 
     lr = model_config['LR']
     dropout = model_config['DROPOUT']
@@ -157,7 +158,7 @@ def vgg16_raw(model_config, input_shape, metrics):
     return model
 
 
-def lrcn(model_config, input_shape, metrics):
+def lrcn(model_config, input_shape, metrics, class_counts):
     """Build a CNN into RNN.
     Starting version from:
         https://github.com/udacity/self-driving-car/blob/master/
@@ -217,7 +218,7 @@ def lrcn(model_config, input_shape, metrics):
     return model
 
 
-def threeDCNN(model_config, input_shape, metrics):
+def threeDCNN(model_config, input_shape, metrics, class_counts):
     '''
     Returns a custom 3D CNN
     '''
@@ -252,11 +253,17 @@ def threeDCNN(model_config, input_shape, metrics):
     return model
 
 
-def res3d(model_config, input_shape, metrics):
+def res3d(model_config, input_shape, metrics, class_counts):
 
     lr = model_config['LR']
     dropout = model_config['DROPOUT']
     optimizer = Adam(learning_rate=lr)
+
+    output_bias = None
+    if cfg['TRAIN']['PARAMS']['OUTPUT_BIAS']:
+        count0 = class_counts[0]
+        count1 = class_counts[1]
+        output_bias = math.log(count1/count0)
 
     inputs = Input(shape=input_shape)
 
@@ -299,7 +306,7 @@ def res3d(model_config, input_shape, metrics):
     x = GlobalAveragePooling3D()(x)
     x = Dropout(dropout)(x)
     x = Dense(64, activation='relu')(x)
-    outputs = Dense(1, activation='sigmoid', dtype='float32')(x)
+    outputs = Dense(1, activation='sigmoid', bias_initializer=output_bias, dtype='float32')(x)
 
     model = tf.keras.Model(inputs=inputs, outputs=outputs)
     model.summary()
