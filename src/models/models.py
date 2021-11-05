@@ -264,6 +264,7 @@ def res3d(model_config, input_shape, metrics, class_counts):
         count0 = class_counts[0]
         count1 = class_counts[1]
         output_bias = math.log(count1/count0)
+        output_bias = tf.keras.initializers.Constant(output_bias)
 
     inputs = Input(shape=input_shape)
 
