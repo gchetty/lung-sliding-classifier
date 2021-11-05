@@ -260,7 +260,7 @@ def res3d(model_config, input_shape, metrics, class_counts):
     optimizer = Adam(learning_rate=lr)
 
     output_bias = None
-    if cfg['TRAIN']['PARAMS']['OUTPUT_BIAS']:
+    if cfg['TRAIN']['OUTPUT_BIAS']:
         count0 = class_counts[0]
         count1 = class_counts[1]
         output_bias = math.log(count1/count0)
