@@ -25,7 +25,7 @@ PREPROCESS:
     MASKING_TOOL: 'auto_masking_deeper.h5'
 
 TRAIN:
-  MIXED_PRECISION: True
+  MIXED_PRECISION: False
   OUTPUT_BIAS: True
   PATIENCE: 10
   MODEL_DEF: 'res3d'  # xception_raw, lrcn, threeDCNN, vgg16_raw
@@ -53,7 +53,7 @@ TRAIN:
     RES3D:
       LR: 0.0001
       DROPOUT: 0.5
-    INCREASE: False
+    INCREASE: True
 
   PATHS:
     CSVS: 'csvs_split/'
