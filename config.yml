@@ -63,5 +63,8 @@ TRAIN:
 
 EXPLAINABILITY:
   PATHS:
+    NPZ: 'data/npzs/'
+    FR_CSVS: 'data/csvs/'
+    NPZ_DF: 'csvs_split/val.csv'
+    MODEL: 'results/models/res3d/'
     FEATURE_HEATMAPS: 'feature_heatmaps/'
-    

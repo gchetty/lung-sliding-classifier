@@ -52,4 +52,3 @@ with tf.GradientTape() as tape:
   pooled_grads = tf.keras.backend.mean(grads, axis=(0, 1, 2, 3))
   print(pooled_grads.shape)
   print(pooled_grads)
-  
