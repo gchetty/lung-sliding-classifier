@@ -60,4 +60,8 @@ TRAIN:
     MODEL_OUT: 'results/models/res3d/'
     RANDOM_SEED: 6  # Why is this in paths
     TENSORBOARD: 'results/logs/fit/'
+
+EXPLAINABILITY:
+  PATHS:
     FEATURE_HEATMAPS: 'feature_heatmaps/'
+    
