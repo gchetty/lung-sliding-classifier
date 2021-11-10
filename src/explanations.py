@@ -21,7 +21,7 @@ from preprocessor import Preprocessor
 cfg = yaml.full_load(open(os.path.join(os.getcwd(),"../config.yml"), 'r'))
 
 
-class ClipGradCam:
+class ClipGradCam3D:
 
     def __init__(self):
         custom_objects = {'Specificity': Specificity, 'FBetaScore': FBetaScore}
@@ -87,7 +87,7 @@ class ClipGradCam:
 
             heatmap_imgs = []
             for hmap, frame in zip(heatmap, orig_clip):
-                hmap = cv2.applyColorMap((255 * hmap).astype(np.uint8), cv2.COLORMAP_HOT)
+                hmap = cv2.applyColorMap(hmap, cv2.COLORMAP_HOT)
                 heatmap_imgs.append(cv2.addWeighted(hmap, self.hm_intensity, frame, 1.0 - self.hm_intensity, 0, dtype=cv2.CV_8U))
 
             self.save_heatmap_video(heatmap_imgs, id, frame_rate)
@@ -103,5 +103,5 @@ class ClipGradCam:
 
 
 if __name__ == '__main__':
-    cam = ClipGradCam()
+    cam = ClipGradCam3D()
     cam.apply_gradcam()
