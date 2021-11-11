@@ -51,7 +51,8 @@ def random_rotate_clip(x):
 
     r = random_ops.random_uniform([], 0, 1)
     if r < cfg['TRAIN']['PARAMS']['AUGMENTATION_CHANCE']:
-        angle = random_ops.random_uniform([], -1.57, 1.57)
+        angle = random_ops.random_uniform([], cfg['TRAIN']['PARAMS']['AUGMENTATION']['ROTATE_RANGE'][0],
+                                          cfg['TRAIN']['PARAMS']['AUGMENTATION']['ROTATE_RANGE'][1])
         x = tfa.image.rotate(x, angle)
     return x
 
@@ -68,9 +69,10 @@ def random_shift_clip(x):
     r = random_ops.random_uniform([], 0, 1)
     if r < cfg['TRAIN']['PARAMS']['AUGMENTATION_CHANCE']:
         h, w = cfg['PREPROCESS']['PARAMS']['IMG_SIZE'][0], cfg['PREPROCESS']['PARAMS']['IMG_SIZE'][1]  # (clip_length, h, w, channels)
-        dx = random_ops.random_uniform([], -0.25, 0.25) * h
-        dy = random_ops.random_uniform([], -0.0,
-                                       0.2) * w  # No upwards shift since many areas of interest are near the top
+        dx = random_ops.random_uniform([], cfg['TRAIN']['PARAMS']['AUGMENTATION']['SHIFT_LEFTRIGHT_BOUNDS'][0],
+                                       cfg['TRAIN']['PARAMS']['AUGMENTATION']['SHIFT_LEFTRIGHT_BOUNDS'][1]) * h
+        dy = random_ops.random_uniform([], cfg['TRAIN']['PARAMS']['AUGMENTATION']['SHIFT_UPDOWN_BOUNDS'][0],
+                                       cfg['TRAIN']['PARAMS']['AUGMENTATION']['SHIFT_UPDOWN_BOUNDS'][1]) * w
         translations = [[dx, dy]] * cfg['PREPROCESS']['PARAMS']['WINDOW']
         x = tfa.image.translate(x, translations)
     return x
@@ -87,7 +89,8 @@ def random_shear_clip(x):
 
     r = random_ops.random_uniform([], 0, 1)
     if r < cfg['TRAIN']['PARAMS']['AUGMENTATION_CHANCE']:
-        level = random_ops.random_uniform([], 0.0, 0.1)  # may need adjustment
+        level = random_ops.random_uniform([], cfg['TRAIN']['PARAMS']['AUGMENTATION']['SHEAR_RANGE'][0],
+                                          cfg['TRAIN']['PARAMS']['AUGMENTATION']['SHEAR_RANGE'][1])
         replace = tf.constant([0.0, 0.0, 0.0])
         x = tf.map_fn(lambda x1: tfa.image.shear_x(x1, level, replace), x)
         x = tf.map_fn(lambda x1: tfa.image.shear_y(x1, level, replace), x)
@@ -105,12 +108,14 @@ def random_zoom_clip(x):
     
     r = random_ops.random_uniform([], 0, 1)
     if r < cfg['TRAIN']['PARAMS']['AUGMENTATION_CHANCE']:
-        prop = random_ops.random_uniform([], 1.0, 1.5)  # tunable
+        prop = random_ops.random_uniform([], cfg['TRAIN']['PARAMS']['AUGMENTATION']['ZOOM_RANGE'][0],
+                                         cfg['TRAIN']['PARAMS']['AUGMENTATION']['ZOOM_RANGE'][1])
         h_orig = cfg['PREPROCESS']['PARAMS']['IMG_SIZE'][0]
         w_orig = cfg['PREPROCESS']['PARAMS']['IMG_SIZE'][1]
         h_changed = int(prop * h_orig)
         w_changed = int(prop * w_orig)
-        x = tf.map_fn(lambda x1: tf.image.pad_to_bounding_box(x1, int((h_changed-h_orig)/2), int((w_changed-w_orig)/2), h_changed, w_changed), x)
+        x = tf.map_fn(lambda x1: tf.image.pad_to_bounding_box(x1, int((h_changed-h_orig)/2), int((w_changed-w_orig)/2),
+                                                              h_changed, w_changed), x)
         x = tf.map_fn(lambda x1: tf.image.resize(x1, (h_orig, w_orig)), x)
     return x
 
@@ -124,9 +129,10 @@ def augment_clip(x):
     :return: A Tensor of shape (Clip_length, Height, Width, 3)
     '''
 
-    x = tf.map_fn(lambda x1: tf.image.random_brightness(x1, max_delta=0.1), x)  # delta might need tuning
-    x = tf.map_fn(lambda x1: tf.image.random_hue(x1, max_delta=0.2), x)  # delta might need tuning
-    x = tf.map_fn(lambda x1: tf.image.random_contrast(x1, 0.7, 1.0), x)
+    x = tf.map_fn(lambda x1: tf.image.random_brightness(x1, max_delta=cfg['TRAIN']['PARAMS']['AUGMENTATION']['BRIGHTNESS_DELTA']), x)
+    x = tf.map_fn(lambda x1: tf.image.random_hue(x1, max_delta=cfg['TRAIN']['PARAMS']['AUGMENTATION']['HUE_DELTA']), x)
+    x = tf.map_fn(lambda x1: tf.image.random_contrast(x1, cfg['TRAIN']['PARAMS']['AUGMENTATION']['CONTRAST_BOUNDS'][0],
+                                                      cfg['TRAIN']['PARAMS']['AUGMENTATION']['CONTRAST_BOUNDS'][1]), x)
     x = tf.map_fn(lambda x1: random_shift_clip(x1), x)
     x = tf.map_fn(lambda x1: random_flip_left_right_clip(x1), x)
     x = tf.map_fn(lambda x1: random_flip_up_down_clip(x1), x)
@@ -173,6 +179,15 @@ def parse_tf(filename, label):
 
 
 def parse_flow(filename, label):
+    '''
+    Loads a flow video (2 channels - x and y flow) from its filename and returns its label as proper tensors
+
+    :param filename: Path to an .npz file
+    :param label: Binary label for the video
+
+    :return: Tuple of (Loaded Video, One-hot Tensor)
+    '''
+
     img_size_tuple = cfg['PREPROCESS']['PARAMS']['IMG_SIZE']
     num_frames = cfg['PREPROCESS']['PARAMS']['WINDOW']
     shape = (num_frames, img_size_tuple[0], img_size_tuple[1], 2)
@@ -184,6 +199,10 @@ def parse_flow(filename, label):
 
 
 class Preprocessor:
+
+    '''
+    Preprocessor for datasets consisting of LUS clips (or mini-clips) and their corresponding labels
+    '''
 
     def __init__(self, preprocessing_fn):
         self.batch_size = cfg['TRAIN']['PARAMS']['BATCH_SIZE']
@@ -225,7 +244,12 @@ class Preprocessor:
 
         return ds
 
+
 class FlowPreprocessor:
+
+    '''
+    Preprocessor for datasets consisting of optical flow videos (2-channel) and their corresponding labels
+    '''
 
     def __init__(self, preprocessing_fn):
         self.batch_size = cfg['TRAIN']['PARAMS']['BATCH_SIZE']
@@ -258,7 +282,7 @@ class FlowPreprocessor:
 
         # Optionally apply a series of augmentations
         #if augment:
-        #    ds = ds.map(lambda x, y: (augment_clip(x), y), num_parallel_calls=self.autotune)
+            #ds = ds.map(lambda x, y: (augment_clip(x), y), num_parallel_calls=self.autotune)
 
         # Map the preprocessing (scaling, resizing) function to each element
         ds = ds.map(lambda x, y: (self.preprocessing_fn(x), y), num_parallel_calls=self.autotune)

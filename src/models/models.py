@@ -31,10 +31,10 @@ def get_model(model_name):
     '''
     if model_name == 'lrcn':
         model_def_fn = lrcn
-        preprocessing_fn = (lambda x: x / 255.0)
+        preprocessing_fn = normalize
     elif model_name == 'threeDCNN':
         model_def_fn = threeDCNN
-        preprocessing_fn = (lambda x: x / 255.0)
+        preprocessing_fn = normalize
     elif model_name == 'xception_raw':
         model_def_fn = xception_raw
         preprocessing_fn = xception_preprocess
@@ -43,19 +43,30 @@ def get_model(model_name):
         preprocessing_fn = vgg16_preprocess
     elif model_name == 'res3d':
         model_def_fn = res3d
-        preprocessing_fn = (lambda x: x / 255.0)
+        preprocessing_fn = normalize
 
     return model_def_fn, preprocessing_fn
+
+
+def normalize(x):
+    '''
+    Converts input with pixel values [0, 255] to range [0, 1]
+
+    :param x: n-dimensional image to be normalized
+    :return: Normalized input
+    '''
+    return x / 255.0
 
 
 def xception_raw(model_config, input_shape, metrics, class_counts):
 
     '''
-    Time-distributed raw (not pre-trained) Xception feature extractor, with LSTM and output head on top
+    Time-distributed raw (not pre-trained) Xception feature extractor with LSTM and output head on top
 
-    :param model_config:
-    :param input_shape:
-    :param metrics:
+    :param model_config: Hyperparameter dictionary
+    :param input_shape: Tuple, shape of individual input tensor (without batch dimension)
+    :param metrics: List of metrics for model compilation
+    :param class_counts: 2-element list - number of each class in training set
 
     :return: Compiled tensorflow model
     '''
@@ -134,6 +145,17 @@ def xception_raw(model_config, input_shape, metrics, class_counts):
 
 
 def vgg16_raw(model_config, input_shape, metrics, class_counts):
+
+    '''
+    Time-distributed raw (not pre-trained) VGG16 feature extractor with LSTM and output head on top
+
+    :param model_config: Hyperparameter dictionary
+    :param input_shape: Tuple, shape of individual input tensor (without batch dimension)
+    :param metrics: List of metrics for model compilation
+    :param class_counts: 2-element list - number of each class in training set
+
+    :return: Compiled tensorflow model
+    '''
 
     lr = model_config['LR']
     dropout = model_config['DROPOUT']
@@ -219,9 +241,18 @@ def lrcn(model_config, input_shape, metrics, class_counts):
 
 
 def threeDCNN(model_config, input_shape, metrics, class_counts):
+
     '''
-    Returns a custom 3D CNN
+    Custom 3D CNN with 4 convolutional layers and output head
+
+    :param model_config: Hyperparameter dictionary
+    :param input_shape: Tuple, shape of individual input tensor (without batch dimension)
+    :param metrics: List of metrics for model compilation
+    :param class_counts: 2-element list - number of each class in training set
+
+    :return: Compiled tensorflow model
     '''
+
     model = Sequential()
 
     model.add(Conv3D(filters=32, kernel_size=(2, 3, 3), strides=1, activation='relu', input_shape=input_shape))
@@ -254,6 +285,18 @@ def threeDCNN(model_config, input_shape, metrics, class_counts):
 
 
 def res3d(model_config, input_shape, metrics, class_counts):
+
+    '''
+    Creates raw (not pre-trained) 3D CNN, based on ResNet-12 block structure,
+    with 4 convolutional blocks and output head
+
+    :param model_config: Hyperparameter dictionary
+    :param input_shape: Tuple, shape of individual input tensor (without batch dimension)
+    :param metrics: List of metrics for model compilation
+    :param class_counts: 2-element list - number of each class in training set
+
+    :return: Compiled tensorflow model
+    '''
 
     lr = model_config['LR']
     dropout = model_config['DROPOUT']
@@ -295,7 +338,7 @@ def res3d(model_config, input_shape, metrics, class_counts):
     x = BatchNormalization()(x)
     prev = x
 
-    # block 2 - conv, relu, BN, conv, add, relu, BN
+    # block 4 - conv, relu, BN, conv, add, relu, BN
     x = Conv3D(filters=64, kernel_size=(2, 3, 3), strides=1, activation='relu', padding='same')(x)
     x = BatchNormalization()(x)
     x = Conv3D(filters=64, kernel_size=(2, 3, 3), strides=1, padding='same')(x)
@@ -303,7 +346,7 @@ def res3d(model_config, input_shape, metrics, class_counts):
     x = Activation(activation='relu')(x)
     x = BatchNormalization()(x)
 
-    # block 4 (output)
+    # block 5 (output)
     x = GlobalAveragePooling3D()(x)
     x = Dropout(dropout)(x)
     x = Dense(64, activation='relu')(x)

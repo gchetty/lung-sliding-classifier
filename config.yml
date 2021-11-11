@@ -41,6 +41,15 @@ TRAIN:
     BATCH_SIZE: 1  # MAKE SURE THIS IS SET TO 1 FOR GRADCAM
     SHUFFLE: True
     AUGMENTATION_CHANCE: 0.8
+    AUGMENTATION:
+      BRIGHTNESS_DELTA: 0.1
+      HUE_DELTA: 0.2
+      CONTRAST_BOUNDS: [ 0.7, 1.0 ]
+      SHIFT_LEFTRIGHT_BOUNDS: [ -0.25, 0.25 ]  # Proportion of width to shift by
+      SHIFT_UPDOWN_BOUNDS: [ 0.0, 0.2 ]  # Proportion of height to shift by - No upwards shift since many areas of interest are near the top
+      ROTATE_RANGE: [ -1.57, 1.57 ]  # Range of possible rotation angles
+      SHEAR_RANGE: [ 0.0, 0.1 ]
+      ZOOM_RANGE: [ 1.0, 1.5 ]  # DO NOT use lower bound < 1 --> otherwise might cut out parts of pleural line
     TEST1:
       LR: 0.000001
       L2_LAMBDA: 0.001
@@ -62,6 +71,8 @@ TRAIN:
     TENSORBOARD: 'results/logs/fit/'
 
 EXPLAINABILITY:
+  OUTPUT_FPS: 30
+
   PATHS:
     NPZ: 'data/npzs/'
     FR_CSVS: 'data/csvs/'

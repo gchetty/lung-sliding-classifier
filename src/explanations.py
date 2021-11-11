@@ -7,15 +7,13 @@ import pandas as pd
 import tensorflow as tf
 from scipy import ndimage
 from tensorflow.keras.models import load_model
-from tensorflow_addons.metrics import FBetaScore
 from models.models import *
-from custom.metrics import Specificity
 from preprocessor import Preprocessor
 
 cfg = yaml.full_load(open(os.path.join(os.getcwd(),"../config.yml"), 'r'))
 
 
-class ClipGradCam3D:
+class GradCAM3D:
 
     '''
     Applies Grad-CAM and saves resulting heatmap frames as videos for 3D CNNs ONLY
@@ -26,8 +24,7 @@ class ClipGradCam3D:
     '''
 
     def __init__(self):
-        custom_objects = {'Specificity': Specificity, 'FBetaScore': FBetaScore}
-        self.model = load_model(cfg['EXPLAINABILITY']['PATHS']['MODEL'], custom_objects=custom_objects)
+        self.model = load_model(cfg['EXPLAINABILITY']['PATHS']['MODEL'], compile=False)
         self.heatmap_dir = cfg['EXPLAINABILITY']['PATHS']['FEATURE_HEATMAPS']
         self.npz_dir = cfg['EXPLAINABILITY']['PATHS']['NPZ']
         self.img_dim = tuple(cfg['PREPROCESS']['PARAMS']['IMG_SIZE'])
@@ -70,7 +67,7 @@ class ClipGradCam3D:
                 orig_clip = c['frames']
 
             # all mini-clips currently downsampled to 30 FPS
-            frame_rate = 30
+            frame_rate = cfg['EXPLAINABILITY']['OUTPUT_FPS']
 
             # using given input clip, pool gradients at final conv layer, giving a single float per filter
             with tf.GradientTape() as tape:
@@ -94,6 +91,7 @@ class ClipGradCam3D:
             heatmap = np.uint8(255 * heatmap)
 
             # Add colour to heatmap images (per-frame), and superimpose heatmaps onto original unaltered frames
+            # From lowest to highest focus: Black, red, orange, yellow, white
             heatmap_imgs = []
             for hmap, frame in zip(heatmap, orig_clip):
                 hmap = cv2.applyColorMap(hmap, cv2.COLORMAP_HOT)
@@ -122,5 +120,5 @@ class ClipGradCam3D:
 
 
 if __name__ == '__main__':
-    cam = ClipGradCam3D()
+    cam = GradCAM3D()
     cam.apply_gradcam()

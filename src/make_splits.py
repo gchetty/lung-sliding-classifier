@@ -22,12 +22,9 @@ def df_splits(df, train, val, test, random_state=cfg['TRAIN']['PATHS']['RANDOM_S
     splits = []
 
     if test == 0:
-
         splits = train_test_split(patient_ids, train_size=train, random_state=random_state)
         splits.append([])
-
     else:
-
         splits = train_test_split(patient_ids, train_size=train, random_state=random_state)
         val_test_splits = train_test_split(splits[1], train_size=(val / (val + test)), shuffle=False)
         splits[1] = val_test_splits[0]
@@ -47,6 +44,7 @@ def df_splits(df, train, val, test, random_state=cfg['TRAIN']['PATHS']['RANDOM_S
     df['split'] = split_labels
     return
 
+
 def minority_oversample(sliding_df, no_sliding_df, split):
     '''
     Duplicates the no_sliding_df until it's approximately the same size as sliding_df
@@ -65,6 +63,7 @@ def minority_oversample(sliding_df, no_sliding_df, split):
         new_no_sliding_df = pd.concat([new_no_sliding_df, no_sliding_df[no_sliding_df['split']==split].sample(n=100)])
         n2 = len(new_no_sliding_df)
     return new_no_sliding_df
+
 
 # Import split params and check validity
 train_prop = cfg['TRAIN']['SPLITS']['TRAIN']
