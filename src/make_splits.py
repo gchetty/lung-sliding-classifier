@@ -17,11 +17,18 @@ def df_splits(df, train, val, test, random_state=cfg['TRAIN']['PATHS']['RANDOM_S
     :param test:  0 < Float < 1 representing the test fraction
     :param random_state: An integer for setting the random seed 
     '''
+
     patient_ids = pd.unique(df['patient_id'])
-    splits = train_test_split(patient_ids, train_size=train, random_state=random_state)
-    val_test_splits = train_test_split(splits[1], train_size=(val/(val+test)), shuffle=False)
-    splits[1] = val_test_splits[0]
-    splits.append(val_test_splits[1])
+    splits = []
+
+    if test == 0:
+        splits = train_test_split(patient_ids, train_size=train, random_state=random_state)
+        splits.append([])
+    else:
+        splits = train_test_split(patient_ids, train_size=train, random_state=random_state)
+        val_test_splits = train_test_split(splits[1], train_size=(val / (val + test)), shuffle=False)
+        splits[1] = val_test_splits[0]
+        splits.append(val_test_splits[1])
 
     # Add split labels to dataframe
     split_labels = []
@@ -36,6 +43,7 @@ def df_splits(df, train, val, test, random_state=cfg['TRAIN']['PATHS']['RANDOM_S
 
     df['split'] = split_labels
     return
+
 
 def minority_oversample(sliding_df, no_sliding_df, split):
     '''
@@ -56,6 +64,7 @@ def minority_oversample(sliding_df, no_sliding_df, split):
         n2 = len(new_no_sliding_df)
     return new_no_sliding_df
 
+
 # Import split params and check validity
 train_prop = cfg['TRAIN']['SPLITS']['TRAIN']
 val_prop = cfg['TRAIN']['SPLITS']['VAL']
@@ -68,8 +77,20 @@ if (s > 1.0) or (train_prop < 0) or (val_prop < 0) or (test_prop < 0):
 
 # CSV paths
 csv_path = os.path.join(os.getcwd(), 'data/', cfg['PREPROCESS']['PATHS']['CSVS_OUTPUT'])
-sliding_path = os.path.join(csv_path, 'sliding_mini_clips.csv')
-no_sliding_path = os.path.join(csv_path, 'no_sliding_mini_clips.csv')
+
+flow = cfg['PREPROCESS']['PARAMS']['FLOW']
+
+sliding_path = ''
+no_sliding_path = ''
+
+if flow == 'Yes':
+    sliding_path = os.path.join(csv_path, 'sliding_flow_mini_clips.csv')
+    no_sliding_path = os.path.join(csv_path, 'no_sliding_flow_mini_clips.csv')
+elif flow == 'No':
+    sliding_path = os.path.join(csv_path, 'sliding_mini_clips.csv')
+    no_sliding_path = os.path.join(csv_path, 'no_sliding_mini_clips.csv')
+else:
+    raise Exception('Two-stream preprocessing pipeline not yet implemented!')
 
 # Input csvs of mini-clips
 sliding_df = pd.read_csv(sliding_path)
@@ -88,7 +109,11 @@ l0 = [0] * len(no_sliding_df)
 no_sliding_df['label'] = l0
 
 # Add file path to dataframes
-npz_dir = cfg['PREPROCESS']['PATHS']['NPZ']
+npz_dir = ''
+if flow == 'Yes':
+    npz_dir = cfg['PREPROCESS']['PATHS']['FLOW_NPZ']
+elif flow == 'No':
+    npz_dir = cfg['PREPROCESS']['PATHS']['NPZ']
 
 paths1 = []
 for index, row in sliding_df.iterrows():
@@ -108,7 +133,7 @@ if increase:
 
 # Print the proportion of each split
 print('Train: Sliding=={}, No Sliding=={}'.format(len(sliding_df[sliding_df['split']==0]), len(no_sliding_df[no_sliding_df['split']==0])))
-print('Tal: Sliding=={}, No Sliding=={}'.format(len(sliding_df[sliding_df['split']==1]), len(no_sliding_df[no_sliding_df['split']==1])))
+print('Val: Sliding=={}, No Sliding=={}'.format(len(sliding_df[sliding_df['split']==1]), len(no_sliding_df[no_sliding_df['split']==1])))
 print('Test: Sliding=={}, No Sliding=={}'.format(len(sliding_df[sliding_df['split']==2]), len(no_sliding_df[no_sliding_df['split']==2])))
 
 # Vertically concatenate dataframes
@@ -127,11 +152,19 @@ csv_dir = cfg['TRAIN']['PATHS']['CSVS']
 if not os.path.exists(csv_dir):
     os.makedirs(csv_dir)
 
-train_df_path = os.path.join(csv_dir, 'train.csv')
+train_df_path = ''
+val_df_path = ''
+test_df_path = ''
+
+if flow == 'Yes':
+    train_df_path = os.path.join(csv_dir, 'flow_train.csv')
+    val_df_path = os.path.join(csv_dir, 'flow_val.csv')
+    test_df_path = os.path.join(csv_dir, 'flow_test.csv')
+elif flow == 'No':
+    train_df_path = os.path.join(csv_dir, 'train.csv')
+    val_df_path = os.path.join(csv_dir, 'val.csv')
+    test_df_path = os.path.join(csv_dir, 'test.csv')
+
 train_df.to_csv(train_df_path, index=False)
-
-val_df_path = os.path.join(csv_dir, 'val.csv')
 val_df.to_csv(val_df_path, index=False)
-
-test_df_path = os.path.join(csv_dir, 'test.csv')
 test_df.to_csv(test_df_path, index=False)
