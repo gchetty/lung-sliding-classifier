@@ -11,12 +11,14 @@ from tensorflow.keras.layers import Dense, Flatten
 from tensorflow.keras.layers import LSTM
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import TimeDistributed, Conv3D, AveragePooling3D, Dropout, Input, Add, InputLayer, MaxPooling3D,\
-    Conv2D, MaxPooling2D, BatchNormalization, Activation, GlobalAveragePooling3D
+    Conv2D, MaxPooling2D, BatchNormalization, Activation, GlobalAveragePooling3D, ZeroPadding3D
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.applications.xception import Xception
 from tensorflow.keras.applications.xception import preprocess_input as xception_preprocess
 from tensorflow.keras.applications.vgg16 import VGG16
 from tensorflow.keras.applications.vgg16 import preprocess_input as vgg16_preprocess
+from tensorflow.keras.applications.resnet_v2 import ResNet50V2
+from tensorflow.keras.applications.resnet50 import preprocess_input as resnet_preprocess
 
 cfg = yaml.full_load(open(os.path.join(os.getcwd(), '../config.yml'), 'r'))
 
@@ -44,6 +46,9 @@ def get_model(model_name):
     elif model_name == 'res3d':
         model_def_fn = res3d
         preprocessing_fn = normalize
+    elif model_name == 'inflated_resnet50':
+        model_def_fn = inflated_resnet50
+        preprocessing_fn = resnet_preprocess
 
     return model_def_fn, preprocessing_fn
 
@@ -358,3 +363,97 @@ def res3d(model_config, input_shape, metrics, class_counts):
     model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=metrics)
 
     return model
+
+
+def inflated_resnet50(model_config, input_shape, metrics, class_counts):
+
+    lr = model_config['LR']
+    dropout = model_config['DROPOUT']
+    optimizer = Adam(learning_rate=lr)
+
+    output_bias = None
+    if cfg['TRAIN']['OUTPUT_BIAS']:
+        count0 = class_counts[0]
+        count1 = class_counts[1]
+        output_bias = math.log(count1 / count0)
+        output_bias = tf.keras.initializers.Constant(output_bias)
+
+    base = ResNet50V2(include_top=False, weights='imagenet', input_tensor=None, input_shape=(224, 224, 3), pooling='avg')
+
+    # USEFUL NOTE: Any conv with a BN directly after has no biases (handled by BN)
+
+    # Input block
+    inputs = tf.keras.Input(shape=input_shape)
+
+    x = ZeroPadding3D(padding=3, name=base.layers[1].name)(inputs)
+    x = Conv3D(filters=64, kernel_size=7, strides=2, name=base.layers[2].name)(x)
+    x = ZeroPadding3D(padding=1, name=base.layers[3].name)(x)
+    x = MaxPooling3D(pool_size=3, strides=2, name=base.layers[4].name)(x)
+    x = BatchNormalization(name=base.layers[5].name)(x)
+    x = Activation(activation='relu', name=base.layers[6].name)(x)
+    last = x
+
+    # Block 1
+    x = Conv3D(filters=64, kernel_size=1, strides=1, use_bias=False, name=base.layers[7].name)(x)
+    x = BatchNormalization(name=base.layers[8].name)(x)
+    x = Activation(activation='relu', name=base.layers[9].name)(x)
+    x = ZeroPadding3D(padding=1, name=base.layers[10].name)(x)
+
+    x = Conv3D(filters=64, kernel_size=3, strides=1, use_bias=False, name=base.layers[11].name)(x)
+    x = BatchNormalization(name=base.layers[12].name)(x)
+    x = Activation(activation='relu', name=base.layers[13].name)(x)
+    x = Conv3D(filters=256, kernel_size=1, strides=1, name=base.layers[15].name)(x)
+
+    res = Conv3D(filters=256, kernel_size=1, strides=1, name=base.layers[14].name)(last)
+    x = Add(name=base.layers[16].name)([x, res])
+    last = x
+
+    # Block 2
+    x = BatchNormalization(name=base.layers[17].name)(x)
+    x = Activation(activation='relu', name=base.layers[18].name)(x)
+
+    x = Conv3D(filters=64, kernel_size=1, strides=1, use_bias=False, name=base.layers[19].name)(x)
+    x = BatchNormalization(name=base.layers[20].name)(x)
+    x = Activation(activation='relu', name=base.layers[21].name)(x)
+    x = ZeroPadding3D(padding=1, name=base.layers[22].name)(x)
+
+    x = Conv3D(filters=64, kernel_size=3, strides=1, use_bias=False, name=base.layers[23].name)(x)
+    x = BatchNormalization(name=base.layers[24].name)(x)
+    x = Activation(activation='relu', name=base.layers[25].name)(x)
+    x = Conv3D(filters=256, kernel_size=1, strides=1, name=base.layers[26].name)(x)
+
+    x = Add(name=base.layers[27].name)([x, last])
+    last = x
+
+    # Block 3
+    x = BatchNormalization(name=base.layers[28].name)(x)
+    x = Activation(activation='relu', name=base.layers[29].name)(x)
+
+    x = Conv3D(filters=64, kernel_size=1, strides=1, use_bias=False, name=base.layers[30].name)(x)
+    x = BatchNormalization(name=base.layers[31].name)(x)
+    x = Activation(activation='relu', name=base.layers[32].name)(x)
+    x = ZeroPadding3D(padding=1, name=base.layers[33].name)(x)
+
+    x = Conv3D(filters=64, kernel_size=3, strides=2, use_bias=False, name=base.layers[34].name)(x)
+    x = BatchNormalization(name=base.layers[35].name)(x)
+    x = Activation(activation='relu', name=base.layers[36].name)(x)
+    x = Conv3D(filters=256, kernel_size=1, strides=1, name=base.layers[38].name)(x)
+
+    res = MaxPooling3D(pool_size=1, strides=2, name=base.layers[37].name)(last)
+    x = Add(name=base.layers[39].name)([x, res])  # Conv2_block3_out
+
+    # Output head
+    x = BatchNormalization(name=base.layers[-3].name)(x)
+    x = Activation(activation='relu', name=base.layers[-2].name)(x)
+    x = GlobalAveragePooling3D(name=base.layers[-1].name)(x)
+    x = Dropout(dropout)(x)
+    x = Dense(64, activation='relu')(x)
+    outputs = Dense(1, activation='sigmoid', bias_initializer=output_bias, dtype='float32')(x)
+
+    model = tf.keras.Model(inputs=inputs, outputs=outputs)
+    model.summary()
+
+    model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=metrics)
+
+    return model
+

@@ -24,7 +24,8 @@ class GradCAM3D:
     '''
 
     def __init__(self):
-        self.model = load_model(cfg['EXPLAINABILITY']['PATHS']['MODEL'], compile=False)
+        model_path = cfg['EXPLAINABILITY']['PATHS']['MODEL']
+        self.model = load_model(model_path, compile=False)
         self.heatmap_dir = cfg['EXPLAINABILITY']['PATHS']['FEATURE_HEATMAPS']
         self.npz_dir = cfg['EXPLAINABILITY']['PATHS']['NPZ']
         self.img_dim = tuple(cfg['PREPROCESS']['PARAMS']['IMG_SIZE'])
@@ -41,8 +42,12 @@ class GradCAM3D:
         # Get name of final convolutional layer
         layer_name = ''
         for layer in self.model.layers:
-            if 'conv' in layer.name.lower():
-                layer_name = layer.name
+            if 'inflated' in model_path:
+                if '_conv' in layer.name.lower():
+                    layer_name = layer.name
+            else:
+                if 'conv' in layer.name.lower():
+                    layer_name = layer.name
         self.last_conv_layer = layer_name
 
     def apply_gradcam(self):

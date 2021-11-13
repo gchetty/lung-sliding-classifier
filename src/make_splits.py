@@ -2,12 +2,13 @@ import os
 import sys
 import pandas as pd
 import yaml
+import random
 from sklearn.model_selection import train_test_split
 
 cfg = yaml.full_load(open(os.path.join(os.getcwd(), '../config.yml'), 'r'))
 
 
-def df_splits(df, train, val, test, random_state=cfg['TRAIN']['PATHS']['RANDOM_SEED']):
+def df_splits(df, train, val, test, random_state=cfg['TRAIN']['SPLITS']['RANDOM_SEED']):
     '''
     Splits the dataframe into train, val and test (adds a split column with train=0, val=1, test=2).
 
@@ -19,7 +20,9 @@ def df_splits(df, train, val, test, random_state=cfg['TRAIN']['PATHS']['RANDOM_S
     '''
 
     patient_ids = pd.unique(df['patient_id'])
-    splits = []
+
+    if random_state == -1:
+        random_state = random.randint(0, 1000)
 
     if test == 0:
         splits = train_test_split(patient_ids, train_size=train, random_state=random_state)

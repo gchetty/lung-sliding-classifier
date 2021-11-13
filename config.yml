@@ -28,10 +28,11 @@ TRAIN:
   MIXED_PRECISION: False
   OUTPUT_BIAS: True
   PATIENCE: 10
-  MODEL_DEF: 'res3d'  # xception_raw, lrcn, threeDCNN, vgg16_raw
+  MODEL_DEF: 'inflated_resnet50'  # xception_raw, lrcn, threeDCNN, vgg16_raw, inflated_resnet50
   SAVE_BEST_ONLY: True
 
   SPLITS:
+    RANDOM_SEED: -1  # -1 for unseeded
     TRAIN: 0.7
     VAL: 0.3
     TEST: 0
@@ -62,12 +63,14 @@ TRAIN:
     RES3D:
       LR: 0.0001
       DROPOUT: 0.5
+    INFLATED_RESNET50:
+      LR: 0.00001
+      DROPOUT: 0.5
     INCREASE: True
 
   PATHS:
     CSVS: 'csvs_split/'
-    MODEL_OUT: 'results/models/res3d/'
-    RANDOM_SEED: 6  # Why is this in paths
+    MODEL_OUT: 'results/models/inflated_resnet50/'
     TENSORBOARD: 'results/logs/fit/'
 
 EXPLAINABILITY:
@@ -77,5 +80,5 @@ EXPLAINABILITY:
     NPZ: 'data/npzs/'
     FR_CSVS: 'data/csvs/'
     NPZ_DF: 'csvs_split/val.csv'
-    MODEL: 'results/models/res3d/'
+    MODEL: 'results/models/inflated_resnet50/'
     FEATURE_HEATMAPS: 'feature_heatmaps/'
