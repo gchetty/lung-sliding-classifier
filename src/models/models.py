@@ -6,6 +6,7 @@ import yaml
 import os
 import math
 import tensorflow as tf
+import numpy as np
 
 from tensorflow.keras.layers import Dense, Flatten
 from tensorflow.keras.layers import LSTM
@@ -452,6 +453,22 @@ def inflated_resnet50(model_config, input_shape, metrics, class_counts):
 
     model = tf.keras.Model(inputs=inputs, outputs=outputs)
     model.summary()
+
+    for new_layer in model.layers:
+        name = new_layer.name
+        if '_conv' in name:
+            base_layer = base.get_layer(name)
+            orig_w = base_layer.get_weights()
+            expand = base_layer.kernel_size[0]
+            w = np.tile(orig_w[0], (expand, 1, 1, 1, 1))
+            w = np.divide(w, expand)
+            if len(orig_w) == 1:  # if no biases
+                new_layer.set_weights([w])
+            else:
+                new_layer.set_weights([w, orig_w[1]])
+        elif '_bn' in name:
+            if not (name == 'post_bn'):  # input shape of post_bn different
+                new_layer.set_weights(base.get_layer(name).get_weights())
 
     model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=metrics)
 
