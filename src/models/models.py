@@ -448,13 +448,14 @@ def inflated_resnet50(model_config, input_shape, metrics, class_counts):
     x = Activation(activation='relu', name=base.layers[-2].name)(x)
     x = GlobalAveragePooling3D(name=base.layers[-1].name)(x)
     x = Dropout(dropout)(x)
-    x = Dense(64, activation='relu')(x)
     outputs = Dense(1, activation='sigmoid', bias_initializer=output_bias, dtype='float32')(x)
 
     model = tf.keras.Model(inputs=inputs, outputs=outputs)
     model.summary()
 
-    for new_layer in model.layers:
+    # Bootstrap weights and freeze layers
+    for i in range(len(model.layers)):
+        new_layer = model.layers[i]
         name = new_layer.name
         if '_conv' in name:
             base_layer = base.get_layer(name)
@@ -469,6 +470,8 @@ def inflated_resnet50(model_config, input_shape, metrics, class_counts):
         elif '_bn' in name:
             if not (name == 'post_bn'):  # input shape of post_bn different
                 new_layer.set_weights(base.get_layer(name).get_weights())
+        if i < 28:  # GOTTA MAKE THIS CONFIGURABLE
+            new_layer.trainable = False
 
     model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=metrics)
 
