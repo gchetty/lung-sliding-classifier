@@ -127,6 +127,14 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
 
     model = model_def_fn(hparams, input_shape, metrics, counts)
 
+    # Learning rate scheduler
+    def scheduler(epoch, lr):
+        if epoch < 5:
+            return lr
+        else:
+            return lr * tf.math.exp(-1 * hparams['LR_DECAY_VAL'])
+    lr_callback = tf.keras.callbacks.LearningRateScheduler(scheduler)
+
     # Refresh the TensorBoard directory
     tensorboard_path = cfg['TRAIN']['PATHS']['TENSORBOARD']
     refresh_folder(tensorboard_path)
@@ -153,7 +161,7 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
     # Train and save the model
     epochs = cfg['TRAIN']['PARAMS']['EPOCHS']
     model.fit(train_set, epochs=epochs, validation_data=val_set, class_weight=class_weight,
-              callbacks=[save_cp, cm_callback, basic_call, early_stopping], verbose=2)
+              callbacks=[save_cp, cm_callback, basic_call, early_stopping, lr_callback], verbose=2)
 
 
 # Train and save the model

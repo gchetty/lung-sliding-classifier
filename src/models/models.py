@@ -443,6 +443,76 @@ def inflated_resnet50(model_config, input_shape, metrics, class_counts):
     res = MaxPooling3D(pool_size=1, strides=2, name=base.layers[37].name)(last)
     x = Add(name=base.layers[39].name)([x, res])  # Conv2_block3_out
 
+    # Block 4 (Stage 2, block 1)
+    x = BatchNormalization(name=base.layers[40].name)(x)
+    x = Activation(activation='relu', name=base.layers[41].name)(x)
+    last = x
+
+    x = Conv3D(filters=128, kernel_size=1, strides=1, use_bias=False, name=base.layers[42].name)(x)
+    x = BatchNormalization(name=base.layers[43].name)(x)
+    x = Activation(activation='relu', name=base.layers[44].name)(x)
+    x = ZeroPadding3D(padding=1, name=base.layers[45].name)(x)
+
+    x = Conv3D(filters=128, kernel_size=3, strides=1, use_bias=False, name=base.layers[46].name)(x)
+    x = BatchNormalization(name=base.layers[47].name)(x)
+    x = Activation(activation='relu', name=base.layers[48].name)(x)
+    x = Conv3D(filters=512, kernel_size=1, strides=1, name=base.layers[50].name)(x)
+
+    res = Conv3D(filters=512, kernel_size=1, strides=1, name=base.layers[49].name)(last)
+    x = Add(name=base.layers[51].name)([x, res])  # conv3_block1_out
+    last = x
+
+    # Block 5 (Stage 2, block 2)
+    x = BatchNormalization(name=base.layers[52].name)(x)
+    x = Activation(activation='relu', name=base.layers[53].name)(x)
+
+    x = Conv3D(filters=128, kernel_size=1, strides=1, use_bias=False, name=base.layers[54].name)(x)
+    x = BatchNormalization(name=base.layers[55].name)(x)
+    x = Activation(activation='relu', name=base.layers[56].name)(x)
+    x = ZeroPadding3D(padding=1, name=base.layers[57].name)(x)
+
+    x = Conv3D(filters=128, kernel_size=3, strides=1, use_bias=False, name=base.layers[58].name)(x)
+    x = BatchNormalization(name=base.layers[59].name)(x)
+    x = Activation(activation='relu', name=base.layers[60].name)(x)
+    x = Conv3D(filters=512, kernel_size=1, strides=1, name=base.layers[61].name)(x)
+
+    x = Add(name=base.layers[62].name)([x, last])  # conv3_block2_out
+    last = x
+
+    # Block 6 (Stage 2, block 3)
+    x = BatchNormalization(name=base.layers[63].name)(x)
+    x = Activation(activation='relu', name=base.layers[64].name)(x)
+
+    x = Conv3D(filters=128, kernel_size=1, strides=1, use_bias=False, name=base.layers[65].name)(x)
+    x = BatchNormalization(name=base.layers[66].name)(x)
+    x = Activation(activation='relu', name=base.layers[67].name)(x)
+    x = ZeroPadding3D(padding=1, name=base.layers[68].name)(x)
+
+    x = Conv3D(filters=128, kernel_size=3, strides=1, use_bias=False, name=base.layers[69].name)(x)
+    x = BatchNormalization(name=base.layers[70].name)(x)
+    x = Activation(activation='relu', name=base.layers[71].name)(x)
+    x = Conv3D(filters=512, kernel_size=1, strides=1, name=base.layers[72].name)(x)
+
+    x = Add(name=base.layers[73].name)([x, last])  # conv3_block3_out
+    last = x
+
+    # Block 7 (Stage 2, block 4)
+    x = BatchNormalization(name=base.layers[74].name)(x)
+    x = Activation(activation='relu', name=base.layers[75].name)(x)
+
+    x = Conv3D(filters=128, kernel_size=1, strides=1, use_bias=False, name=base.layers[76].name)(x)
+    x = BatchNormalization(name=base.layers[77].name)(x)
+    x = Activation(activation='relu', name=base.layers[78].name)(x)
+    x = ZeroPadding3D(padding=1, name=base.layers[79].name)(x)
+
+    x = Conv3D(filters=128, kernel_size=3, strides=2, use_bias=False, name=base.layers[80].name)(x)
+    x = BatchNormalization(name=base.layers[81].name)(x)
+    x = Activation(activation='relu', name=base.layers[82].name)(x)
+    x = Conv3D(filters=512, kernel_size=1, strides=1, name=base.layers[84].name)(x)
+
+    res = MaxPooling3D(pool_size=1, strides=2, name=base.layers[83].name)(last)
+    x = Add(name=base.layers[85].name)([x, res])  # Conv2_block4_out
+
     # Output head
     x = BatchNormalization(name=base.layers[-3].name)(x)
     x = Activation(activation='relu', name=base.layers[-2].name)(x)
@@ -470,7 +540,7 @@ def inflated_resnet50(model_config, input_shape, metrics, class_counts):
         elif '_bn' in name:
             if not (name == 'post_bn'):  # input shape of post_bn different
                 new_layer.set_weights(base.get_layer(name).get_weights())
-        if i < 28:  # GOTTA MAKE THIS CONFIGURABLE
+        if i < model_config['LAST_FROZEN']:
             new_layer.trainable = False
 
     model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=metrics)
