@@ -57,7 +57,11 @@ class GradCAM3D:
         '''
 
         # get dataset and apply preprocessor
+        prop = cfg['EXPLAINABILITY']['PROPORTION']
+        if prop <= 0 or prop >= 1:
+            raise ValueError('Please use a valid proportion')
         miniclip_csv = pd.read_csv(cfg['EXPLAINABILITY']['PATHS']['NPZ_DF'])
+        miniclip_csv = miniclip_csv.sample(frac=prop)
         ds = tf.data.Dataset.from_tensor_slices((miniclip_csv['filename'].tolist(), miniclip_csv['label']))
         preprocessor = Preprocessor(self.preprocessing_fn)
         ds = preprocessor.prepare(ds, miniclip_csv, shuffle=False, augment=False)
