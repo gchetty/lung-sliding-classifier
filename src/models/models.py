@@ -396,33 +396,35 @@ def inflated_resnet50(model_config, input_shape, metrics, class_counts):
         '''
 
         x = BatchNormalization(name=base.layers[ind].name)(x)
-        x = Activation(activation='relu', name=base.layers[ind+1].name)(x)
+        x = Activation(activation='relu', name=base.layers[ind + 1].name)(x)
 
         if pos == 'first':
             last = x
 
-        x = Conv3D(filters=filters, kernel_size=1, strides=1, use_bias=False, name=base.layers[ind+2].name)(x)
-        x = BatchNormalization(name=base.layers[ind+3].name)(x)
-        x = Activation(activation='relu', name=base.layers[ind+4].name)(x)
-        x = ZeroPadding3D(padding=1, name=base.layers[ind+5].name)(x)
+        x = Conv3D(filters=filters, kernel_size=1, strides=1, use_bias=False, name=base.layers[ind + 2].name)(x)
+        x = BatchNormalization(name=base.layers[ind + 3].name)(x)
+        x = Activation(activation='relu', name=base.layers[ind + 4].name)(x)
+        x = ZeroPadding3D(padding=1, name=base.layers[ind + 5].name)(x)
 
         if pos == 'last':
-            x = Conv3D(filters=filters, kernel_size=3, strides=2, use_bias=False, name=base.layers[ind+6].name)(x)
+            x = Conv3D(filters=filters, kernel_size=3, strides=2, use_bias=False, name=base.layers[ind + 6].name)(x)
         else:
-            x = Conv3D(filters=filters, kernel_size=3, strides=1, use_bias=False, name=base.layers[ind+6].name)(x)
-        x = BatchNormalization(name=base.layers[ind+7].name)(x)
-        x = Activation(activation='relu', name=base.layers[ind+8].name)(x)
-        x = Conv3D(filters=filters*4, kernel_size=1, strides=1, name=base.layers[ind+9].name)(x)
+            x = Conv3D(filters=filters, kernel_size=3, strides=1, use_bias=False, name=base.layers[ind + 6].name)(x)
+        x = BatchNormalization(name=base.layers[ind + 7].name)(x)
+        x = Activation(activation='relu', name=base.layers[ind + 8].name)(x)
 
         # ADD STUFF
         if pos == 'first':
-            res = Conv3D(filters=filters*4, kernel_size=1, strides=1, name=base.layers[ind+10].name)(last)
-            x = Add(name=base.layers[ind+11].name)([x, res])  # conv3_block1_out
+            res = Conv3D(filters=filters * 4, kernel_size=1, strides=1, name=base.layers[ind + 9].name)(last)
+            x = Conv3D(filters=filters * 4, kernel_size=1, strides=1, name=base.layers[ind + 10].name)(x)
+            x = Add(name=base.layers[ind + 11].name)([x, res])  # conv3_block1_out
         elif pos == 'last':
-            res = MaxPooling3D(pool_size=1, strides=2, name=base.layers[ind+10].name)(last)
-            x = Add(name=base.layers[ind+11].name)([x, res])  # Conv2_block4_out
+            res = MaxPooling3D(pool_size=1, strides=2, name=base.layers[ind + 9].name)(last)
+            x = Conv3D(filters=filters * 4, kernel_size=1, strides=1, name=base.layers[ind + 10].name)(x)
+            x = Add(name=base.layers[ind + 11].name)([x, res])  # Conv2_block4_out
         else:
-            x = Add(name=base.layers[ind+10].name)([x, last])
+            x = Conv3D(filters=filters * 4, kernel_size=1, strides=1, name=base.layers[ind + 9].name)(x)
+            x = Add(name=base.layers[ind + 10].name)([x, last])
 
         return x
 
@@ -470,6 +472,7 @@ def inflated_resnet50(model_config, input_shape, metrics, class_counts):
 
     x, index = stage(x, x, 3, 64, index)
     x, index = stage(x, x, 4, 128, index)
+    x, index = stage(x, x, 6, 256, index)
 
     # Output head
     x = BatchNormalization(name=base.layers[-3].name)(x)

@@ -67,7 +67,7 @@ TRAIN:
       LR: 0.0001  # Initial learning rate
       LR_DECAY_VAL: 0.1  # Set equal to initial learning rate for no LR decay
       DROPOUT: 0.5
-      LAST_FROZEN: 51  # Last layer (number) to freeze (NOT 0-indexed)
+      LAST_FROZEN: 108  # Last layer (number) to freeze (NOT 0-indexed)
     INCREASE: True
 
   PATHS:
