@@ -381,6 +381,81 @@ def inflated_resnet50(model_config, input_shape, metrics, class_counts):
 
     base = ResNet50V2(include_top=False, weights='imagenet', input_tensor=None, input_shape=(224, 224, 3), pooling='avg')
 
+    def block(x, last, filters, ind, pos):
+
+        '''
+        Adds layers corresponding to a ResNet50 block (inflated to 3D)
+
+        :param x: Output tensor from previous layers
+        :param last: Last block's output tensor
+        :param filters: Base number of filters in convolutions
+        :param ind: Integer, tracking index of base ResNet50 layers (for naming purposes)
+        :param pos: String, position of block in stage - either 'first', 'last', or a different arbitrary value
+
+        :return: Tensor - block output
+        '''
+
+        x = BatchNormalization(name=base.layers[ind].name)(x)
+        x = Activation(activation='relu', name=base.layers[ind+1].name)(x)
+
+        if pos == 'first':
+            last = x
+
+        x = Conv3D(filters=filters, kernel_size=1, strides=1, use_bias=False, name=base.layers[ind+2].name)(x)
+        x = BatchNormalization(name=base.layers[ind+3].name)(x)
+        x = Activation(activation='relu', name=base.layers[ind+4].name)(x)
+        x = ZeroPadding3D(padding=1, name=base.layers[ind+5].name)(x)
+
+        if pos == 'last':
+            x = Conv3D(filters=filters, kernel_size=3, strides=2, use_bias=False, name=base.layers[ind+6].name)(x)
+        else:
+            x = Conv3D(filters=filters, kernel_size=3, strides=1, use_bias=False, name=base.layers[ind+6].name)(x)
+        x = BatchNormalization(name=base.layers[ind+7].name)(x)
+        x = Activation(activation='relu', name=base.layers[ind+8].name)(x)
+        x = Conv3D(filters=filters*4, kernel_size=1, strides=1, name=base.layers[ind+9].name)(x)
+
+        # ADD STUFF
+        if pos == 'first':
+            res = Conv3D(filters=filters*4, kernel_size=1, strides=1, name=base.layers[ind+10].name)(last)
+            x = Add(name=base.layers[ind+11].name)([x, res])  # conv3_block1_out
+        elif pos == 'last':
+            res = MaxPooling3D(pool_size=1, strides=2, name=base.layers[ind+10].name)(last)
+            x = Add(name=base.layers[ind+11].name)([x, res])  # Conv2_block4_out
+        else:
+            x = Add(name=base.layers[ind+10].name)([x, last])
+
+        return x
+
+    def stage(x, last, num_blocks, filters, ind):
+
+        '''
+        Adds layers corresponding to a ResNet50 stage (inflated to 3D)
+
+        :param x: Output tensor from previous layers
+        :param last: Last block's output tensor
+        :param num_blocks: Number of convolutional blocks in the stage
+        :param filters: Base number of filters in convolutions
+        :param ind: Integer, tracking index of base ResNet50 layers (for naming purposes)
+
+        :return: Tuple of (stage output tensor, index for next layer to be added)
+        '''
+
+        for i in range(num_blocks):
+            pos = ''
+            if i == 0:
+                pos = 'first'
+            elif i == (num_blocks - 1):
+                pos = 'last'
+            x = block(x, last, filters, ind, pos)
+            last = x
+            if (i == 0) or (i == (num_blocks - 1)):
+                ind += 12
+            else:
+                ind += 11
+            print(ind)
+
+        return x, ind
+
     # USEFUL NOTE: Any conv with a BN directly after has no biases (handled by BN)
 
     # Input block
@@ -390,128 +465,11 @@ def inflated_resnet50(model_config, input_shape, metrics, class_counts):
     x = Conv3D(filters=64, kernel_size=7, strides=2, name=base.layers[2].name)(x)
     x = ZeroPadding3D(padding=1, name=base.layers[3].name)(x)
     x = MaxPooling3D(pool_size=3, strides=2, name=base.layers[4].name)(x)
-    x = BatchNormalization(name=base.layers[5].name)(x)
-    x = Activation(activation='relu', name=base.layers[6].name)(x)
-    last = x
 
-    # Block 1
-    x = Conv3D(filters=64, kernel_size=1, strides=1, use_bias=False, name=base.layers[7].name)(x)
-    x = BatchNormalization(name=base.layers[8].name)(x)
-    x = Activation(activation='relu', name=base.layers[9].name)(x)
-    x = ZeroPadding3D(padding=1, name=base.layers[10].name)(x)
+    index = 5
 
-    x = Conv3D(filters=64, kernel_size=3, strides=1, use_bias=False, name=base.layers[11].name)(x)
-    x = BatchNormalization(name=base.layers[12].name)(x)
-    x = Activation(activation='relu', name=base.layers[13].name)(x)
-    x = Conv3D(filters=256, kernel_size=1, strides=1, name=base.layers[15].name)(x)
-
-    res = Conv3D(filters=256, kernel_size=1, strides=1, name=base.layers[14].name)(last)
-    x = Add(name=base.layers[16].name)([x, res])
-    last = x
-
-    # Block 2
-    x = BatchNormalization(name=base.layers[17].name)(x)
-    x = Activation(activation='relu', name=base.layers[18].name)(x)
-
-    x = Conv3D(filters=64, kernel_size=1, strides=1, use_bias=False, name=base.layers[19].name)(x)
-    x = BatchNormalization(name=base.layers[20].name)(x)
-    x = Activation(activation='relu', name=base.layers[21].name)(x)
-    x = ZeroPadding3D(padding=1, name=base.layers[22].name)(x)
-
-    x = Conv3D(filters=64, kernel_size=3, strides=1, use_bias=False, name=base.layers[23].name)(x)
-    x = BatchNormalization(name=base.layers[24].name)(x)
-    x = Activation(activation='relu', name=base.layers[25].name)(x)
-    x = Conv3D(filters=256, kernel_size=1, strides=1, name=base.layers[26].name)(x)
-
-    x = Add(name=base.layers[27].name)([x, last])
-    last = x
-
-    # Block 3
-    x = BatchNormalization(name=base.layers[28].name)(x)
-    x = Activation(activation='relu', name=base.layers[29].name)(x)
-
-    x = Conv3D(filters=64, kernel_size=1, strides=1, use_bias=False, name=base.layers[30].name)(x)
-    x = BatchNormalization(name=base.layers[31].name)(x)
-    x = Activation(activation='relu', name=base.layers[32].name)(x)
-    x = ZeroPadding3D(padding=1, name=base.layers[33].name)(x)
-
-    x = Conv3D(filters=64, kernel_size=3, strides=2, use_bias=False, name=base.layers[34].name)(x)
-    x = BatchNormalization(name=base.layers[35].name)(x)
-    x = Activation(activation='relu', name=base.layers[36].name)(x)
-    x = Conv3D(filters=256, kernel_size=1, strides=1, name=base.layers[38].name)(x)
-
-    res = MaxPooling3D(pool_size=1, strides=2, name=base.layers[37].name)(last)
-    x = Add(name=base.layers[39].name)([x, res])  # Conv2_block3_out
-
-    # Block 4 (Stage 2, block 1)
-    x = BatchNormalization(name=base.layers[40].name)(x)
-    x = Activation(activation='relu', name=base.layers[41].name)(x)
-    last = x
-
-    x = Conv3D(filters=128, kernel_size=1, strides=1, use_bias=False, name=base.layers[42].name)(x)
-    x = BatchNormalization(name=base.layers[43].name)(x)
-    x = Activation(activation='relu', name=base.layers[44].name)(x)
-    x = ZeroPadding3D(padding=1, name=base.layers[45].name)(x)
-
-    x = Conv3D(filters=128, kernel_size=3, strides=1, use_bias=False, name=base.layers[46].name)(x)
-    x = BatchNormalization(name=base.layers[47].name)(x)
-    x = Activation(activation='relu', name=base.layers[48].name)(x)
-    x = Conv3D(filters=512, kernel_size=1, strides=1, name=base.layers[50].name)(x)
-
-    res = Conv3D(filters=512, kernel_size=1, strides=1, name=base.layers[49].name)(last)
-    x = Add(name=base.layers[51].name)([x, res])  # conv3_block1_out
-    last = x
-
-    # Block 5 (Stage 2, block 2)
-    x = BatchNormalization(name=base.layers[52].name)(x)
-    x = Activation(activation='relu', name=base.layers[53].name)(x)
-
-    x = Conv3D(filters=128, kernel_size=1, strides=1, use_bias=False, name=base.layers[54].name)(x)
-    x = BatchNormalization(name=base.layers[55].name)(x)
-    x = Activation(activation='relu', name=base.layers[56].name)(x)
-    x = ZeroPadding3D(padding=1, name=base.layers[57].name)(x)
-
-    x = Conv3D(filters=128, kernel_size=3, strides=1, use_bias=False, name=base.layers[58].name)(x)
-    x = BatchNormalization(name=base.layers[59].name)(x)
-    x = Activation(activation='relu', name=base.layers[60].name)(x)
-    x = Conv3D(filters=512, kernel_size=1, strides=1, name=base.layers[61].name)(x)
-
-    x = Add(name=base.layers[62].name)([x, last])  # conv3_block2_out
-    last = x
-
-    # Block 6 (Stage 2, block 3)
-    x = BatchNormalization(name=base.layers[63].name)(x)
-    x = Activation(activation='relu', name=base.layers[64].name)(x)
-
-    x = Conv3D(filters=128, kernel_size=1, strides=1, use_bias=False, name=base.layers[65].name)(x)
-    x = BatchNormalization(name=base.layers[66].name)(x)
-    x = Activation(activation='relu', name=base.layers[67].name)(x)
-    x = ZeroPadding3D(padding=1, name=base.layers[68].name)(x)
-
-    x = Conv3D(filters=128, kernel_size=3, strides=1, use_bias=False, name=base.layers[69].name)(x)
-    x = BatchNormalization(name=base.layers[70].name)(x)
-    x = Activation(activation='relu', name=base.layers[71].name)(x)
-    x = Conv3D(filters=512, kernel_size=1, strides=1, name=base.layers[72].name)(x)
-
-    x = Add(name=base.layers[73].name)([x, last])  # conv3_block3_out
-    last = x
-
-    # Block 7 (Stage 2, block 4)
-    x = BatchNormalization(name=base.layers[74].name)(x)
-    x = Activation(activation='relu', name=base.layers[75].name)(x)
-
-    x = Conv3D(filters=128, kernel_size=1, strides=1, use_bias=False, name=base.layers[76].name)(x)
-    x = BatchNormalization(name=base.layers[77].name)(x)
-    x = Activation(activation='relu', name=base.layers[78].name)(x)
-    x = ZeroPadding3D(padding=1, name=base.layers[79].name)(x)
-
-    x = Conv3D(filters=128, kernel_size=3, strides=2, use_bias=False, name=base.layers[80].name)(x)
-    x = BatchNormalization(name=base.layers[81].name)(x)
-    x = Activation(activation='relu', name=base.layers[82].name)(x)
-    x = Conv3D(filters=512, kernel_size=1, strides=1, name=base.layers[84].name)(x)
-
-    res = MaxPooling3D(pool_size=1, strides=2, name=base.layers[83].name)(last)
-    x = Add(name=base.layers[85].name)([x, res])  # Conv2_block4_out
+    x, index = stage(x, x, 3, 64, index)
+    x, index = stage(x, x, 4, 128, index)
 
     # Output head
     x = BatchNormalization(name=base.layers[-3].name)(x)
