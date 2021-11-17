@@ -428,7 +428,7 @@ def inflated_resnet50(model_config, input_shape, metrics, class_counts):
 
         return x
 
-    def stage(x, last, num_blocks, filters, ind):
+    def stage(x, last, num_blocks, filters, ind, final):
 
         '''
         Adds layers corresponding to a ResNet50 stage (inflated to 3D)
@@ -438,6 +438,7 @@ def inflated_resnet50(model_config, input_shape, metrics, class_counts):
         :param num_blocks: Number of convolutional blocks in the stage
         :param filters: Base number of filters in convolutions
         :param ind: Integer, tracking index of base ResNet50 layers (for naming purposes)
+        :param final: Boolean, flagging whether final stage or not (final stage has no dimensional reduction)
 
         :return: Tuple of (stage output tensor, index for next layer to be added)
         '''
@@ -447,15 +448,15 @@ def inflated_resnet50(model_config, input_shape, metrics, class_counts):
             if i == 0:
                 pos = 'first'
             elif i == (num_blocks - 1):
-                pos = 'last'
+                if not final:
+                    pos = 'last'
             x = block(x, last, filters, ind, pos)
             last = x
-            if (i == 0) or (i == (num_blocks - 1)):
+            if (pos == 'first') or (pos == 'last'):
                 ind += 12
             else:
                 ind += 11
             print(ind)
-
         return x, ind
 
     # USEFUL NOTE: Any conv with a BN directly after has no biases (handled by BN)
@@ -470,9 +471,10 @@ def inflated_resnet50(model_config, input_shape, metrics, class_counts):
 
     index = 5
 
-    x, index = stage(x, x, 3, 64, index)
-    x, index = stage(x, x, 4, 128, index)
-    x, index = stage(x, x, 6, 256, index)
+    x, index = stage(x, x, 3, 64, index, False)
+    x, index = stage(x, x, 4, 128, index, False)
+    x, index = stage(x, x, 6, 256, index, False)
+    x, index = stage(x, x, 3, 512, index, True)
 
     # Output head
     x = BatchNormalization(name=base.layers[-3].name)(x)
