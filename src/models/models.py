@@ -474,7 +474,7 @@ def inflated_resnet50(model_config, input_shape, metrics, class_counts):
     x, index = stage(x, x, 3, 64, index, False)
     x, index = stage(x, x, 4, 128, index, False)
     x, index = stage(x, x, 6, 256, index, False)
-    x, index = stage(x, x, 3, 512, index, True)
+    #x, index = stage(x, x, 3, 512, index, True)
 
     # Output head
     x = BatchNormalization(name=base.layers[-3].name)(x)
@@ -485,7 +485,7 @@ def inflated_resnet50(model_config, input_shape, metrics, class_counts):
 
     model = tf.keras.Model(inputs=inputs, outputs=outputs)
     model.summary()
-
+    '''
     # Bootstrap weights and freeze layers
     for i in range(len(model.layers)):
         new_layer = model.layers[i]
@@ -505,7 +505,7 @@ def inflated_resnet50(model_config, input_shape, metrics, class_counts):
                 new_layer.set_weights(base.get_layer(name).get_weights())
         if i < model_config['LAST_FROZEN']:
             new_layer.trainable = False
-
+    '''
     model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=metrics)
 
     return model

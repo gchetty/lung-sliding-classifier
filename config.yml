@@ -13,7 +13,7 @@ PREPROCESS:
     METHOD: 'Contiguous'  # 'Stride' or 'Contiguous'
     WINDOW: 90 # Mini-clip length
     STRIDE: 1  # 1 = contiguous (METHOD='Contiguous' param overrides this)
-    IMG_SIZE: [224, 224]
+    IMG_SIZE: [181, 181]
 
   PATHS:
     UNMASKED_VIDEOS: 'raw_videos/'
@@ -46,8 +46,8 @@ TRAIN:
       BRIGHTNESS_DELTA: 0.1
       HUE_DELTA: 0.2
       CONTRAST_BOUNDS: [ 0.7, 1.0 ]
-      SHIFT_LEFTRIGHT_BOUNDS: [ -0.25, 0.25 ]  # Proportion of width to shift by
-      SHIFT_UPDOWN_BOUNDS: [ 0.0, 0.2 ]  # Proportion of height to shift by - No upwards shift since many areas of interest are near the top
+      SHIFT_LEFTRIGHT_BOUNDS: [ -0.1, 0.1 ]  # Proportion of width to shift by - originally -0.25 to 0.25
+      SHIFT_UPDOWN_BOUNDS: [ -0.2, 0.2 ]  # Proportion of height to shift by - No upwards shift since many areas of interest are near the top - originally 0.0 to 0.2
       ROTATE_RANGE: [ -1.57, 1.57 ]  # Range of possible rotation angles
       SHEAR_RANGE: [ 0.0, 0.1 ]
       ZOOM_RANGE: [ 1.0, 1.5 ]  # DO NOT use lower bound < 1 --> otherwise might cut out parts of pleural line
@@ -67,7 +67,7 @@ TRAIN:
       LR: 0.0001  # Initial learning rate
       LR_DECAY_VAL: 0.1  # Set equal to initial learning rate for no LR decay
       DROPOUT: 0.5
-      LAST_FROZEN: 142  # Last layer (number) to freeze (NOT 0-indexed)
+      LAST_FROZEN: 74  # Last layer (number) to freeze (NOT 0-indexed)
     INCREASE: True
 
   PATHS:
@@ -77,7 +77,7 @@ TRAIN:
 
 EXPLAINABILITY:
   OUTPUT_FPS: 30
-  PROPORTION: 0.2  # Proportion of dataset (random), specified by path NPZ_DF, to generate heatmaps for
+  PROPORTION: 0.02  # Proportion of dataset (random), specified by path NPZ_DF, to generate heatmaps for
 
   PATHS:
     NPZ: 'data/npzs/'
