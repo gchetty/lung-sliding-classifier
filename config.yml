@@ -68,7 +68,7 @@ TRAIN:
       LR_DECAY_VAL: 0.1  # Set equal to initial learning rate for no LR decay
       DROPOUT: 0.5
       LAST_FROZEN: 74  # Last layer (number) to freeze (NOT 0-indexed)
-    INCREASE: True
+    INCREASE: False
 
   PATHS:
     CSVS: 'csvs_split/'
