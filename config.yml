@@ -26,7 +26,7 @@ PREPROCESS:
 
 TRAIN:
   MIXED_PRECISION: False
-  OUTPUT_BIAS: True
+  OUTPUT_BIAS: False
   PATIENCE: 25
   MODEL_DEF: 'inflated_resnet50'  # xception_raw, lrcn, threeDCNN, vgg16_raw, inflated_resnet50
   SAVE_BEST_ONLY: True

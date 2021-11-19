@@ -10,6 +10,7 @@ import datetime
 import pandas as pd
 import tensorflow as tf
 
+from tensorflow.keras import backend as K
 from tensorflow.keras.metrics import Precision, Recall, AUC, TrueNegatives, TruePositives, FalseNegatives, FalsePositives, Accuracy
 from tensorflow_addons.metrics import F1Score, FBetaScore
 from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
@@ -129,7 +130,7 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
 
     # Learning rate scheduler
     def scheduler(epoch, lr):
-        if epoch < 5:
+        if epoch < 15:
             return lr
         else:
             return lr * tf.math.exp(-1 * hparams['LR_DECAY_VAL'])
@@ -159,17 +160,18 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
                                    restore_best_weights=True)
 
     # Log LR
-    class LogLR(tf.keras.callbacks.Callback):
-        def __init__(self):
-            super().__init__()
-            self._supports_tf_logs = True
+    class LogLR(tf.keras.callbacks.TensorBoard):
+
+        def __init__(self, log_dir):
+            super().__init__(log_dir=log_dir)
 
         def on_epoch_end(self, epoch, logs=None):
-            if logs is None or "learning_rate" in logs:
-                return
-            logs['learning_rate'] = self.model.optimizer.lr
+            logs = logs or {}
+            logs.update({'lr': K.eval(self.model.optimizer.lr)})
+            super().on_epoch_end(epoch, logs)
 
-    logLR = LogLR()
+
+    logLR = LogLR(log_dir=log_dir)
 
     # Train and save the model
     epochs = cfg['TRAIN']['PARAMS']['EPOCHS']
