@@ -25,7 +25,7 @@ cfg = yaml.full_load(open(os.path.join(os.getcwd(), '../config.yml'), 'r'))
 def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'], 
                 hparams=cfg['TRAIN']['PARAMS']['INFLATED_RESNET50'],  # SHOULD REALLY MAKE THIS MORE DYNAMIC
                 model_out_dir=cfg['TRAIN']['PATHS']['MODEL_OUT']):
-    
+
     '''
     Trains and saves a model given specific hyperparameters
 
@@ -146,10 +146,19 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
     writer1 = tf.summary.create_file_writer(log_dir + '/train')
 
     def scheduler(epoch, lr):
+        '''
+        Returns learning rate for the upcoming epoch based on a set schedule
+        Decreases learning rate by a factor of e^-(DECAY_VAL) starting at epoch 15
+
+        :param epoch: Integer, training epoch number
+        :param lr: Float, current learning rate
+
+        :return: Float, new learning rate
+        '''
         learning_rate = lr
         if epoch > 15:
             learning_rate = lr * tf.math.exp(-1 * hparams['LR_DECAY_VAL'])
-        with writer1.as_default():
+        with writer1.as_default():  # Write LR scalar to log directory
             tf.summary.scalar('learning rate', data=learning_rate, step=epoch)
         return learning_rate
 

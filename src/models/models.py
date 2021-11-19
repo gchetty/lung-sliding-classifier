@@ -505,24 +505,28 @@ def inflated_resnet50(model_config, input_shape, metrics, class_counts):
     model = tf.keras.Model(inputs=inputs, outputs=outputs)
     model.summary()
 
-    # Bootstrap weights and freeze layers
+    # Bootstrap weights & biases and freeze layers, only for convolutional and batch norm layers
     if not flow:
+
         for i in range(len(model.layers)):
+
             new_layer = model.layers[i]
             name = new_layer.name
+
             if '_conv' in name:
                 base_layer = base.get_layer(name)
-                orig_w = base_layer.get_weights()
-                expand = base_layer.kernel_size[0]
-                w = np.tile(orig_w[0], (expand, 1, 1, 1, 1))
-                w = np.divide(w, expand)
-                if len(orig_w) == 1:  # if no biases
+                orig_w = base_layer.get_weights()  # Params for corresponding 2D convolution from ResNet50
+                expand = base_layer.kernel_size[0]  # Kernel size of layer - let this be 'expand'
+                w = np.tile(orig_w[0], (expand, 1, 1, 1, 1))  # Duplicate corresponding 2D conv kernel 'expand' times
+                w = np.divide(w, expand)  # Divide by expansion amount to keep filter response constant
+                if len(orig_w) == 1:  # if no biases, only set weights
                     new_layer.set_weights([w])
-                else:
+                else:  # otherwise also take biases from corresponding 2D convolution layer
                     new_layer.set_weights([w, orig_w[1]])
             elif '_bn' in name:
                 if not (name == 'post_bn'):  # input shape of post_bn is different if not using whole ResNet
                     new_layer.set_weights(base.get_layer(name).get_weights())
+
             if i < model_config['LAST_FROZEN']:
                 new_layer.trainable = False
 
