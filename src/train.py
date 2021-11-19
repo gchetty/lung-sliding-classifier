@@ -158,10 +158,23 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
     early_stopping = EarlyStopping(monitor='val_loss', verbose=1, patience=cfg['TRAIN']['PATIENCE'], mode='min',
                                    restore_best_weights=True)
 
+    # Log LR
+    class LogLR(tf.keras.callbacks.Callback):
+        def __init__(self):
+            super().__init__()
+            self._supports_tf_logs = True
+
+        def on_epoch_end(self, epoch, logs=None):
+            if logs is None or "learning_rate" in logs:
+                return
+            logs['learning_rate'] = self.model.optimizer.lr
+
+    logLR = LogLR()
+
     # Train and save the model
     epochs = cfg['TRAIN']['PARAMS']['EPOCHS']
     model.fit(train_set, epochs=epochs, validation_data=val_set, class_weight=class_weight,
-              callbacks=[save_cp, cm_callback, basic_call, early_stopping, lr_callback], verbose=2)
+              callbacks=[save_cp, cm_callback, basic_call, early_stopping, lr_callback, logLR], verbose=2)
 
 
 # Train and save the model
