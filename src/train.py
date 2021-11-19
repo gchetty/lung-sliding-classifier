@@ -128,14 +128,6 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
 
     model = model_def_fn(hparams, input_shape, metrics, counts)
 
-    # Learning rate scheduler
-    def scheduler(epoch, lr):
-        if epoch < 15:
-            return lr
-        else:
-            return lr * tf.math.exp(-1 * hparams['LR_DECAY_VAL'])
-    lr_callback = tf.keras.callbacks.LearningRateScheduler(scheduler)
-
     # Refresh the TensorBoard directory
     tensorboard_path = cfg['TRAIN']['PATHS']['TENSORBOARD']
     refresh_folder(tensorboard_path)
@@ -152,13 +144,24 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
     log_dir = cfg['TRAIN']['PATHS']['TENSORBOARD'] + time
     basic_call = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
 
+    # Learning rate scheduler & logging LR
+    writer1 = tf.summary.create_file_writer(log_dir)
+    def scheduler(epoch, lr):
+        if epoch < 15:
+            return lr
+        else:
+            return lr * tf.math.exp(-1 * hparams['LR_DECAY_VAL'])
+        with writer1.as_default():
+            tf.summary.scalar('Learning rate', data=lr, step=epoch)
+    lr_callback = tf.keras.callbacks.LearningRateScheduler(scheduler)
+
     # Creating a ModelCheckpoint for saving the model
     save_cp = ModelCheckpoint(model_out_dir, save_best_only=cfg['TRAIN']['SAVE_BEST_ONLY'])
 
     # Early stopping
     early_stopping = EarlyStopping(monitor='val_loss', verbose=1, patience=cfg['TRAIN']['PATIENCE'], mode='min',
                                    restore_best_weights=True)
-
+    '''
     # Log LR
     class LogLR(tf.keras.callbacks.TensorBoard):
 
@@ -172,11 +175,12 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
 
 
     logLR = LogLR(log_dir=log_dir)
+    '''
 
     # Train and save the model
     epochs = cfg['TRAIN']['PARAMS']['EPOCHS']
     model.fit(train_set, epochs=epochs, validation_data=val_set, class_weight=class_weight,
-              callbacks=[save_cp, cm_callback, basic_call, early_stopping, lr_callback, logLR], verbose=2)
+              callbacks=[save_cp, cm_callback, basic_call, early_stopping, lr_callback], verbose=2)
 
 
 # Train and save the model
