@@ -5,7 +5,7 @@
 PREPROCESS:
   PARAMS:
     AMOUNT_ONLY: False  # If set to True, the tool exits after querying the database and returning counts
-    FLOW: 'No'  # Yes for flow only, No for no flow, and Mixed for videos and flow
+    FLOW: 'Yes'  # Yes for flow only, No for no flow, and Mixed for videos and flow
     SHUFFLE: True # If you want to randomize the videos downloaded
     RANDOM_SEED: 1 # If SHUFFLE=False, this does nothing. Otherwise, this is the seed for shuffling
     SLIDING_PROPORTION: 1
@@ -13,7 +13,7 @@ PREPROCESS:
     METHOD: 'Contiguous'  # 'Stride' or 'Contiguous'
     WINDOW: 90 # Mini-clip length
     STRIDE: 1  # 1 = contiguous (METHOD='Contiguous' param overrides this)
-    IMG_SIZE: [181, 181]
+    IMG_SIZE: [90, 90]
 
   PATHS:
     UNMASKED_VIDEOS: 'raw_videos/'
@@ -27,7 +27,7 @@ PREPROCESS:
 TRAIN:
   MIXED_PRECISION: False
   OUTPUT_BIAS: True
-  PATIENCE: 10
+  PATIENCE: 25
   MODEL_DEF: 'inflated_resnet50'  # xception_raw, lrcn, threeDCNN, vgg16_raw, inflated_resnet50
   SAVE_BEST_ONLY: True
 

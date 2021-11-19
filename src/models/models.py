@@ -368,6 +368,8 @@ def res3d(model_config, input_shape, metrics, class_counts):
 
 def inflated_resnet50(model_config, input_shape, metrics, class_counts):
 
+    flow = True if cfg['PREPROCESS']['PARAMS']['FLOW'] == 'Yes' else False
+
     lr = model_config['LR']
     dropout = model_config['DROPOUT']
     optimizer = Adam(learning_rate=lr)
@@ -379,7 +381,11 @@ def inflated_resnet50(model_config, input_shape, metrics, class_counts):
         output_bias = math.log(count1 / count0)
         output_bias = tf.keras.initializers.Constant(output_bias)
 
-    base = ResNet50V2(include_top=False, weights='imagenet', input_tensor=None, input_shape=(224, 224, 3), pooling='avg')
+    if flow:
+        base = ResNet50V2(include_top=False, input_tensor=None, input_shape=input_shape[1:], pooling='avg')
+    else:
+        base = ResNet50V2(include_top=False, weights='imagenet', input_tensor=None, input_shape=input_shape[1:],
+                          pooling='avg')
 
     def block(x, last, filters, ind, pos):
 
@@ -485,27 +491,28 @@ def inflated_resnet50(model_config, input_shape, metrics, class_counts):
 
     model = tf.keras.Model(inputs=inputs, outputs=outputs)
     model.summary()
-    '''
-    # Bootstrap weights and freeze layers
-    for i in range(len(model.layers)):
-        new_layer = model.layers[i]
-        name = new_layer.name
-        if '_conv' in name:
-            base_layer = base.get_layer(name)
-            orig_w = base_layer.get_weights()
-            expand = base_layer.kernel_size[0]
-            w = np.tile(orig_w[0], (expand, 1, 1, 1, 1))
-            w = np.divide(w, expand)
-            if len(orig_w) == 1:  # if no biases
-                new_layer.set_weights([w])
-            else:
-                new_layer.set_weights([w, orig_w[1]])
-        elif '_bn' in name:
-            if not (name == 'post_bn'):  # input shape of post_bn different
-                new_layer.set_weights(base.get_layer(name).get_weights())
-        if i < model_config['LAST_FROZEN']:
-            new_layer.trainable = False
-    '''
+
+    if not flow:
+        # Bootstrap weights and freeze layers
+        for i in range(len(model.layers)):
+            new_layer = model.layers[i]
+            name = new_layer.name
+            if '_conv' in name:
+                base_layer = base.get_layer(name)
+                orig_w = base_layer.get_weights()
+                expand = base_layer.kernel_size[0]
+                w = np.tile(orig_w[0], (expand, 1, 1, 1, 1))
+                w = np.divide(w, expand)
+                if len(orig_w) == 1:  # if no biases
+                    new_layer.set_weights([w])
+                else:
+                    new_layer.set_weights([w, orig_w[1]])
+            elif '_bn' in name:
+                if not (name == 'post_bn'):  # input shape of post_bn different
+                    new_layer.set_weights(base.get_layer(name).get_weights())
+            if i < model_config['LAST_FROZEN']:
+                new_layer.trainable = False
+
     model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=metrics)
 
     return model
