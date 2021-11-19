@@ -2,15 +2,12 @@
 Script for training experiments, including model training, hyperparameter search, cross validation, etc
 '''
 
-from re import S
-from tensorflow.python.keras.metrics import TrueNegatives, TruePositives
 import yaml
 import os
 import datetime
 import pandas as pd
 import tensorflow as tf
 
-from tensorflow.keras import backend as K
 from tensorflow.keras.metrics import Precision, Recall, AUC, TrueNegatives, TruePositives, FalseNegatives, FalsePositives, Accuracy
 from tensorflow_addons.metrics import F1Score, FBetaScore
 from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
@@ -28,6 +25,7 @@ cfg = yaml.full_load(open(os.path.join(os.getcwd(), '../config.yml'), 'r'))
 def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'], 
                 hparams=cfg['TRAIN']['PARAMS']['INFLATED_RESNET50'],  # SHOULD REALLY MAKE THIS MORE DYNAMIC
                 model_out_dir=cfg['TRAIN']['PATHS']['MODEL_OUT']):
+    
     '''
     Trains and saves a model given specific hyperparameters
 
@@ -145,7 +143,8 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
     basic_call = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
 
     # Learning rate scheduler & logging LR
-    writer1 = tf.summary.create_file_writer(log_dir)
+    writer1 = tf.summary.create_file_writer(log_dir + '/train')
+
     def scheduler(epoch, lr):
         learning_rate = lr
         if epoch > 15:
@@ -153,6 +152,7 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
         with writer1.as_default():
             tf.summary.scalar('learning rate', data=learning_rate, step=epoch)
         return learning_rate
+
     lr_callback = tf.keras.callbacks.LearningRateScheduler(scheduler)
 
     # Creating a ModelCheckpoint for saving the model
@@ -161,21 +161,6 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
     # Early stopping
     early_stopping = EarlyStopping(monitor='val_loss', verbose=1, patience=cfg['TRAIN']['PATIENCE'], mode='min',
                                    restore_best_weights=True)
-    '''
-    # Log LR
-    class LogLR(tf.keras.callbacks.TensorBoard):
-
-        def __init__(self, log_dir):
-            super().__init__(log_dir=log_dir)
-
-        def on_epoch_end(self, epoch, logs=None):
-            logs = logs or {}
-            logs.update({'lr': K.eval(self.model.optimizer.lr)})
-            super().on_epoch_end(epoch, logs)
-
-
-    logLR = LogLR(log_dir=log_dir)
-    '''
 
     # Train and save the model
     epochs = cfg['TRAIN']['PARAMS']['EPOCHS']

@@ -368,6 +368,18 @@ def res3d(model_config, input_shape, metrics, class_counts):
 
 def inflated_resnet50(model_config, input_shape, metrics, class_counts):
 
+    '''
+    Creates ResNet50 model inflated to 3 dimensions (as per Quo Vadis)
+    Inflated iImagenet weights are used if inputs have 3 channels
+
+    :param model_config: Hyperparameter dictionary
+    :param input_shape: Tuple, shape of individual input tensor (without batch dimension)
+    :param metrics: List of metrics for model compilation
+    :param class_counts: 2-element list - number of each class in training set
+
+    :return: Compiled tensorflow model
+    '''
+
     flow = True if cfg['PREPROCESS']['PARAMS']['FLOW'] == 'Yes' else False
 
     lr = model_config['LR']
@@ -381,6 +393,7 @@ def inflated_resnet50(model_config, input_shape, metrics, class_counts):
         output_bias = math.log(count1 / count0)
         output_bias = tf.keras.initializers.Constant(output_bias)
 
+    # Download 2D ResNet50
     if flow:
         base = ResNet50V2(include_top=False, input_tensor=None, input_shape=(input_shape[1:3]+[3]), pooling='avg')
     else:
@@ -423,11 +436,11 @@ def inflated_resnet50(model_config, input_shape, metrics, class_counts):
         if pos == 'first':
             res = Conv3D(filters=filters * 4, kernel_size=1, strides=1, name=base.layers[ind + 9].name)(last)
             x = Conv3D(filters=filters * 4, kernel_size=1, strides=1, name=base.layers[ind + 10].name)(x)
-            x = Add(name=base.layers[ind + 11].name)([x, res])  # conv3_block1_out
+            x = Add(name=base.layers[ind + 11].name)([x, res])
         elif pos == 'last':
             res = MaxPooling3D(pool_size=1, strides=2, name=base.layers[ind + 9].name)(last)
             x = Conv3D(filters=filters * 4, kernel_size=1, strides=1, name=base.layers[ind + 10].name)(x)
-            x = Add(name=base.layers[ind + 11].name)([x, res])  # Conv2_block4_out
+            x = Add(name=base.layers[ind + 11].name)([x, res])
         else:
             x = Conv3D(filters=filters * 4, kernel_size=1, strides=1, name=base.layers[ind + 9].name)(x)
             x = Add(name=base.layers[ind + 10].name)([x, last])
@@ -477,10 +490,10 @@ def inflated_resnet50(model_config, input_shape, metrics, class_counts):
 
     index = 5
 
-    x, index = stage(x, x, 3, 64, index, False)
-    x, index = stage(x, x, 4, 128, index, False)
-    x, index = stage(x, x, 6, 256, index, False)
-    #x, index = stage(x, x, 3, 512, index, True)
+    x, index = stage(x, x, 3, 64, index, False)  # stage 1
+    x, index = stage(x, x, 4, 128, index, False)  # stage 2
+    x, index = stage(x, x, 6, 256, index, False)  # stage 3
+    x, index = stage(x, x, 3, 512, index, True)  # stage 4
 
     # Output head
     x = BatchNormalization(name=base.layers[-3].name)(x)
@@ -492,8 +505,8 @@ def inflated_resnet50(model_config, input_shape, metrics, class_counts):
     model = tf.keras.Model(inputs=inputs, outputs=outputs)
     model.summary()
 
+    # Bootstrap weights and freeze layers
     if not flow:
-        # Bootstrap weights and freeze layers
         for i in range(len(model.layers)):
             new_layer = model.layers[i]
             name = new_layer.name
@@ -508,7 +521,7 @@ def inflated_resnet50(model_config, input_shape, metrics, class_counts):
                 else:
                     new_layer.set_weights([w, orig_w[1]])
             elif '_bn' in name:
-                if not (name == 'post_bn'):  # input shape of post_bn different
+                if not (name == 'post_bn'):  # input shape of post_bn is different if not using whole ResNet
                     new_layer.set_weights(base.get_layer(name).get_weights())
             if i < model_config['LAST_FROZEN']:
                 new_layer.trainable = False
