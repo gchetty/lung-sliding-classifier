@@ -147,12 +147,12 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
     # Learning rate scheduler & logging LR
     writer1 = tf.summary.create_file_writer(log_dir)
     def scheduler(epoch, lr):
-        if epoch < 15:
-            return lr
-        else:
-            return lr * tf.math.exp(-1 * hparams['LR_DECAY_VAL'])
+        learning_rate = lr
+        if epoch > 15:
+            learning_rate = lr * tf.math.exp(-1 * hparams['LR_DECAY_VAL'])
         with writer1.as_default():
-            tf.summary.scalar('Learning rate', data=lr, step=epoch)
+            tf.summary.scalar('learning rate', data=learning_rate, step=epoch)
+        return learning_rate
     lr_callback = tf.keras.callbacks.LearningRateScheduler(scheduler)
 
     # Creating a ModelCheckpoint for saving the model
