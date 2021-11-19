@@ -382,7 +382,7 @@ def inflated_resnet50(model_config, input_shape, metrics, class_counts):
         output_bias = tf.keras.initializers.Constant(output_bias)
 
     if flow:
-        base = ResNet50V2(include_top=False, input_tensor=None, input_shape=input_shape[1:], pooling='avg')
+        base = ResNet50V2(include_top=False, input_tensor=None, input_shape=(input_shape[1:3]+[3]), pooling='avg')
     else:
         base = ResNet50V2(include_top=False, weights='imagenet', input_tensor=None, input_shape=input_shape[1:],
                           pooling='avg')
