@@ -32,6 +32,9 @@ def get_model(model_name):
 
     :return: A Tuple (Function returning compiled model, Required preprocessing function)
     '''
+
+    flow = True if cfg['PREPROCESS']['PARAMS']['FLOW'] == 'Yes' else False
+
     if model_name == 'lrcn':
         model_def_fn = lrcn
         preprocessing_fn = normalize
@@ -50,6 +53,9 @@ def get_model(model_name):
     elif model_name == 'inflated_resnet50':
         model_def_fn = inflated_resnet50
         preprocessing_fn = resnet_preprocess
+
+    if flow:
+        preprocessing_fn = lambda x: x
 
     return model_def_fn, preprocessing_fn
 
