@@ -55,7 +55,7 @@ def get_model(model_name):
         preprocessing_fn = resnet_preprocess
 
     if flow:
-        preprocessing_fn = lambda x: x
+        preprocessing_fn = normalize
 
     return model_def_fn, preprocessing_fn
 
