@@ -481,7 +481,6 @@ def inflated_resnet50(model_config, input_shape, metrics, class_counts):
                 ind += 12
             else:
                 ind += 11
-            print(ind)
         return x, ind
 
     # USEFUL NOTE: Any conv with a BN directly after has no biases (handled by BN)
