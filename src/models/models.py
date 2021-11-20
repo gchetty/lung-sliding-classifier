@@ -6,17 +6,20 @@ import yaml
 import os
 import math
 import tensorflow as tf
+import numpy as np
 
 from tensorflow.keras.layers import Dense, Flatten
 from tensorflow.keras.layers import LSTM
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import TimeDistributed, Conv3D, AveragePooling3D, Dropout, Input, Add, InputLayer, MaxPooling3D,\
-    Conv2D, MaxPooling2D, BatchNormalization, Activation, GlobalAveragePooling3D
+    Conv2D, MaxPooling2D, BatchNormalization, Activation, GlobalAveragePooling3D, ZeroPadding3D
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.applications.xception import Xception
 from tensorflow.keras.applications.xception import preprocess_input as xception_preprocess
 from tensorflow.keras.applications.vgg16 import VGG16
 from tensorflow.keras.applications.vgg16 import preprocess_input as vgg16_preprocess
+from tensorflow.keras.applications.resnet_v2 import ResNet50V2
+from tensorflow.keras.applications.resnet50 import preprocess_input as resnet_preprocess
 
 cfg = yaml.full_load(open(os.path.join(os.getcwd(), '../config.yml'), 'r'))
 
@@ -29,6 +32,9 @@ def get_model(model_name):
 
     :return: A Tuple (Function returning compiled model, Required preprocessing function)
     '''
+
+    flow = True if cfg['PREPROCESS']['PARAMS']['FLOW'] == 'Yes' else False
+
     if model_name == 'lrcn':
         model_def_fn = lrcn
         preprocessing_fn = normalize
@@ -43,6 +49,12 @@ def get_model(model_name):
         preprocessing_fn = vgg16_preprocess
     elif model_name == 'res3d':
         model_def_fn = res3d
+        preprocessing_fn = normalize
+    elif model_name == 'inflated_resnet50':
+        model_def_fn = inflated_resnet50
+        preprocessing_fn = resnet_preprocess
+
+    if flow:
         preprocessing_fn = normalize
 
     return model_def_fn, preprocessing_fn
@@ -358,3 +370,172 @@ def res3d(model_config, input_shape, metrics, class_counts):
     model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=metrics)
 
     return model
+
+
+def inflated_resnet50(model_config, input_shape, metrics, class_counts):
+
+    '''
+    Creates ResNet50 model inflated to 3 dimensions (as per Quo Vadis)
+    Inflated iImagenet weights are used if inputs have 3 channels
+
+    :param model_config: Hyperparameter dictionary
+    :param input_shape: Tuple, shape of individual input tensor (without batch dimension)
+    :param metrics: List of metrics for model compilation
+    :param class_counts: 2-element list - number of each class in training set
+
+    :return: Compiled tensorflow model
+    '''
+
+    flow = True if cfg['PREPROCESS']['PARAMS']['FLOW'] == 'Yes' else False
+
+    lr = model_config['LR']
+    dropout = model_config['DROPOUT']
+    optimizer = Adam(learning_rate=lr)
+
+    output_bias = None
+    if cfg['TRAIN']['OUTPUT_BIAS']:
+        count0 = class_counts[0]
+        count1 = class_counts[1]
+        output_bias = math.log(count1 / count0)
+        output_bias = tf.keras.initializers.Constant(output_bias)
+
+    # Download 2D ResNet50
+    if flow:
+        base = ResNet50V2(include_top=False, input_tensor=None, input_shape=(input_shape[1:3]+[3]), pooling='avg')
+    else:
+        base = ResNet50V2(include_top=False, weights='imagenet', input_tensor=None, input_shape=input_shape[1:],
+                          pooling='avg')
+
+    def block(x, last, filters, ind, pos):
+
+        '''
+        Adds layers corresponding to a ResNet50 block (inflated to 3D)
+
+        :param x: Output tensor from previous layers
+        :param last: Last block's output tensor
+        :param filters: Base number of filters in convolutions
+        :param ind: Integer, tracking index of base ResNet50 layers (for naming purposes)
+        :param pos: String, position of block in stage - either 'first', 'last', or a different arbitrary value
+
+        :return: Tensor - block output
+        '''
+
+        x = BatchNormalization(name=base.layers[ind].name)(x)
+        x = Activation(activation='relu', name=base.layers[ind + 1].name)(x)
+
+        if pos == 'first':
+            last = x
+
+        x = Conv3D(filters=filters, kernel_size=1, strides=1, use_bias=False, name=base.layers[ind + 2].name)(x)
+        x = BatchNormalization(name=base.layers[ind + 3].name)(x)
+        x = Activation(activation='relu', name=base.layers[ind + 4].name)(x)
+        x = ZeroPadding3D(padding=1, name=base.layers[ind + 5].name)(x)
+
+        if pos == 'last':
+            x = Conv3D(filters=filters, kernel_size=3, strides=2, use_bias=False, name=base.layers[ind + 6].name)(x)
+        else:
+            x = Conv3D(filters=filters, kernel_size=3, strides=1, use_bias=False, name=base.layers[ind + 6].name)(x)
+        x = BatchNormalization(name=base.layers[ind + 7].name)(x)
+        x = Activation(activation='relu', name=base.layers[ind + 8].name)(x)
+
+        # ADD STUFF
+        if pos == 'first':
+            res = Conv3D(filters=filters * 4, kernel_size=1, strides=1, name=base.layers[ind + 9].name)(last)
+            x = Conv3D(filters=filters * 4, kernel_size=1, strides=1, name=base.layers[ind + 10].name)(x)
+            x = Add(name=base.layers[ind + 11].name)([x, res])
+        elif pos == 'last':
+            res = MaxPooling3D(pool_size=1, strides=2, name=base.layers[ind + 9].name)(last)
+            x = Conv3D(filters=filters * 4, kernel_size=1, strides=1, name=base.layers[ind + 10].name)(x)
+            x = Add(name=base.layers[ind + 11].name)([x, res])
+        else:
+            x = Conv3D(filters=filters * 4, kernel_size=1, strides=1, name=base.layers[ind + 9].name)(x)
+            x = Add(name=base.layers[ind + 10].name)([x, last])
+
+        return x
+
+    def stage(x, last, num_blocks, filters, ind, final):
+
+        '''
+        Adds layers corresponding to a ResNet50 stage (inflated to 3D)
+
+        :param x: Output tensor from previous layers
+        :param last: Last block's output tensor
+        :param num_blocks: Number of convolutional blocks in the stage
+        :param filters: Base number of filters in convolutions
+        :param ind: Integer, tracking index of base ResNet50 layers (for naming purposes)
+        :param final: Boolean, flagging whether final stage or not (final stage has no dimensional reduction)
+
+        :return: Tuple of (stage output tensor, index for next layer to be added)
+        '''
+
+        for i in range(num_blocks):
+            pos = ''
+            if i == 0:
+                pos = 'first'
+            elif i == (num_blocks - 1):
+                if not final:
+                    pos = 'last'
+            x = block(x, last, filters, ind, pos)
+            last = x
+            if (pos == 'first') or (pos == 'last'):
+                ind += 12
+            else:
+                ind += 11
+        return x, ind
+
+    # USEFUL NOTE: Any conv with a BN directly after has no biases (handled by BN)
+
+    # Input block
+    inputs = tf.keras.Input(shape=input_shape)
+
+    x = ZeroPadding3D(padding=3, name=base.layers[1].name)(inputs)
+    x = Conv3D(filters=64, kernel_size=7, strides=2, name=base.layers[2].name)(x)
+    x = ZeroPadding3D(padding=1, name=base.layers[3].name)(x)
+    x = MaxPooling3D(pool_size=3, strides=2, name=base.layers[4].name)(x)
+
+    index = 5
+
+    x, index = stage(x, x, 3, 64, index, False)  # stage 1
+    x, index = stage(x, x, 4, 128, index, False)  # stage 2
+    x, index = stage(x, x, 6, 256, index, False)  # stage 3
+    x, index = stage(x, x, 3, 512, index, True)  # stage 4
+
+    # Output head
+    x = BatchNormalization(name=base.layers[-3].name)(x)
+    x = Activation(activation='relu', name=base.layers[-2].name)(x)
+    x = GlobalAveragePooling3D(name=base.layers[-1].name)(x)
+    x = Dropout(dropout)(x)
+    outputs = Dense(1, activation='sigmoid', bias_initializer=output_bias, dtype='float32')(x)
+
+    model = tf.keras.Model(inputs=inputs, outputs=outputs)
+    model.summary()
+
+    # Bootstrap weights & biases and freeze layers, only for convolutional and batch norm layers
+    if not flow:
+
+        for i in range(len(model.layers)):
+
+            new_layer = model.layers[i]
+            name = new_layer.name
+
+            if '_conv' in name:
+                base_layer = base.get_layer(name)
+                orig_w = base_layer.get_weights()  # Params for corresponding 2D convolution from ResNet50
+                expand = base_layer.kernel_size[0]  # Kernel size of layer - let this be 'expand'
+                w = np.tile(orig_w[0], (expand, 1, 1, 1, 1))  # Duplicate corresponding 2D conv kernel 'expand' times
+                w = np.divide(w, expand)  # Divide by expansion amount to keep filter response constant
+                if len(orig_w) == 1:  # if no biases, only set weights
+                    new_layer.set_weights([w])
+                else:  # otherwise also take biases from corresponding 2D convolution layer
+                    new_layer.set_weights([w, orig_w[1]])
+            elif '_bn' in name:
+                if not (name == 'post_bn'):  # input shape of post_bn is different if not using whole ResNet
+                    new_layer.set_weights(base.get_layer(name).get_weights())
+
+            if i < model_config['LAST_FROZEN']:
+                new_layer.trainable = False
+
+    model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=metrics)
+
+    return model
+

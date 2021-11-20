@@ -5,7 +5,7 @@
 PREPROCESS:
   PARAMS:
     AMOUNT_ONLY: False  # If set to True, the tool exits after querying the database and returning counts
-    FLOW: 'No'  # Yes for flow only, No for no flow, and Mixed for videos and flow
+    FLOW: 'Yes'  # Yes for flow only, No for no flow, and Mixed for videos and flow
     SHUFFLE: True # If you want to randomize the videos downloaded
     RANDOM_SEED: 1 # If SHUFFLE=False, this does nothing. Otherwise, this is the seed for shuffling
     SLIDING_PROPORTION: 1
@@ -13,7 +13,7 @@ PREPROCESS:
     METHOD: 'Contiguous'  # 'Stride' or 'Contiguous'
     WINDOW: 90 # Mini-clip length
     STRIDE: 1  # 1 = contiguous (METHOD='Contiguous' param overrides this)
-    IMG_SIZE: [224, 224]
+    IMG_SIZE: [90, 90]
 
   PATHS:
     UNMASKED_VIDEOS: 'raw_videos/'
@@ -26,12 +26,13 @@ PREPROCESS:
 
 TRAIN:
   MIXED_PRECISION: False
-  OUTPUT_BIAS: True
-  PATIENCE: 10
-  MODEL_DEF: 'res3d'  # xception_raw, lrcn, threeDCNN, vgg16_raw
+  OUTPUT_BIAS: False
+  PATIENCE: 25
+  MODEL_DEF: 'inflated_resnet50'  # xception_raw, lrcn, threeDCNN, vgg16_raw, inflated_resnet50
   SAVE_BEST_ONLY: True
 
   SPLITS:
+    RANDOM_SEED: -1  # -1 for unseeded
     TRAIN: 0.7
     VAL: 0.3
     TEST: 0
@@ -45,8 +46,8 @@ TRAIN:
       BRIGHTNESS_DELTA: 0.1
       HUE_DELTA: 0.2
       CONTRAST_BOUNDS: [ 0.7, 1.0 ]
-      SHIFT_LEFTRIGHT_BOUNDS: [ -0.25, 0.25 ]  # Proportion of width to shift by
-      SHIFT_UPDOWN_BOUNDS: [ 0.0, 0.2 ]  # Proportion of height to shift by - No upwards shift since many areas of interest are near the top
+      SHIFT_LEFTRIGHT_BOUNDS: [ -0.1, 0.1 ]  # Proportion of width to shift by - originally -0.25 to 0.25
+      SHIFT_UPDOWN_BOUNDS: [ -0.2, 0.2 ]  # Proportion of height to shift by - No upwards shift since many areas of interest are near the top - originally 0.0 to 0.2
       ROTATE_RANGE: [ -1.57, 1.57 ]  # Range of possible rotation angles
       SHEAR_RANGE: [ 0.0, 0.1 ]
       ZOOM_RANGE: [ 1.0, 1.5 ]  # DO NOT use lower bound < 1 --> otherwise might cut out parts of pleural line
@@ -62,20 +63,25 @@ TRAIN:
     RES3D:
       LR: 0.0001
       DROPOUT: 0.5
-    INCREASE: True
+    INFLATED_RESNET50:
+      LR: 0.0001  # Initial learning rate
+      LR_DECAY_VAL: 0.1  # Set equal to initial learning rate for no LR decay
+      DROPOUT: 0.5
+      LAST_FROZEN: 74  # Last layer (number) to freeze (NOT 0-indexed)
+    INCREASE: False
 
   PATHS:
     CSVS: 'csvs_split/'
-    MODEL_OUT: 'results/models/res3d/'
-    RANDOM_SEED: 6  # Why is this in paths
+    MODEL_OUT: 'results/models/inflated_resnet50/'
     TENSORBOARD: 'results/logs/fit/'
 
 EXPLAINABILITY:
   OUTPUT_FPS: 30
+  PROPORTION: 0.02  # Proportion of dataset (random), specified by path NPZ_DF, to generate heatmaps for
 
   PATHS:
     NPZ: 'data/npzs/'
     FR_CSVS: 'data/csvs/'
-    NPZ_DF: 'csvs_split/val.csv'
-    MODEL: 'results/models/res3d/'
+    NPZ_DF: 'csvs_split/train.csv'
+    MODEL: 'results/models/inflated_resnet50/'
     FEATURE_HEATMAPS: 'feature_heatmaps/'

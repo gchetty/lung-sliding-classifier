@@ -24,7 +24,8 @@ class GradCAM3D:
     '''
 
     def __init__(self):
-        self.model = load_model(cfg['EXPLAINABILITY']['PATHS']['MODEL'], compile=False)
+        model_path = cfg['EXPLAINABILITY']['PATHS']['MODEL']
+        self.model = load_model(model_path, compile=False)
         self.heatmap_dir = cfg['EXPLAINABILITY']['PATHS']['FEATURE_HEATMAPS']
         self.npz_dir = cfg['EXPLAINABILITY']['PATHS']['NPZ']
         self.img_dim = tuple(cfg['PREPROCESS']['PARAMS']['IMG_SIZE'])
@@ -41,8 +42,12 @@ class GradCAM3D:
         # Get name of final convolutional layer
         layer_name = ''
         for layer in self.model.layers:
-            if 'conv' in layer.name.lower():
-                layer_name = layer.name
+            if 'inflated' in model_path:
+                if '_conv' in layer.name.lower():
+                    layer_name = layer.name
+            else:
+                if 'conv' in layer.name.lower():
+                    layer_name = layer.name
         self.last_conv_layer = layer_name
 
     def apply_gradcam(self):
@@ -52,7 +57,11 @@ class GradCAM3D:
         '''
 
         # get dataset and apply preprocessor
+        prop = cfg['EXPLAINABILITY']['PROPORTION']
+        if prop <= 0 or prop >= 1:
+            raise ValueError('Please use a valid proportion')
         miniclip_csv = pd.read_csv(cfg['EXPLAINABILITY']['PATHS']['NPZ_DF'])
+        miniclip_csv = miniclip_csv.sample(frac=prop)
         ds = tf.data.Dataset.from_tensor_slices((miniclip_csv['filename'].tolist(), miniclip_csv['label']))
         preprocessor = Preprocessor(self.preprocessing_fn)
         ds = preprocessor.prepare(ds, miniclip_csv, shuffle=False, augment=False)

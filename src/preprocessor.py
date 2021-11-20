@@ -136,8 +136,8 @@ def augment_clip(x):
     x = tf.map_fn(lambda x1: random_shift_clip(x1), x)
     x = tf.map_fn(lambda x1: random_flip_left_right_clip(x1), x)
     x = tf.map_fn(lambda x1: random_flip_up_down_clip(x1), x)
-    x = tf.map_fn(lambda x1: random_rotate_clip(x1), x)
-    x = tf.map_fn(lambda x1: random_shear_clip(x1), x)
+    #x = tf.map_fn(lambda x1: random_rotate_clip(x1), x)
+    #x = tf.map_fn(lambda x1: random_shear_clip(x1), x)
     x = tf.map_fn(lambda x1: random_zoom_clip(x1), x)
     return x
 
@@ -198,6 +198,7 @@ def parse_flow(filename, label):
     return clip, label
 
 
+# Options in this class (most likely) - or another class - to handle ds without labels ?
 class Preprocessor:
 
     '''
