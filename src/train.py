@@ -156,7 +156,7 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
         :return: Float, new learning rate
         '''
         learning_rate = lr
-        if epoch > 15:
+        if epoch > 25:
             learning_rate = lr * tf.math.exp(-1 * hparams['LR_DECAY_VAL'])
         with writer1.as_default():  # Write LR scalar to log directory
             tf.summary.scalar('learning rate', data=learning_rate, step=epoch)
