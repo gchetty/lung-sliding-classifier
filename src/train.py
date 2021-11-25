@@ -94,9 +94,9 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
         preprocessor = FlowPreprocessor(preprocessing_fn)
 
         # Define the preprocessing pipelines for train, test and validation
-        train_set = preprocessor.prepare(train_set, train_df, shuffle=True)
-        val_set = preprocessor.prepare(val_set, val_df, shuffle=False)
-        test_set = preprocessor.prepare(test_set, test_df, shuffle=False)
+        train_set = preprocessor.prepare(train_set, train_df, shuffle=True, augment=True)
+        val_set = preprocessor.prepare(val_set, val_df, shuffle=False, augment=False)
+        test_set = preprocessor.prepare(test_set, test_df, shuffle=False, augment=False)
 
     # Create dictionary for class weights:
     # Taken from https://www.tensorflow.org/tutorials/structured_data/imbalanced_data
@@ -156,7 +156,7 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
         :return: Float, new learning rate
         '''
         learning_rate = lr
-        if epoch > 25:
+        if epoch > 50:
             learning_rate = lr * tf.math.exp(-1 * hparams['LR_DECAY_VAL'])
         with writer1.as_default():  # Write LR scalar to log directory
             tf.summary.scalar('learning rate', data=learning_rate, step=epoch)

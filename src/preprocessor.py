@@ -142,6 +142,27 @@ def augment_clip(x):
     return x
 
 
+def augment_flow(x):
+    '''
+    Augmentations for optical flow clips
+
+    :param x:
+
+    :return:
+    '''
+
+    x = tf.map_fn(
+        lambda x1: tf.image.random_brightness(x1, max_delta=cfg['TRAIN']['PARAMS']['AUGMENTATION']['BRIGHTNESS_DELTA']),
+        x)
+    x = tf.map_fn(lambda x1: tf.image.random_hue(x1, max_delta=cfg['TRAIN']['PARAMS']['AUGMENTATION']['HUE_DELTA']), x)
+    x = tf.map_fn(lambda x1: tf.image.random_contrast(x1, cfg['TRAIN']['PARAMS']['AUGMENTATION']['CONTRAST_BOUNDS'][0],
+                                                      cfg['TRAIN']['PARAMS']['AUGMENTATION']['CONTRAST_BOUNDS'][1]), x)
+    x = tf.map_fn(lambda x1: random_shift_clip(x1), x)
+    x = tf.map_fn(lambda x1: random_flip_up_down_clip(x1), x)
+    x = tf.map_fn(lambda x1: random_zoom_clip(x1), x)
+    return x
+
+
 def parse_fn(filename, label):
     '''
     Loads a video from its filename and returns its label
@@ -282,8 +303,8 @@ class FlowPreprocessor:
         ds = ds.batch(self.batch_size, num_parallel_calls=self.autotune)
 
         # Optionally apply a series of augmentations
-        #if augment:
-            #ds = ds.map(lambda x, y: (augment_clip(x), y), num_parallel_calls=self.autotune)
+        if augment:
+            ds = ds.map(lambda x, y: (augment_flow(x), y), num_parallel_calls=self.autotune)
 
         # Map the preprocessing (scaling, resizing) function to each element
         ds = ds.map(lambda x, y: (self.preprocessing_fn(x), y), num_parallel_calls=self.autotune)
