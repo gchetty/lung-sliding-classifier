@@ -174,7 +174,7 @@ def augment_two_stream(x1, x2):
 
     img_size = cfg['PREPROCESS']['PARAMS']['IMG_SIZE']
     window = cfg['PREPROCESS']['PARAMS']['WINDOW']
-    zero_pad = tf.constant(np.zeros([window] + img_size + [1]))
+    zero_pad = tf.constant(np.zeros([window] + img_size + [1]), dtype=tf.float32)
     x2 = tf.concat([x2, zero_pad], axis=-1)  # add third channel of 0s to flow clip
 
     x = tf.concat([x1, x2], axis=0)  # Add mini-clip frames behind regular frames - making 1 sequence of frames
