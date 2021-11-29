@@ -12,7 +12,7 @@ from tensorflow.keras.metrics import Precision, Recall, AUC, TrueNegatives, True
 from tensorflow_addons.metrics import F1Score, FBetaScore
 from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
 
-from preprocessor import Preprocessor, FlowPreprocessor
+from preprocessor import Preprocessor, FlowPreprocessor, TwoStreamPreprocessor
 from visualization.visualization import log_confusion_matrix
 from models.models import *
 from custom.metrics import Specificity
@@ -119,7 +119,7 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
         test_set = tf.data.Dataset.zip((x_test_ds, y_test_ds))
 
         # Create preprocessing object given the preprocessing function for model_def
-        preprocessor = FlowPreprocessor(preprocessing_fn)
+        preprocessor = TwoStreamPreprocessor(preprocessing_fn)
 
         # Define the preprocessing pipelines for train, test and validation
         train_set = preprocessor.prepare(train_set, train_df, shuffle=True, augment=True)
