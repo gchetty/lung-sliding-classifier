@@ -193,6 +193,11 @@ def augment_two_stream(x1, x2):
     x1, x2 = tf.split(x, 2, axis=0)
     x2 = tf.split(x2, [2, 1], axis=-1)[0]
 
+    #tf.ensure_shape(x1, [window] + img_size + [3])
+    x1.set_shape([window] + img_size + [3])
+    #tf.ensure_shape(x2, [window] + img_size + [2])
+    x2.set_shape([window] + img_size + [2])
+
     return x1, x2
 
 
@@ -252,6 +257,13 @@ def parse_flow(filename, label):
     return clip, label
 
 
+def parse_fn_no_label(filename):
+    with np.load(filename, allow_pickle=True) as loaded_file:
+        clip = loaded_file['frames']
+    clip = tf.cast(clip, tf.float32)
+    return clip
+
+
 def parse_clip_only(filename):
     '''
 
@@ -262,7 +274,7 @@ def parse_clip_only(filename):
     img_size_tuple = cfg['PREPROCESS']['PARAMS']['IMG_SIZE']
     num_frames = cfg['PREPROCESS']['PARAMS']['WINDOW']
     shape = (num_frames, img_size_tuple[0], img_size_tuple[1], 3)
-    clip = tf.numpy_function(parse_fn, [filename], tf.float32)
+    clip = tf.numpy_function(parse_fn_no_label, [filename], tf.float32)
     tf.ensure_shape(clip, shape)
     return clip
 
@@ -277,7 +289,7 @@ def parse_flow_only(filename):
     img_size_tuple = cfg['PREPROCESS']['PARAMS']['IMG_SIZE']
     num_frames = cfg['PREPROCESS']['PARAMS']['WINDOW']
     shape = (num_frames, img_size_tuple[0], img_size_tuple[1], 2)
-    clip = tf.numpy_function(parse_fn, [filename], tf.float32)
+    clip = tf.numpy_function(parse_fn_no_label, [filename], tf.float32)
     tf.ensure_shape(clip, shape)
     return clip
 
@@ -410,12 +422,12 @@ class TwoStreamPreprocessor:
         ds = ds.map(lambda x, y: ((parse_clip_only(x[0]), parse_flow_only(x[1])), y),
                     num_parallel_calls=self.autotune)
 
-        # Define batch size
-        ds = ds.batch(self.batch_size, num_parallel_calls=self.autotune)
-
         # Optionally apply a series of augmentations
         if augment:
             ds = ds.map(lambda x, y: (augment_two_stream(x[0], x[1]), y), num_parallel_calls=self.autotune)
+
+        # Define batch size
+        ds = ds.batch(self.batch_size, num_parallel_calls=self.autotune)
 
         # Map the preprocessing (scaling, resizing) function to each element
         ds = ds.map(lambda x, y: ((self.preprocessing_fn_1(x[0]), self.preprocessing_fn_2(x[1])), y),
