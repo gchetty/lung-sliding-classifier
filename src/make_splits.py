@@ -18,6 +18,8 @@ def df_splits_two_stream(df, flow_df, train, val, test, random_state=cfg['TRAIN'
     :param val:   0 < Float < 1 representing the validation fraction
     :param test:  0 < Float < 1 representing the test fraction
     :param random_state: An integer for setting the random seed
+
+    :return: Dataframe with split labels
     '''
 
     # Keep only mini-clips existing for regular frames and flow frames in df
@@ -28,9 +30,9 @@ def df_splits_two_stream(df, flow_df, train, val, test, random_state=cfg['TRAIN'
     df = df.drop(drop_indices)
 
     # Make splits from remaining mini-clips
-    df_splits(df, train, val, test, random_state)
+    df = df_splits(df, train, val, test, random_state)
 
-    return
+    return df
 
 
 def df_splits(df, train, val, test, random_state=cfg['TRAIN']['SPLITS']['RANDOM_SEED']):
@@ -41,7 +43,9 @@ def df_splits(df, train, val, test, random_state=cfg['TRAIN']['SPLITS']['RANDOM_
     :param train: 0 < Float < 1 representing the training fraction
     :param val:   0 < Float < 1 representing the validation fraction
     :param test:  0 < Float < 1 representing the test fraction
-    :param random_state: An integer for setting the random seed 
+    :param random_state: An integer for setting the random seed
+
+    :return: Dataframe with split labels
     '''
 
     patient_ids = pd.unique(df['patient_id'])
@@ -70,7 +74,8 @@ def df_splits(df, train, val, test, random_state=cfg['TRAIN']['SPLITS']['RANDOM_
             split_labels.append(0)
 
     df['split'] = split_labels
-    return
+
+    return df
 
 
 def minority_oversample(sliding_df, no_sliding_df, split):
@@ -134,14 +139,14 @@ if flow_sliding_path:
 
 # Determine splits, add to previously declared dataframes
 if flow == 'No':
-    df_splits(sliding_df, train_prop, val_prop, test_prop)
-    df_splits(no_sliding_df, train_prop, val_prop, test_prop)
+    sliding_df = df_splits(sliding_df, train_prop, val_prop, test_prop)
+    no_sliding_df = df_splits(no_sliding_df, train_prop, val_prop, test_prop)
 elif flow == 'Yes':
-    df_splits(flow_sliding_df, train_prop, val_prop, test_prop)
-    df_splits(flow_no_sliding_df, train_prop, val_prop, test_prop)
+    flow_sliding_df = df_splits(flow_sliding_df, train_prop, val_prop, test_prop)
+    flow_no_sliding_df = df_splits(flow_no_sliding_df, train_prop, val_prop, test_prop)
 else:
-    df_splits_two_stream(sliding_df, flow_sliding_df, train_prop, val_prop, test_prop)
-    df_splits_two_stream(no_sliding_df, flow_no_sliding_df, train_prop, val_prop, test_prop)
+    sliding_df = df_splits_two_stream(sliding_df, flow_sliding_df, train_prop, val_prop, test_prop)
+    no_sliding_df = df_splits_two_stream(no_sliding_df, flow_no_sliding_df, train_prop, val_prop, test_prop)
 
 # Add label to dataframes
 l1 = [1] * len(sliding_df)
