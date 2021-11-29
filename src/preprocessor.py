@@ -407,7 +407,7 @@ class TwoStreamPreprocessor:
             ds = ds.shuffle(shuffle_val)
 
         # Load clips and flow clips
-        ds = ds.map(lambda x, y: ((parse_clip_only(x[0]), parse_flow_only(x[1])), parse_label(y)),
+        ds = ds.map(lambda x, y: ((parse_clip_only(x[0]), parse_flow_only(x[1])), y),
                     num_parallel_calls=self.autotune)
 
         # Define batch size
