@@ -187,7 +187,7 @@ def augment_two_stream(x1, x2):
                                                       cfg['TRAIN']['PARAMS']['AUGMENTATION']['CONTRAST_BOUNDS'][1]), x)
     x = tf.map_fn(lambda x1: random_shift_clip(x1), x)
     x = tf.map_fn(lambda x1: random_flip_left_right_clip(x1), x)
-    x = tf.map_fn(lambda x1: random_zoom_clip(x1), x)
+    #x = tf.map_fn(lambda x1: random_zoom_clip(x1), x)
 
     # Separate regular and flow mini-clips
     x1, x2 = tf.split(x, 2, axis=0)
