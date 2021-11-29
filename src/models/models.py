@@ -12,7 +12,7 @@ from tensorflow.keras.layers import Dense, Flatten
 from tensorflow.keras.layers import LSTM
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import TimeDistributed, Conv3D, AveragePooling3D, Dropout, Input, Add, InputLayer, MaxPooling3D,\
-    Conv2D, MaxPooling2D, BatchNormalization, Activation, GlobalAveragePooling3D, ZeroPadding3D
+    Conv2D, MaxPooling2D, BatchNormalization, Activation, GlobalAveragePooling3D, ZeroPadding3D, Concatenate
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.regularizers import L2
 from tensorflow.keras.applications.xception import Xception
@@ -54,6 +54,9 @@ def get_model(model_name):
     elif model_name == 'inflated_resnet50':
         model_def_fn = inflated_resnet50
         preprocessing_fn = resnet_preprocess
+    elif model_name == 'i3d':
+        model_def_fn = i3d
+        preprocessing_fn = [normalize, normalize]
 
     if flow:
         preprocessing_fn = normalize
@@ -546,6 +549,109 @@ def inflated_resnet50(model_config, input_shape, metrics, class_counts):
 
             if i < model_config['LAST_FROZEN']:
                 new_layer.trainable = False
+
+    model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=metrics)
+
+    return model
+
+
+def i3d(model_config, clip_shape, flow_shape, metrics, class_counts):
+
+    lr = model_config['LR']
+    optimizer = Adam(learning_rate=lr)
+
+    dropout = model_config['DROPOUT']
+    l2_reg = model_config['L2_REG']
+
+    output_bias = None
+    if cfg['TRAIN']['OUTPUT_BIAS']:
+        count0 = class_counts[0]
+        count1 = class_counts[1]
+        output_bias = math.log(count1 / count0)
+        output_bias = tf.keras.initializers.Constant(output_bias)
+
+    def inception_block(x, filters, l2):
+        a = Conv3D(filters, kernel_size=(1, 1, 1), strides=1, kernel_regularizer=L2(l2), padding='same', use_bias=False)(x)
+        a = BatchNormalization()(a)
+        a = Activation('relu')(a)
+
+        b = Conv3D(filters, kernel_size=(1, 1, 1), strides=1, kernel_regularizer=L2(l2), padding='same', use_bias=False)(x)
+        b = BatchNormalization()(b)
+        b = Activation('relu')(b)
+        b = Conv3D(filters, kernel_size=(3, 3, 3), strides=1, kernel_regularizer=L2(l2), padding='same', use_bias=False)(b)
+        b = BatchNormalization()(b)
+        b = Activation('relu')(b)
+
+        c = Conv3D(filters, kernel_size=(1, 1, 1), strides=1, kernel_regularizer=L2(l2), padding='same', use_bias=False)(x)
+        c = BatchNormalization()(c)
+        c = Activation('relu')(c)
+        c = Conv3D(filters, kernel_size=(3, 3, 3), strides=1, kernel_regularizer=L2(l2), padding='same', use_bias=False)(c)
+        c = BatchNormalization()(c)
+        c = Activation('relu')(c)
+
+        d = MaxPooling3D(pool_size=(3, 3, 3), strides=1, padding='same')(x)
+        d = Conv3D(filters, kernel_size=(1, 1, 1), strides=1, kernel_regularizer=L2(l2), padding='same', use_bias=False)(d)
+        d = BatchNormalization()(d)
+        d = Activation('relu')(d)
+
+        return Concatenate()([a, b, c, d])
+
+    def inception(x, l2):
+
+        # number of filters from inception paper - very deep CNNs for large scale image rec
+
+        x = Conv3D(64, kernel_size=(7, 7, 7), strides=2, kernel_regularizer=L2(l2), use_bias=False)(x)
+        x = BatchNormalization()(x)
+        x = Activation('relu')(x)
+
+        x = MaxPooling3D(pool_size=(1, 3, 3), strides=(1, 2, 2))(x)
+
+        x = Conv3D(128, kernel_size=(1, 1, 1), strides=1, kernel_regularizer=L2(l2), use_bias=False)(x)
+        x = BatchNormalization()(x)
+        x = Activation('relu')(x)
+        x = Conv3D(128, kernel_size=(3, 3, 3), strides=1, kernel_regularizer=L2(l2), use_bias=False)(x)
+        x = BatchNormalization()(x)
+        x = Activation('relu')(x)
+
+        x = MaxPooling3D(pool_size=(1, 3, 3), strides=(1, 2, 2))(x)
+
+        for i in range(2):
+            x = inception_block(x, 256, l2)
+
+        x = MaxPooling3D(pool_size=(3, 3, 3), strides=(2, 2, 2))(x)
+
+        for i in range(5):
+            x = inception_block(x, 512, l2)
+
+        x = MaxPooling3D(pool_size=(2, 2, 2), strides=(2, 2, 2))(x)
+
+        for i in range(2):
+            x = inception_block(x, 512, l2)
+
+        x = Conv3D(512, kernel_size=(1, 1, 1), strides=1, kernel_regularizer=L2(l2), use_bias=False)(x)
+        x = BatchNormalization()(x)
+        x = Activation('relu')(x)
+
+        return x
+
+    shape1 = clip_shape
+    inputs1 = Input(shape1)
+    x1 = inception(inputs1, l2_reg)
+    m1 = tf.keras.Model(inputs=inputs1, outputs=x1)
+
+    shape2 = flow_shape
+    inputs2 = Input(shape2)
+    x2 = inception(inputs2, l2_reg)
+    m2 = tf.keras.Model(inputs=inputs2, outputs=x2)
+
+    x = Concatenate()([m1.output, m2.output])
+    x = GlobalAveragePooling3D()(x)
+    x = Dropout(dropout)(x)
+    x = Dense(32, activation='relu')(x)
+    outputs = Dense(1, activation='sigmoid', bias_initializer=output_bias)(x)
+
+    model = tf.keras.Model(inputs=[m1.input, m2.input], outputs=outputs)
+    model.summary()
 
     model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=metrics)
 

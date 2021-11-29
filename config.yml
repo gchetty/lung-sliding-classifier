@@ -5,7 +5,7 @@
 PREPROCESS:
   PARAMS:
     AMOUNT_ONLY: False  # If set to True, the tool exits after querying the database and returning counts
-    FLOW: 'Yes'  # Yes for flow only, No for no flow, and Mixed for videos and flow
+    FLOW: 'Both'  # Yes for flow only, No for no flow, and Mixed for videos and flow
     SHUFFLE: True # If you want to randomize the videos downloaded
     RANDOM_SEED: 1 # If SHUFFLE=False, this does nothing. Otherwise, this is the seed for shuffling
     SLIDING_PROPORTION: 1
@@ -28,7 +28,7 @@ TRAIN:
   MIXED_PRECISION: False
   OUTPUT_BIAS: False
   PATIENCE: 100
-  MODEL_DEF: 'inflated_resnet50'  # xception_raw, lrcn, threeDCNN, vgg16_raw, inflated_resnet50
+  MODEL_DEF: 'i3d'  # xception_raw, lrcn, threeDCNN, vgg16_raw, inflated_resnet50, i3d
   SAVE_BEST_ONLY: True
 
   SPLITS:
@@ -64,6 +64,12 @@ TRAIN:
       LR: 0.0001
       DROPOUT: 0.5
     INFLATED_RESNET50:
+      LR: 0.000005  # Initial learning rate
+      LR_DECAY_VAL: 0.1  # Set equal to initial learning rate for no LR decay
+      DROPOUT: 0.5
+      LAST_FROZEN: 74  # Last layer (number) to freeze (NOT 0-indexed)
+      L2_REG: 0.01  # Regularizer penalty
+    I3D:
       LR: 0.000005  # Initial learning rate
       LR_DECAY_VAL: 0.1  # Set equal to initial learning rate for no LR decay
       DROPOUT: 0.5

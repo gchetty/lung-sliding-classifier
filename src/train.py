@@ -23,7 +23,7 @@ cfg = yaml.full_load(open(os.path.join(os.getcwd(), '../config.yml'), 'r'))
 
 
 def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'], 
-                hparams=cfg['TRAIN']['PARAMS']['INFLATED_RESNET50'],  # SHOULD REALLY MAKE THIS MORE DYNAMIC
+                hparams=cfg['TRAIN']['PARAMS']['I3D'],  # SHOULD REALLY MAKE THIS MORE DYNAMIC
                 model_out_dir=cfg['TRAIN']['PATHS']['MODEL_OUT']):
 
     '''
@@ -55,7 +55,7 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
     val_set = None
     test_set = None
 
-    if not (flow == 'Yes'):
+    if flow == 'No':
 
         # Read in training, validation, and test dataframes
         train_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'train.csv'))#[:20]
@@ -77,7 +77,7 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
         val_set = preprocessor.prepare(val_set, val_df, shuffle=False, augment=False)
         test_set = preprocessor.prepare(test_set, test_df, shuffle=False, augment=False)
 
-    if not (flow == 'No'):
+    if flow == 'Yes':
 
         train_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'flow_train.csv'))  # [:20]
         val_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'flow_val.csv'))  # [:20]
@@ -89,6 +89,34 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
         train_set = tf.data.Dataset.from_tensor_slices((train_df['filename'].tolist(), train_df['label']))
         val_set = tf.data.Dataset.from_tensor_slices((val_df['filename'].tolist(), val_df['label']))
         test_set = tf.data.Dataset.from_tensor_slices((test_df['filename'].tolist(), test_df['label']))
+
+        # Create preprocessing object given the preprocessing function for model_def
+        preprocessor = FlowPreprocessor(preprocessing_fn)
+
+        # Define the preprocessing pipelines for train, test and validation
+        train_set = preprocessor.prepare(train_set, train_df, shuffle=True, augment=True)
+        val_set = preprocessor.prepare(val_set, val_df, shuffle=False, augment=False)
+        test_set = preprocessor.prepare(test_set, test_df, shuffle=False, augment=False)
+
+    if flow == 'Both':
+
+        train_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'train.csv'))  # [:20]
+        val_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'val.csv'))  # [:20]
+        test_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'test.csv'))  # [:20]
+
+        x_train_ds = tf.data.Dataset.from_tensor_slices((train_df['filename'].tolist(),
+                                                         train_df['flow_filename'].tolist()))
+        x_val_ds = tf.data.Dataset.from_tensor_slices((val_df['filename'].tolist(), val_df['flow_filename'].tolist()))
+        x_test_ds = tf.data.Dataset.from_tensor_slices((test_df['filename'].tolist(),
+                                                        test_df['flow_filename'].tolist()))
+
+        y_train_ds = tf.data.Dataset.from_tensor_slices(train_df['label'])
+        y_val_ds = tf.data.Dataset.from_tensor_slices(val_df['label'])
+        y_test_ds = tf.data.Dataset.from_tensor_slices(test_df['label'])
+
+        train_set = tf.data.Dataset.zip((x_train_ds, y_train_ds))
+        val_set = tf.data.Dataset.zip((x_val_ds, y_val_ds))
+        test_set = tf.data.Dataset.zip((x_test_ds, y_test_ds))
 
         # Create preprocessing object given the preprocessing function for model_def
         preprocessor = FlowPreprocessor(preprocessing_fn)

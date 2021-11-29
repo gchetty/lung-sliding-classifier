@@ -162,6 +162,40 @@ def augment_flow(x):
     return x
 
 
+def augment_two_stream(x1, x2):
+    '''
+    Needed to ensure that augmentations are the same across two inputs
+
+    :param x1: Mini-clip to augment
+    :param x2: Associated flow mini-clip to augment
+
+    :return: Tuple (x1, x2) of augmented mini-clip and flow mini-clip
+    '''
+
+    img_size = cfg['PREPROCESS']['PARAMS']['IMG_SIZE']
+    window = cfg['PREPROCESS']['PARAMS']['WINDOW']
+    zero_pad = tf.constant(np.zeros([window] + img_size + [1]))
+    x2 = tf.concat([x2, zero_pad], axis=-1)  # add third channel of 0s to flow clip
+
+    x = tf.concat([x1, x2], axis=0)  # Add mini-clip frames behind regular frames - making 1 sequence of frames
+
+    # Call augmentation functions
+    x = tf.map_fn(
+        lambda x1: tf.image.random_brightness(x1, max_delta=cfg['TRAIN']['PARAMS']['AUGMENTATION']['BRIGHTNESS_DELTA']),
+        x)
+    x = tf.map_fn(lambda x1: tf.image.random_contrast(x1, cfg['TRAIN']['PARAMS']['AUGMENTATION']['CONTRAST_BOUNDS'][0],
+                                                      cfg['TRAIN']['PARAMS']['AUGMENTATION']['CONTRAST_BOUNDS'][1]), x)
+    x = tf.map_fn(lambda x1: random_shift_clip(x1), x)
+    x = tf.map_fn(lambda x1: random_flip_left_right_clip(x1), x)
+    x = tf.map_fn(lambda x1: random_zoom_clip(x1), x)
+
+    # Separate regular and flow mini-clips
+    x1, x2 = tf.split(x, 2, axis=0)
+    x2 = tf.split(x2, [2, 1], axis=-1)[0]
+
+    return x1, x2
+
+
 def parse_fn(filename, label):
     '''
     Loads a video from its filename and returns its label
@@ -216,6 +250,49 @@ def parse_flow(filename, label):
     label.set_shape((1,))
     tf.ensure_shape(label, (1,))
     return clip, label
+
+
+def parse_clip_only(filename):
+    '''
+
+    :param filename:
+    :return:
+    '''
+
+    img_size_tuple = cfg['PREPROCESS']['PARAMS']['IMG_SIZE']
+    num_frames = cfg['PREPROCESS']['PARAMS']['WINDOW']
+    shape = (num_frames, img_size_tuple[0], img_size_tuple[1], 3)
+    clip = tf.numpy_function(parse_fn, [filename], tf.float32)
+    tf.ensure_shape(clip, shape)
+    return clip
+
+
+def parse_flow_only(filename):
+    '''
+
+    :param filename:
+    :return:
+    '''
+
+    img_size_tuple = cfg['PREPROCESS']['PARAMS']['IMG_SIZE']
+    num_frames = cfg['PREPROCESS']['PARAMS']['WINDOW']
+    shape = (num_frames, img_size_tuple[0], img_size_tuple[1], 2)
+    clip = tf.numpy_function(parse_fn, [filename], tf.float32)
+    tf.ensure_shape(clip, shape)
+    return clip
+
+
+def parse_label(label):
+    '''
+
+    :param label:
+    :return:
+    '''
+
+    label = (1 - tf.one_hot(label, 1))
+    label.set_shape((1,))
+    tf.ensure_shape(label, (1,))
+    return label
 
 
 # Options in this class (most likely) - or another class - to handle ds without labels ?
@@ -312,3 +389,40 @@ class FlowPreprocessor:
         ds = ds.prefetch(buffer_size=self.autotune)
 
         return ds
+
+
+class TwoStreamPreprocessor:
+
+    def __init__(self, preprocessing_fns):
+        self.batch_size = cfg['TRAIN']['PARAMS']['BATCH_SIZE']
+        self.autotune = tf.data.AUTOTUNE
+        self.preprocessing_fn_1 = preprocessing_fns[0]  # Preprocessing function for clips
+        self.preprocessing_fn_2 = preprocessing_fns[1]  # Preprocessing function for flow
+
+    def prepare(self, ds, df, shuffle=False, augment=False):  # ds must give ((clip, flow clip), label)
+
+        # Shuffle the dataset
+        if shuffle:
+            shuffle_val = len(df)
+            ds = ds.shuffle(shuffle_val)
+
+        # Load clips and flow clips
+        ds = ds.map(lambda x, y: ((parse_clip_only(x[0]), parse_flow_only(x[1])), parse_label(y)),
+                    num_parallel_calls=self.autotune)
+
+        # Define batch size
+        ds = ds.batch(self.batch_size, num_parallel_calls=self.autotune)
+
+        # Optionally apply a series of augmentations
+        if augment:
+            ds = ds.map(lambda x, y: (augment_two_stream(x), y), num_parallel_calls=self.autotune)
+
+        # Map the preprocessing (scaling, resizing) function to each element
+        ds = ds.map(lambda x, y: ((self.preprocessing_fn_1(x[0]), self.preprocessing_fn_2(x[1])), y),
+                    num_parallel_calls=self.autotune)
+
+        # Allows later elements to be prepared while the current element is being processed
+        ds = ds.prefetch(buffer_size=self.autotune)
+
+        return ds
+

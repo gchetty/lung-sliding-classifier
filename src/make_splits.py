@@ -8,6 +8,31 @@ from sklearn.model_selection import train_test_split
 cfg = yaml.full_load(open(os.path.join(os.getcwd(), '../config.yml'), 'r'))
 
 
+def df_splits_two_stream(df, flow_df, train, val, test, random_state=cfg['TRAIN']['SPLITS']['RANDOM_SEED']):
+    '''
+    Splits dataframe into train, val, and test splits, selecting only clips present in both input dataframes
+
+    :param df: Dataframe of regular mini-clip ids
+    :param flow_df: Dataframe of optical flow mini-clip ids
+    :param train: 0 < Float < 1 representing the training fraction
+    :param val:   0 < Float < 1 representing the validation fraction
+    :param test:  0 < Float < 1 representing the test fraction
+    :param random_state: An integer for setting the random seed
+    '''
+
+    # Keep only mini-clips existing for regular frames and flow frames in df
+    drop_indices = []
+    for index, row in df.iterrows():
+        if not (row['id'] in list(flow_df['id'])):
+            drop_indices.append(index)
+    df.drop(drop_indices)
+
+    # Make splits from remaining mini-clips
+    df_splits(df, train, val, test, random_state)
+
+    return
+
+
 def df_splits(df, train, val, test, random_state=cfg['TRAIN']['SPLITS']['RANDOM_SEED']):
     '''
     Splits the dataframe into train, val and test (adds a split column with train=0, val=1, test=2).
@@ -85,25 +110,38 @@ flow = cfg['PREPROCESS']['PARAMS']['FLOW']
 
 sliding_path = ''
 no_sliding_path = ''
+flow_sliding_path = ''
+flow_no_sliding_path = ''
 
-if flow == 'Yes':
-    sliding_path = os.path.join(csv_path, 'sliding_flow_mini_clips.csv')
-    no_sliding_path = os.path.join(csv_path, 'no_sliding_flow_mini_clips.csv')
-elif flow == 'No':
+if not (flow == 'No'):
+    flow_sliding_path = os.path.join(csv_path, 'sliding_flow_mini_clips.csv')
+    flow_no_sliding_path = os.path.join(csv_path, 'no_sliding_flow_mini_clips.csv')
+if not (flow == 'Yes'):
     sliding_path = os.path.join(csv_path, 'sliding_mini_clips.csv')
     no_sliding_path = os.path.join(csv_path, 'no_sliding_mini_clips.csv')
-else:
-    raise Exception('Two-stream preprocessing pipeline not yet implemented!')
 
 # Input csvs of mini-clips
-sliding_df = pd.read_csv(sliding_path)
-sliding_df = sliding_df.sort_values(by=['patient_id'])
-no_sliding_df = pd.read_csv(no_sliding_path)
-no_sliding_df = no_sliding_df.sort_values(by=['patient_id'])
+if sliding_path:
+    sliding_df = pd.read_csv(sliding_path)
+    sliding_df = sliding_df.sort_values(by=['patient_id'])
+    no_sliding_df = pd.read_csv(no_sliding_path)
+    no_sliding_df = no_sliding_df.sort_values(by=['patient_id'])
+if flow_sliding_path:
+    flow_sliding_df = pd.read_csv(flow_sliding_path)
+    flow_sliding_df = flow_sliding_df.sort_values(by=['patient_id'])
+    flow_no_sliding_df = pd.read_csv(flow_no_sliding_path)
+    flow_no_sliding_df = flow_no_sliding_df.sort_values(by=['patient_id'])
 
 # Determine splits, add to previously declared dataframes
-df_splits(sliding_df, train_prop, val_prop, test_prop)
-df_splits(no_sliding_df, train_prop, val_prop, test_prop)
+if flow == 'No':
+    df_splits(sliding_df, train_prop, val_prop, test_prop)
+    df_splits(no_sliding_df, train_prop, val_prop, test_prop)
+elif flow == 'Yes':
+    df_splits(flow_sliding_df, train_prop, val_prop, test_prop)
+    df_splits(flow_no_sliding_df, train_prop, val_prop, test_prop)
+else:
+    df_splits_two_stream(sliding_df, flow_sliding_df, train_prop, val_prop, test_prop)
+    df_splits_two_stream(no_sliding_df, flow_no_sliding_df, train_prop, val_prop, test_prop)
 
 # Add label to dataframes
 l1 = [1] * len(sliding_df)
@@ -115,7 +153,7 @@ no_sliding_df['label'] = l0
 npz_dir = ''
 if flow == 'Yes':
     npz_dir = cfg['PREPROCESS']['PATHS']['FLOW_NPZ']
-elif flow == 'No':
+else:
     npz_dir = cfg['PREPROCESS']['PATHS']['NPZ']
 
 paths1 = []
@@ -127,6 +165,21 @@ paths0 = []
 for index, row in no_sliding_df.iterrows():
     paths0.append(os.path.join(os.getcwd(), 'data/', npz_dir, 'no_sliding/', row['id'] + '.npz'))
 no_sliding_df['filename'] = paths0
+
+# Add flow paths if two-stream
+if flow == 'Both':
+
+    npz_dir = cfg['PREPROCESS']['PATHS']['FLOW_NPZ']
+
+    paths1 = []
+    for index, row in sliding_df.iterrows():
+        paths1.append(os.path.join(os.getcwd(), 'data/', npz_dir, 'sliding/', row['id'] + '.npz'))
+    sliding_df['flow_filename'] = paths1
+
+    paths0 = []
+    for index, row in no_sliding_df.iterrows():
+        paths0.append(os.path.join(os.getcwd(), 'data/', npz_dir, 'no_sliding/', row['id'] + '.npz'))
+    no_sliding_df['flow_filename'] = paths0
 
 # Duplicate the no_sliding_df until it's approximately the same size as sliding_df, if desired
 increase = cfg['TRAIN']['PARAMS']['INCREASE']
