@@ -25,7 +25,7 @@ def df_splits_two_stream(df, flow_df, train, val, test, random_state=cfg['TRAIN'
     for index, row in df.iterrows():
         if not (row['id'] in list(flow_df['id'])):
             drop_indices.append(index)
-    df.drop(drop_indices)
+    df = df.drop(drop_indices)
 
     # Make splits from remaining mini-clips
     df_splits(df, train, val, test, random_state)
@@ -216,7 +216,7 @@ if flow == 'Yes':
     train_df_path = os.path.join(csv_dir, 'flow_train.csv')
     val_df_path = os.path.join(csv_dir, 'flow_val.csv')
     test_df_path = os.path.join(csv_dir, 'flow_test.csv')
-elif flow == 'No':
+else:
     train_df_path = os.path.join(csv_dir, 'train.csv')
     val_df_path = os.path.join(csv_dir, 'val.csv')
     test_df_path = os.path.join(csv_dir, 'test.csv')
