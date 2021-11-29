@@ -415,7 +415,7 @@ class TwoStreamPreprocessor:
 
         # Optionally apply a series of augmentations
         if augment:
-            ds = ds.map(lambda x, y: (augment_two_stream(x), y), num_parallel_calls=self.autotune)
+            ds = ds.map(lambda x, y: (augment_two_stream(x[0], x[1]), y), num_parallel_calls=self.autotune)
 
         # Map the preprocessing (scaling, resizing) function to each element
         ds = ds.map(lambda x, y: ((self.preprocessing_fn_1(x[0]), self.preprocessing_fn_2(x[1])), y),
