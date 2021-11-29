@@ -289,7 +289,7 @@ def parse_label(label):
     :return:
     '''
 
-    label = (1 - tf.one_hot(label, 1))
+    label = tf.constant(label)
     label.set_shape((1,))
     tf.ensure_shape(label, (1,))
     return label
