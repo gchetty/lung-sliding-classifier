@@ -639,12 +639,14 @@ def i3d(model_config, input_shapes, metrics, class_counts):
 
     shape1 = clip_shape
     inputs1 = Input(shape1)
-    x1 = inception(inputs1, l2_reg)
+    x1 = inputs1
+    x1 = inception(x1, l2_reg)
     m1 = tf.keras.Model(inputs=inputs1, outputs=x1)
 
     shape2 = flow_shape
     inputs2 = Input(shape2)
-    x2 = inception(inputs2, l2_reg)
+    x2 = inputs2
+    x2 = inception(x2, l2_reg)
     m2 = tf.keras.Model(inputs=inputs2, outputs=x2)
 
     x = Concatenate()([m1.output, m2.output])
