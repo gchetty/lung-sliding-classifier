@@ -149,8 +149,11 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
     input_shape = None
     if flow == 'Yes':
         input_shape = [cfg['PREPROCESS']['PARAMS']['WINDOW']] + cfg['PREPROCESS']['PARAMS']['IMG_SIZE'] + [2]
-    elif flow == 'No':
+    else:
         input_shape = [cfg['PREPROCESS']['PARAMS']['WINDOW']] + cfg['PREPROCESS']['PARAMS']['IMG_SIZE'] + [3]
+    if flow == 'Both':
+        input_shape = [input_shape]
+        input_shape.append([cfg['PREPROCESS']['PARAMS']['WINDOW']] + cfg['PREPROCESS']['PARAMS']['IMG_SIZE'] + [2])
 
     model = model_def_fn(hparams, input_shape, metrics, counts)
 

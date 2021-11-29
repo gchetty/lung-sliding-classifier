@@ -555,7 +555,10 @@ def inflated_resnet50(model_config, input_shape, metrics, class_counts):
     return model
 
 
-def i3d(model_config, clip_shape, flow_shape, metrics, class_counts):
+def i3d(model_config, input_shapes, metrics, class_counts):
+
+    clip_shape = input_shapes[0]
+    flow_shape = input_shapes[1]
 
     lr = model_config['LR']
     optimizer = Adam(learning_rate=lr)
