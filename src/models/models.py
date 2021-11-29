@@ -619,7 +619,7 @@ def i3d(model_config, clip_shape, flow_shape, metrics, class_counts):
             x = inception_block(x, 256, l2)
 
         x = MaxPooling3D(pool_size=(3, 3, 3), strides=(2, 2, 2))(x)
-
+        '''
         for i in range(5):
             x = inception_block(x, 512, l2)
 
@@ -627,7 +627,7 @@ def i3d(model_config, clip_shape, flow_shape, metrics, class_counts):
 
         for i in range(2):
             x = inception_block(x, 512, l2)
-
+        '''
         x = Conv3D(512, kernel_size=(1, 1, 1), strides=1, kernel_regularizer=L2(l2), use_bias=False)(x)
         x = BatchNormalization()(x)
         x = Activation('relu')(x)
