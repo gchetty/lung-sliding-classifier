@@ -423,8 +423,8 @@ class TwoStreamPreprocessor:
                     num_parallel_calls=self.autotune)
 
         # Optionally apply a series of augmentations
-        if augment:
-            ds = ds.map(lambda x, y: (augment_two_stream(x[0], x[1]), y), num_parallel_calls=self.autotune)
+        #if augment:
+            #ds = ds.map(lambda x, y: (augment_two_stream(x[0], x[1]), y), num_parallel_calls=self.autotune)
 
         # Define batch size
         ds = ds.batch(self.batch_size, num_parallel_calls=self.autotune)

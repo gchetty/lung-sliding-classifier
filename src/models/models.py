@@ -617,7 +617,7 @@ def i3d(model_config, input_shapes, metrics, class_counts):
         x = Activation('relu')(x)
 
         x = MaxPooling3D(pool_size=(1, 3, 3), strides=(1, 2, 2))(x)
-
+        
         for i in range(2):
             x = inception_block(x, 256, l2)
 
@@ -635,6 +635,8 @@ def i3d(model_config, input_shapes, metrics, class_counts):
         x = BatchNormalization()(x)
         x = Activation('relu')(x)
 
+        x = GlobalAveragePooling3D()(x)
+
         return x
 
     shape1 = clip_shape
@@ -650,7 +652,6 @@ def i3d(model_config, input_shapes, metrics, class_counts):
     m2 = tf.keras.Model(inputs=inputs2, outputs=x2)
 
     x = Concatenate()([m1.output, m2.output])
-    x = GlobalAveragePooling3D()(x)
     x = Dropout(dropout)(x)
     x = Dense(32, activation='relu')(x)
     outputs = Dense(1, activation='sigmoid', bias_initializer=output_bias)(x)
