@@ -185,7 +185,7 @@ def augment_two_stream(x1, x2):
         x)
     x = tf.map_fn(lambda x1: tf.image.random_contrast(x1, cfg['TRAIN']['PARAMS']['AUGMENTATION']['CONTRAST_BOUNDS'][0],
                                                       cfg['TRAIN']['PARAMS']['AUGMENTATION']['CONTRAST_BOUNDS'][1]), x)
-    x = tf.map_fn(lambda x1: random_shift_clip(x1), x)
+    #x = tf.map_fn(lambda x1: random_shift_clip(x1), x)
     x = tf.map_fn(lambda x1: random_flip_left_right_clip(x1), x)
     #x = tf.map_fn(lambda x1: random_zoom_clip(x1), x)
 
@@ -423,8 +423,8 @@ class TwoStreamPreprocessor:
                     num_parallel_calls=self.autotune)
 
         # Optionally apply a series of augmentations
-        #if augment:
-            #ds = ds.map(lambda x, y: (augment_two_stream(x[0], x[1]), y), num_parallel_calls=self.autotune)
+        if augment:
+            ds = ds.map(lambda x, y: (augment_two_stream(x[0], x[1]), y), num_parallel_calls=self.autotune)
 
         # Define batch size
         ds = ds.batch(self.batch_size, num_parallel_calls=self.autotune)
