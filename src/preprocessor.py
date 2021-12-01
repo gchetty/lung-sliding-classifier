@@ -177,7 +177,7 @@ def augment_two_stream(x1, x2):
     zero_pad = tf.constant(np.zeros([window] + img_size + [1]), dtype=tf.float32)
     x2 = tf.concat([x2, zero_pad], axis=-1)  # add third channel of 0s to flow clip
 
-    x = tf.concat([x1, x2], axis=0)  # Add mini-clip frames behind regular frames - making 1 sequence of frames
+    x = tf.concat([x1, x2], axis=-4)  # Add mini-clip frames behind regular frames in time - making 1 sequence of frames
 
     # Call augmentation functions
     x = tf.map_fn(
@@ -185,12 +185,12 @@ def augment_two_stream(x1, x2):
         x)
     x = tf.map_fn(lambda x1: tf.image.random_contrast(x1, cfg['TRAIN']['PARAMS']['AUGMENTATION']['CONTRAST_BOUNDS'][0],
                                                       cfg['TRAIN']['PARAMS']['AUGMENTATION']['CONTRAST_BOUNDS'][1]), x)
-    #x = tf.map_fn(lambda x1: random_shift_clip(x1), x)
+    x = tf.map_fn(lambda x1: random_shift_clip(x1), x)
     x = tf.map_fn(lambda x1: random_flip_left_right_clip(x1), x)
-    #x = tf.map_fn(lambda x1: random_zoom_clip(x1), x)
+    x = tf.map_fn(lambda x1: random_zoom_clip(x1), x)
 
     # Separate regular and flow mini-clips
-    x1, x2 = tf.split(x, 2, axis=0)
+    x1, x2 = tf.split(x, 2, axis=-4)
     x2 = tf.split(x2, [2, 1], axis=-1)[0]
 
     #tf.ensure_shape(x1, [window] + img_size + [3])
