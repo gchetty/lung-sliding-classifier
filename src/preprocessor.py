@@ -136,6 +136,7 @@ def random_noise(x):
         noise = tf.random.normal(x.shape[:-1] + [1], mean, std)  # Create noise in 1 channel only
         noise = tf.image.grayscale_to_rgb(noise)  # Convert noise to 3 channel
         x = tf.math.add(x, noise)
+        x = tf.clip_by_value(x, 0, 255)
     return x
 
 
