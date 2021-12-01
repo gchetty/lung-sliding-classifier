@@ -573,27 +573,35 @@ def i3d(model_config, input_shapes, metrics, class_counts):
         output_bias = math.log(count1 / count0)
         output_bias = tf.keras.initializers.Constant(output_bias)
 
+    kernel_init = model_config['WEIGHT_INITIALIZER']
+
     def inception_block(x, filters, l2):
-        a = Conv3D(filters, kernel_size=(1, 1, 1), strides=1, kernel_regularizer=L2(l2), padding='same', use_bias=False)(x)
+        a = Conv3D(filters, kernel_size=(1, 1, 1), strides=1, kernel_initializer=kernel_init,
+                   kernel_regularizer=L2(l2), padding='same', use_bias=False)(x)
         a = BatchNormalization()(a)
         a = Activation('relu')(a)
 
-        b = Conv3D(filters, kernel_size=(1, 1, 1), strides=1, kernel_regularizer=L2(l2), padding='same', use_bias=False)(x)
+        b = Conv3D(filters, kernel_size=(1, 1, 1), strides=1, kernel_initializer=kernel_init,
+                   kernel_regularizer=L2(l2), padding='same', use_bias=False)(x)
         b = BatchNormalization()(b)
         b = Activation('relu')(b)
-        b = Conv3D(filters, kernel_size=(3, 3, 3), strides=1, kernel_regularizer=L2(l2), padding='same', use_bias=False)(b)
+        b = Conv3D(filters, kernel_size=(3, 3, 3), strides=1, kernel_initializer=kernel_init,
+                   kernel_regularizer=L2(l2), padding='same', use_bias=False)(b)
         b = BatchNormalization()(b)
         b = Activation('relu')(b)
 
-        c = Conv3D(filters, kernel_size=(1, 1, 1), strides=1, kernel_regularizer=L2(l2), padding='same', use_bias=False)(x)
+        c = Conv3D(filters, kernel_size=(1, 1, 1), strides=1, kernel_initializer=kernel_init,
+                   kernel_regularizer=L2(l2), padding='same', use_bias=False)(x)
         c = BatchNormalization()(c)
         c = Activation('relu')(c)
-        c = Conv3D(filters, kernel_size=(3, 3, 3), strides=1, kernel_regularizer=L2(l2), padding='same', use_bias=False)(c)
+        c = Conv3D(filters, kernel_size=(3, 3, 3), strides=1, kernel_initializer=kernel_init,
+                   kernel_regularizer=L2(l2), padding='same', use_bias=False)(c)
         c = BatchNormalization()(c)
         c = Activation('relu')(c)
 
         d = MaxPooling3D(pool_size=(3, 3, 3), strides=1, padding='same')(x)
-        d = Conv3D(filters, kernel_size=(1, 1, 1), strides=1, kernel_regularizer=L2(l2), padding='same', use_bias=False)(d)
+        d = Conv3D(filters, kernel_size=(1, 1, 1), strides=1, kernel_initializer=kernel_init,
+                   kernel_regularizer=L2(l2), padding='same', use_bias=False)(d)
         d = BatchNormalization()(d)
         d = Activation('relu')(d)
 
@@ -603,16 +611,19 @@ def i3d(model_config, input_shapes, metrics, class_counts):
 
         # number of filters from inception paper - very deep CNNs for large scale image rec
 
-        x = Conv3D(64, kernel_size=(7, 7, 7), strides=2, kernel_regularizer=L2(l2), use_bias=False)(x)
+        x = Conv3D(64, kernel_size=(7, 7, 7), strides=2, kernel_initializer=kernel_init,
+                   kernel_regularizer=L2(l2), use_bias=False)(x)
         x = BatchNormalization()(x)
         x = Activation('relu')(x)
 
         x = MaxPooling3D(pool_size=(1, 3, 3), strides=(1, 2, 2))(x)
 
-        x = Conv3D(128, kernel_size=(1, 1, 1), strides=1, kernel_regularizer=L2(l2), use_bias=False)(x)
+        x = Conv3D(128, kernel_size=(1, 1, 1), strides=1, kernel_initializer=kernel_init,
+                   kernel_regularizer=L2(l2), use_bias=False)(x)
         x = BatchNormalization()(x)
         x = Activation('relu')(x)
-        x = Conv3D(128, kernel_size=(3, 3, 3), strides=1, kernel_regularizer=L2(l2), use_bias=False)(x)
+        x = Conv3D(128, kernel_size=(3, 3, 3), strides=1, kernel_initializer=kernel_init,
+                   kernel_regularizer=L2(l2), use_bias=False)(x)
         x = BatchNormalization()(x)
         x = Activation('relu')(x)
 
@@ -631,7 +642,8 @@ def i3d(model_config, input_shapes, metrics, class_counts):
         for i in range(2):
             x = inception_block(x, 512, l2)
         '''
-        x = Conv3D(512, kernel_size=(1, 1, 1), strides=1, kernel_regularizer=L2(l2), use_bias=False)(x)
+        x = Conv3D(512, kernel_size=(1, 1, 1), strides=1, kernel_initializer=kernel_init,
+                   kernel_regularizer=L2(l2), use_bias=False)(x)
         x = BatchNormalization()(x)
         x = Activation('relu')(x)
 
@@ -654,7 +666,7 @@ def i3d(model_config, input_shapes, metrics, class_counts):
     x = Concatenate()([m1.output, m2.output])
     x = Dropout(dropout)(x)
     x = Dense(32, activation='relu')(x)
-    outputs = Dense(1, activation='sigmoid', bias_initializer=output_bias)(x)
+    outputs = Dense(1, activation='sigmoid', kernel_initializer=kernel_init, bias_initializer=output_bias)(x)
 
     model = tf.keras.Model(inputs=[m1.input, m2.input], outputs=outputs)
     model.summary()

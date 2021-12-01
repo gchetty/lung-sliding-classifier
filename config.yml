@@ -76,6 +76,7 @@ TRAIN:
       DROPOUT: 0.5
       LAST_FROZEN: 74  # Last layer (number) to freeze (NOT 0-indexed)
       L2_REG: 0.01  # Regularizer penalty
+      WEIGHT_INITIALIZER: 'he_normal'  # Weight initialization method for layers (if no transfer learning)
     INCREASE: False
 
   PATHS:
