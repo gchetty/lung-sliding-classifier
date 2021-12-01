@@ -120,6 +120,26 @@ def random_zoom_clip(x):
     return x
 
 
+def random_noise(x):
+    '''
+    Adds Gaussian noise to an inputted clip, with distribution parameters as specified in config file
+
+    :param x: Tensor of shape (Clip_length, Height, Width, 3)
+
+    :return: A Tensor of shape (Clip_length, Height, Width, 3)
+    '''
+
+    r = random_ops.random_uniform([], 0, 1)
+    if r < cfg['TRAIN']['PARAMS']['AUGMENTATION_CHANCE']:
+        mean = cfg['TRAIN']['PARAMS']['AUGMENTATION']['RANDOM_NOISE'][0]
+        std = cfg['TRAIN']['PARAMS']['AUGMENTATION']['RANDOM_NOISE'][1]
+        x = tf.image.rgb_to_grayscale(x)  # Convert to 1 channel
+        noise = tf.random.normal(x.shape, mean, std)  # Create 1 channel of noise (retain grayscale after noise)
+        x = tf.math.add(x, noise)
+        x = tf.image.grayscale_to_rgb(x)  # Convert back to 3 channel
+    return x
+
+
 def augment_clip(x):
     '''
     Applies a series of transformations to a video
@@ -185,9 +205,10 @@ def augment_two_stream(x1, x2):
         x)
     x = tf.map_fn(lambda x1: tf.image.random_contrast(x1, cfg['TRAIN']['PARAMS']['AUGMENTATION']['CONTRAST_BOUNDS'][0],
                                                       cfg['TRAIN']['PARAMS']['AUGMENTATION']['CONTRAST_BOUNDS'][1]), x)
-    x = tf.map_fn(lambda x1: random_shift_clip(x1), x)
+    #x = tf.map_fn(lambda x1: random_shift_clip(x1), x)
     x = tf.map_fn(lambda x1: random_flip_left_right_clip(x1), x)
-    x = tf.map_fn(lambda x1: random_zoom_clip(x1), x)
+    #x = tf.map_fn(lambda x1: random_zoom_clip(x1), x)
+    x = tf.map_fn(lambda x1: random_noise(x1), x)
 
     # Separate regular and flow mini-clips
     x1, x2 = tf.split(x, 2, axis=-4)
