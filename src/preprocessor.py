@@ -133,10 +133,9 @@ def random_noise(x):
     if r < cfg['TRAIN']['PARAMS']['AUGMENTATION_CHANCE']:
         mean = cfg['TRAIN']['PARAMS']['AUGMENTATION']['RANDOM_NOISE'][0]
         std = cfg['TRAIN']['PARAMS']['AUGMENTATION']['RANDOM_NOISE'][1]
-        x = tf.image.rgb_to_grayscale(x)  # Convert to 1 channel
-        noise = tf.random.normal(x.shape, mean, std)  # Create 1 channel of noise (retain grayscale after noise)
+        noise = tf.random.normal(x.shape[:-1] + [1], mean, std)  # Create noise in 1 channel only
+        noise = tf.image.grayscale_to_rgb(noise)  # Convert noise to 3 channel
         x = tf.math.add(x, noise)
-        x = tf.image.grayscale_to_rgb(x)  # Convert back to 3 channel
     return x
 
 
@@ -159,6 +158,7 @@ def augment_clip(x):
     #x = tf.map_fn(lambda x1: random_rotate_clip(x1), x)
     #x = tf.map_fn(lambda x1: random_shear_clip(x1), x)
     x = tf.map_fn(lambda x1: random_zoom_clip(x1), x)
+    x = tf.map_fn(lambda x1: random_noise(x1), x)
     return x
 
 
@@ -179,6 +179,7 @@ def augment_flow(x):
     x = tf.map_fn(lambda x1: random_shift_clip(x1), x)
     x = tf.map_fn(lambda x1: random_flip_left_right_clip(x1), x)
     x = tf.map_fn(lambda x1: random_zoom_clip(x1), x)
+    # AUGMENT RANDOM NOISE WONT WORK RN BECAUSE
     return x
 
 
