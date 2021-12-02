@@ -5,6 +5,8 @@ import os
 import yaml
 from utils import refresh_folder
 
+cfg = yaml.full_load(open(os.path.join(os.getcwd(),"../../config.yml"), 'r'))['PREPROCESS']
+
 
 def video_to_frames_downsampled(orig_id, patient_id, df_rows, cap, fr, seq_length=cfg['PARAMS']['WINDOW'],
                                 resize=cfg['PARAMS']['IMG_SIZE'], write_path=''):
@@ -216,8 +218,6 @@ def video_to_npz(path, orig_id, patient_id, df_rows, write_path='', method=cfg['
     else:
         raise Exception('Stride method not yet implemented!')
 
-
-cfg = yaml.full_load(open(os.path.join(os.getcwd(),"../../config.yml"), 'r'))['PREPROCESS']
 
 flow = cfg['PARAMS']['FLOW']
 
