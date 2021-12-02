@@ -150,13 +150,13 @@ def augment_clip(x):
     '''
 
     x = tf.map_fn(lambda x1: tf.image.random_brightness(x1, max_delta=cfg['TRAIN']['PARAMS']['AUGMENTATION']['BRIGHTNESS_DELTA']), x)
-    x = tf.map_fn(lambda x1: tf.image.random_hue(x1, max_delta=cfg['TRAIN']['PARAMS']['AUGMENTATION']['HUE_DELTA']), x)
+    #x = tf.map_fn(lambda x1: tf.image.random_hue(x1, max_delta=cfg['TRAIN']['PARAMS']['AUGMENTATION']['HUE_DELTA']), x)
     x = tf.map_fn(lambda x1: tf.image.random_contrast(x1, cfg['TRAIN']['PARAMS']['AUGMENTATION']['CONTRAST_BOUNDS'][0],
                                                       cfg['TRAIN']['PARAMS']['AUGMENTATION']['CONTRAST_BOUNDS'][1]), x)
     x = tf.map_fn(lambda x1: random_shift_clip(x1), x)
     x = tf.map_fn(lambda x1: random_flip_left_right_clip(x1), x)
     #x = tf.map_fn(lambda x1: random_flip_up_down_clip(x1), x)  # DO NOT USE - Unrealistic for LUS clips
-    #x = tf.map_fn(lambda x1: random_rotate_clip(x1), x)
+    x = tf.map_fn(lambda x1: random_rotate_clip(x1), x)
     #x = tf.map_fn(lambda x1: random_shear_clip(x1), x)
     x = tf.map_fn(lambda x1: random_zoom_clip(x1), x)
     x = tf.map_fn(lambda x1: random_noise(x1), x)
@@ -254,6 +254,7 @@ def parse_tf(filename, label):
     num_frames = cfg['PREPROCESS']['PARAMS']['WINDOW']
     shape = (num_frames, img_size_tuple[0], img_size_tuple[1], 3)
     clip, label = tf.numpy_function(parse_fn, [filename, label], (tf.float32, tf.float32))
+    clip.set_shape(shape)
     tf.ensure_shape(clip, shape)
     label.set_shape((1,))
     tf.ensure_shape(label, (1,))
@@ -274,6 +275,7 @@ def parse_flow(filename, label):
     num_frames = cfg['PREPROCESS']['PARAMS']['WINDOW']
     shape = (num_frames, img_size_tuple[0], img_size_tuple[1], 2)
     clip, label = tf.numpy_function(parse_fn, [filename, label], (tf.float32, tf.float32))
+    clip.set_shape(shape)
     tf.ensure_shape(clip, shape)
     label.set_shape((1,))
     tf.ensure_shape(label, (1,))

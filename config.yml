@@ -52,9 +52,9 @@ TRAIN:
       BRIGHTNESS_DELTA: 0.1
       HUE_DELTA: 0.2
       CONTRAST_BOUNDS: [ 0.7, 1.0 ]
-      SHIFT_LEFTRIGHT_BOUNDS: [ -0.1, 0.1 ]  # Proportion of width to shift by - originally -0.25 to 0.25
-      SHIFT_UPDOWN_BOUNDS: [ -0.2, 0.2 ]  # Proportion of height to shift by - No upwards shift since many areas of interest are near the top - originally 0.0 to 0.2
-      ROTATE_RANGE: [ -1.57, 1.57 ]  # Range of possible rotation angles
+      SHIFT_LEFTRIGHT_BOUNDS: [ -0.25, 0.25 ]  # Proportion of width to shift by - originally -0.25 to 0.25
+      SHIFT_UPDOWN_BOUNDS: [ -0.0, 0.2 ]  # Proportion of height to shift by - No upwards shift since many areas of interest are near the top - originally 0.0 to 0.2
+      ROTATE_RANGE: [ -0.1, 0.1 ]  # Range of possible rotation angles
       SHEAR_RANGE: [ 0.0, 0.1 ]
       ZOOM_RANGE: [ 1.0, 1.5 ]  # DO NOT use lower bound < 1 --> otherwise might cut out parts of pleural line
       RANDOM_NOISE: [ 0.0, 5.0 ]  # Mean, std of sampling distribution, for pixel values in range [0, 255]
