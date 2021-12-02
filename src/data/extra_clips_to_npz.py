@@ -198,8 +198,6 @@ def video_to_npz(path, orig_id, patient_id, df_rows, write_path='', method=cfg['
     :param method: Method of frame extraction for mini-clips, either 'Contiguous' or ' Stride'
     '''
 
-    flow = cfg['PARAMS']['FLOW']
-
     cap = cv2.VideoCapture(path)
 
     if not fr:
@@ -258,7 +256,9 @@ if not (flow == 'Yes'):
 
     for file in os.listdir(input_folder):
         f = os.path.join(input_folder, file)
-        video_to_npz(f, orig_id=file[:-4], patient_id='N/A', df_rows=df_rows, write_path=(npz_folder + file[:-4]))
+        fr = ((fr_df[fr_df['id'] == file[:-4]])['frame_rate']).values[0]
+        video_to_npz(f, orig_id=file[:-4], patient_id='N/A', df_rows=df_rows, write_path=(npz_folder + file[:-4]),
+                     fr=fr)
 
 # Download dataframes linking mini-clip ids and patient ids as csv files
 if df_rows:
