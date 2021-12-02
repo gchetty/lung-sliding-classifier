@@ -35,6 +35,7 @@ if not (flow == 'No'):
     for id in os.listdir(flow_input_folder):
         path = os.path.join(flow_input_folder, id)
         fr = ((fr_df[fr_df['id'] == id])['frame_rate']).values[0]
+        fr = round(fr / 30.0) * 30.0  # Cast to nearest multiple of 30
         if fr == 30:
             flow_frames_to_npz_contig(path, orig_id=id, patient_id='N/A', df_rows=df_rows_flow,
                                       write_path=(flow_npz_folder + id))

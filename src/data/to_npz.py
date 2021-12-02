@@ -239,7 +239,7 @@ def flow_frames_to_npz_contig(path, orig_id, patient_id, df_rows, seq_length=cfg
   return
 
 
-def video_to_npz(path, orig_id, patient_id, df_rows, write_path='', method=cfg['PARAMS']['METHOD']):
+def video_to_npz(path, orig_id, patient_id, df_rows, write_path='', method=cfg['PARAMS']['METHOD'], fr=None):
 
   '''
   Converts a LUS video file to mini-clips
@@ -255,11 +255,14 @@ def video_to_npz(path, orig_id, patient_id, df_rows, write_path='', method=cfg['
   flow = cfg['PARAMS']['FLOW']
   
   cap = cv2.VideoCapture(path)
-  fr = round(cap.get(cv2.CAP_PROP_FPS))
 
-  # Disregard clips with undesired frame rate
-  if not (fr % 30 == 0):
-    return
+  if not fr:
+    fr = round(cap.get(cv2.CAP_PROP_FPS)) \
+    # Disregard clips with undesired frame rate, only if frame rate not passed in (passed in = override checking)
+    if not (fr % 30 == 0):
+      return
+  else:  # cast frame rate to closest multiple of 30
+    fr = round(fr / 30.0) * 30.0
 
   if method == 'Contiguous':
     if fr == 30:
