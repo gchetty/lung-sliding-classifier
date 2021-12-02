@@ -23,6 +23,10 @@ PREPROCESS:
     NPZ: 'npzs/'
     FLOW_NPZ: 'flow_npzs/'
     MASKING_TOOL: 'auto_masking_deeper.h5'
+    EXTRA_CROPPED_VIDEOS: 'extra_cropped_videos/'  # assumed to be negative class only
+    EXTRA_FLOW_VIDEOS: 'extra_flow_videos/'  # assumed to be negative class only
+    EXTRA_NPZ: 'extra_npzs/'  # assumed to be negative class only
+    EXTRA_FLOW_NPZ: 'extra_flow_npzs/'  # assumed to be negative class only
 
 TRAIN:
   MIXED_PRECISION: False

@@ -138,12 +138,13 @@ if flow_sliding_path:
     flow_no_sliding_df = flow_no_sliding_df.sort_values(by=['patient_id'])
 
 # Determine splits, add to previously declared dataframes
+# Only keep 'sliding_df' and 'no_sliding_df' variables past this (flow df var names not needed)
 if flow == 'No':
     sliding_df = df_splits(sliding_df, train_prop, val_prop, test_prop)
     no_sliding_df = df_splits(no_sliding_df, train_prop, val_prop, test_prop)
 elif flow == 'Yes':
-    flow_sliding_df = df_splits(flow_sliding_df, train_prop, val_prop, test_prop)
-    flow_no_sliding_df = df_splits(flow_no_sliding_df, train_prop, val_prop, test_prop)
+    sliding_df = df_splits(flow_sliding_df, train_prop, val_prop, test_prop)
+    no_sliding_df = df_splits(flow_no_sliding_df, train_prop, val_prop, test_prop)
 else:
     sliding_df = df_splits_two_stream(sliding_df, flow_sliding_df, train_prop, val_prop, test_prop)
     no_sliding_df = df_splits_two_stream(no_sliding_df, flow_no_sliding_df, train_prop, val_prop, test_prop)
