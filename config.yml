@@ -5,7 +5,7 @@
 PREPROCESS:
   PARAMS:
     AMOUNT_ONLY: False  # If set to True, the tool exits after querying the database and returning counts
-    FLOW: 'Both'  # Yes for flow only, No for no flow, and Mixed for videos and flow
+    FLOW: 'No'  # Yes for flow only, No for no flow, and Mixed for videos and flow
     SHUFFLE: True # If you want to randomize the videos downloaded
     RANDOM_SEED: 1 # If SHUFFLE=False, this does nothing. Otherwise, this is the seed for shuffling
     SLIDING_PROPORTION: 1
@@ -34,13 +34,13 @@ TRAIN:
   MIXED_PRECISION: False
   OUTPUT_BIAS: False
   PATIENCE: 100
-  MODEL_DEF: 'i3d'  # xception_raw, lrcn, threeDCNN, vgg16_raw, inflated_resnet50, i3d
+  MODEL_DEF: 'inflated_resnet50'  # xception_raw, lrcn, threeDCNN, vgg16_raw, inflated_resnet50, i3d
   SAVE_BEST_ONLY: True
 
   SPLITS:
     RANDOM_SEED: -1  # -1 for unseeded
-    TRAIN: 0.7
-    VAL: 0.3
+    TRAIN: 0.85
+    VAL: 0.15
     TEST: 0
 
   PARAMS:
