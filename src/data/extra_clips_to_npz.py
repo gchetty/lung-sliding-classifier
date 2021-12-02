@@ -263,9 +263,9 @@ if not (flow == 'Yes'):
 # Download dataframes linking mini-clip ids and patient ids as csv files
 if df_rows:
     csv_out_path = os.path.join(csv_out_folder, 'extra_mini_clips.csv')
-    out_df = pd.Dataframe(df_rows, columns=['id', 'patient_id'])
+    out_df = pd.DataFrame(df_rows, columns=['id', 'patient_id'])
     out_df.to_csv(csv_out_path, index=False)
 if df_rows_flow:
     csv_out_path_flow = os.path.join(csv_out_folder, 'extra_flow_mini_clips.csv')
-    out_df_flow = pd.Dataframe(df_rows_flow, columns=['id', 'patient_id'])
+    out_df_flow = pd.DataFrame(df_rows_flow, columns=['id', 'patient_id'])
     out_df_flow.to_csv(csv_out_path_flow, index=False)
