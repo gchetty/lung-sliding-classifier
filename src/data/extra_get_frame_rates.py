@@ -2,15 +2,13 @@
 # Also deletes clips with frame rates that are not a multiple of 30
 
 import cv2
-import numpy as np
 import pandas as pd
 import os
 import yaml
-from utils import refresh_folder
 
 cfg = yaml.full_load(open(os.path.join(os.getcwd(),"../../config.yml"), 'r'))['PREPROCESS']
 
-input_folder = cfg['PATHS']['EXTRA_CROPPED_VIDEOS']
+input_folder = cfg['PATHS']['EXTRA_UNMASKED_VIDEOS']
 
 ids = []
 frs = []
