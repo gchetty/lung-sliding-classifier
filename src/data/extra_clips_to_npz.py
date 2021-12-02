@@ -200,7 +200,7 @@ def video_to_npz(path, orig_id, patient_id, df_rows, write_path='', method=cfg['
 
     cap = cv2.VideoCapture(path)
 
-    if not fr:
+    if fr is None:
         fr = round(cap.get(cv2.CAP_PROP_FPS)) \
             # Disregard clips with undesired frame rate, only if frame rate not passed in (passed in = override checking)
         if not (fr % 30 == 0):
