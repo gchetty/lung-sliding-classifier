@@ -13,7 +13,7 @@ PREPROCESS:
     METHOD: 'Contiguous'  # 'Stride' or 'Contiguous'
     WINDOW: 90 # Mini-clip length
     STRIDE: 1  # 1 = contiguous (METHOD='Contiguous' param overrides this)
-    IMG_SIZE: [90, 90]
+    IMG_SIZE: [224, 224]
 
   PATHS:
     UNMASKED_VIDEOS: 'raw_videos/'
@@ -23,6 +23,8 @@ PREPROCESS:
     NPZ: 'npzs/'
     FLOW_NPZ: 'flow_npzs/'
     MASKING_TOOL: 'auto_masking_deeper.h5'
+    EXTRA_UNMASKED_VIDEOS: 'extra_unmasked_videos/'  # assumed to be negative class only
+    EXTRA_MASKED_VIDEOS: 'extra_masked_videos/'
     EXTRA_CROPPED_VIDEOS: 'extra_cropped_videos/'  # assumed to be negative class only
     EXTRA_FLOW_VIDEOS: 'extra_flow_videos/'  # assumed to be negative class only
     EXTRA_NPZ: 'extra_npzs/'  # assumed to be negative class only

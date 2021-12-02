@@ -102,15 +102,11 @@ if not (flow == 'No'):
 if not (flow == 'Yes'):
     regular_path = os.path.join(csv_path, 'extra_mini_clips.csv')
 
-# Read mini-clip path and add patient id column (to fit with current format for processed clips)
+# Read mini-clip path
 if regular_path:
     regular_df = pd.read_csv(regular_path)
-    patient_ids = ['N/A'] * len(regular_df)
-    regular_df['patient_id'] = patient_ids
 if flow_path:
     flow_df = pd.read_csv(flow_path)
-    patient_ids = ['N/A'] * len(flow_df)
-    flow_df['patient_id'] = patient_ids
 
 # Determine splits, add to previously declared dataframes
 if flow == 'No':
