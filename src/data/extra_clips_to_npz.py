@@ -222,7 +222,7 @@ def video_to_npz(path, orig_id, patient_id, df_rows, write_path='', method=cfg['
 flow = cfg['PARAMS']['FLOW']
 
 if not (flow == 'Yes'):
-    input_folder = cfg['PATHS']['EXTRA_CROPPED_VIDEOS']
+    input_folder = cfg['PATHS']['EXTRA_MASKED_VIDEOS']
     npz_folder = cfg['PATHS']['EXTRA_NPZ']
     refresh_folder(npz_folder)
 
