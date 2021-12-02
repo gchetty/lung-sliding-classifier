@@ -176,6 +176,9 @@ existing_test_df = pd.read_csv(test_df_path)
 
 random_state = cfg['TRAIN']['SPLITS']['RANDOM_SEED']
 
+if random_state == -1:
+    random_state = random.randint(0, 1000)
+
 train_df = pd.concat([existing_train_df, train_df]).sample(frac=1, random_state=random_state)
 val_df = pd.concat([existing_val_df, val_df]).sample(frac=1, random_state=random_state)
 test_df = pd.concat([existing_test_df, test_df]).sample(frac=1, random_state=random_state)
