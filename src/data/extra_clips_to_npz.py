@@ -24,7 +24,6 @@ def video_to_frames_downsampled(orig_id, patient_id, df_rows, cap, fr, seq_lengt
     '''
 
     # Check validity of frame rate param
-    print(fr)
     assert (isinstance(fr, int))
     assert (fr % 30 == 0)
 
