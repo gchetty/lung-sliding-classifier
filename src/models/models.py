@@ -405,6 +405,8 @@ def inflated_resnet50(model_config, input_shape, metrics, class_counts):
         output_bias = math.log(count1 / count0)
         output_bias = tf.keras.initializers.Constant(output_bias)
 
+    kernel_init = model_config['WEIGHT_INITIALIZER']
+
     # Download 2D ResNet50
     if flow:
         base = ResNet50V2(include_top=False, input_tensor=None, input_shape=(input_shape[1:3]+[3]), pooling='avg')
@@ -412,7 +414,7 @@ def inflated_resnet50(model_config, input_shape, metrics, class_counts):
         base = ResNet50V2(include_top=False, weights='imagenet', input_tensor=None, input_shape=input_shape[1:],
                           pooling='avg')
 
-    def block(x, last, filters, ind, pos, l2):
+    def block(x, last, filters, ind, pos, l2, kernel_init):
 
         '''
         Adds layers corresponding to a ResNet50 block (inflated to 3D)
@@ -423,6 +425,7 @@ def inflated_resnet50(model_config, input_shape, metrics, class_counts):
         :param ind: Integer, tracking index of base ResNet50 layers (for naming purposes)
         :param pos: String, position of block in stage - either 'first', 'last', or a different arbitrary value
         :param l2: L2 regularization penalty, applied to all convolutional layers
+        :param kernel_init: Kernel initialization method
 
         :return: Tensor - block output
         '''
@@ -433,41 +436,41 @@ def inflated_resnet50(model_config, input_shape, metrics, class_counts):
         if pos == 'first':
             last = x
 
-        x = Conv3D(filters=filters, kernel_size=1, strides=1, use_bias=False, kernel_regularizer=L2(l2),
-                   name=base.layers[ind + 2].name)(x)
+        x = Conv3D(filters=filters, kernel_size=1, strides=1, kernel_initializer=kernel_init,
+                   use_bias=False, kernel_regularizer=L2(l2), name=base.layers[ind + 2].name)(x)
         x = BatchNormalization(name=base.layers[ind + 3].name)(x)
         x = Activation(activation='relu', name=base.layers[ind + 4].name)(x)
         x = ZeroPadding3D(padding=1, name=base.layers[ind + 5].name)(x)
 
         if pos == 'last':
-            x = Conv3D(filters=filters, kernel_size=3, strides=2, use_bias=False, kernel_regularizer=L2(l2),
-                       name=base.layers[ind + 6].name)(x)
+            x = Conv3D(filters=filters, kernel_size=3, strides=2, kernel_initializer=kernel_init,
+                       use_bias=False, kernel_regularizer=L2(l2), name=base.layers[ind + 6].name)(x)
         else:
-            x = Conv3D(filters=filters, kernel_size=3, strides=1, use_bias=False, kernel_regularizer=L2(l2),
-                       name=base.layers[ind + 6].name)(x)
+            x = Conv3D(filters=filters, kernel_size=3, strides=1, kernel_initializer=kernel_init,
+                       use_bias=False, kernel_regularizer=L2(l2), name=base.layers[ind + 6].name)(x)
         x = BatchNormalization(name=base.layers[ind + 7].name)(x)
         x = Activation(activation='relu', name=base.layers[ind + 8].name)(x)
 
         # ADD STUFF
         if pos == 'first':
-            res = Conv3D(filters=filters * 4, kernel_size=1, strides=1, kernel_regularizer=L2(l2),
-                         name=base.layers[ind + 9].name)(last)
-            x = Conv3D(filters=filters * 4, kernel_size=1, strides=1, kernel_regularizer=L2(l2),
-                       name=base.layers[ind + 10].name)(x)
+            res = Conv3D(filters=filters * 4, kernel_size=1, strides=1, kernel_initializer=kernel_init,
+                         kernel_regularizer=L2(l2), name=base.layers[ind + 9].name)(last)
+            x = Conv3D(filters=filters * 4, kernel_size=1, strides=1, kernel_initializer=kernel_init,
+                       kernel_regularizer=L2(l2), name=base.layers[ind + 10].name)(x)
             x = Add(name=base.layers[ind + 11].name)([x, res])
         elif pos == 'last':
             res = MaxPooling3D(pool_size=1, strides=2, name=base.layers[ind + 9].name)(last)
-            x = Conv3D(filters=filters * 4, kernel_size=1, strides=1, kernel_regularizer=L2(l2),
-                       name=base.layers[ind + 10].name)(x)
+            x = Conv3D(filters=filters * 4, kernel_size=1, strides=1, kernel_initializer=kernel_init,
+                       kernel_regularizer=L2(l2), name=base.layers[ind + 10].name)(x)
             x = Add(name=base.layers[ind + 11].name)([x, res])
         else:
-            x = Conv3D(filters=filters * 4, kernel_size=1, strides=1, kernel_regularizer=L2(l2),
-                       name=base.layers[ind + 9].name)(x)
+            x = Conv3D(filters=filters * 4, kernel_size=1, strides=1, kernel_initializer=kernel_init,
+                       kernel_regularizer=L2(l2), name=base.layers[ind + 9].name)(x)
             x = Add(name=base.layers[ind + 10].name)([x, last])
 
         return x
 
-    def stage(x, last, num_blocks, filters, ind, final, l2):
+    def stage(x, last, num_blocks, filters, ind, final, l2, kernel_init):
 
         '''
         Adds layers corresponding to a ResNet50 stage (inflated to 3D)
@@ -479,6 +482,7 @@ def inflated_resnet50(model_config, input_shape, metrics, class_counts):
         :param ind: Integer, tracking index of base ResNet50 layers (for naming purposes)
         :param final: Boolean, flagging whether final stage or not (final stage has no dimensional reduction)
         :param l2: L2 regularization penalty
+        :param kernel_init: Kernel initialization method
 
         :return: Tuple of (stage output tensor, index for next layer to be added)
         '''
@@ -490,7 +494,7 @@ def inflated_resnet50(model_config, input_shape, metrics, class_counts):
             elif i == (num_blocks - 1):
                 if not final:
                     pos = 'last'
-            x = block(x, last, filters, ind, pos, l2)
+            x = block(x, last, filters, ind, pos, l2, kernel_init)
             last = x
             if (pos == 'first') or (pos == 'last'):
                 ind += 12
@@ -504,23 +508,25 @@ def inflated_resnet50(model_config, input_shape, metrics, class_counts):
     inputs = tf.keras.Input(shape=input_shape)
 
     x = ZeroPadding3D(padding=3, name=base.layers[1].name)(inputs)
-    x = Conv3D(filters=64, kernel_size=7, strides=2, kernel_regularizer=L2(l2_reg), name=base.layers[2].name)(x)
+    x = Conv3D(filters=64, kernel_size=7, strides=2, kernel_initializer=kernel_init, kernel_regularizer=L2(l2_reg),
+               name=base.layers[2].name)(x)
     x = ZeroPadding3D(padding=1, name=base.layers[3].name)(x)
     x = MaxPooling3D(pool_size=3, strides=2, name=base.layers[4].name)(x)
 
     index = 5
 
-    x, index = stage(x, x, 3, 64, index, False, l2_reg)  # stage 1
-    x, index = stage(x, x, 4, 128, index, False, l2_reg)  # stage 2
-    #x, index = stage(x, x, 6, 256, index, False, l2_reg)  # stage 3
-    #x, index = stage(x, x, 3, 512, index, True, l2_reg)  # stage 4
+    x, index = stage(x, x, 3, 64, index, False, l2_reg, kernel_init)  # stage 1
+    x, index = stage(x, x, 4, 128, index, False, l2_reg, kernel_init)  # stage 2
+    #x, index = stage(x, x, 6, 256, index, False, l2_reg, kernel_init)  # stage 3
+    #x, index = stage(x, x, 3, 512, index, True, l2_reg, kernel_init)  # stage 4
 
     # Output head
     x = BatchNormalization(name=base.layers[-3].name)(x)
     x = Activation(activation='relu', name=base.layers[-2].name)(x)
     x = GlobalAveragePooling3D(name=base.layers[-1].name)(x)
     x = Dropout(dropout)(x)
-    outputs = Dense(1, activation='sigmoid', bias_initializer=output_bias, dtype='float32')(x)
+    outputs = Dense(1, activation='sigmoid', kernel_initializer=kernel_init, bias_initializer=output_bias,
+                    dtype='float32')(x)
 
     model = tf.keras.Model(inputs=inputs, outputs=outputs)
     model.summary()

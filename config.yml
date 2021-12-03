@@ -77,6 +77,7 @@ TRAIN:
       L2_REG: 0.01  # Regularizer penalty
       TRANSFER: False  # Whether to use transfer learning (inflated weights from imagenet training) or not
       LAST_FROZEN: 40  # Last layer (number) to freeze (NOT 0-indexed) if using transfer learning - 40 for end of stage 1, 63 for middle of stage 2, 86 for end of stage 2
+      WEIGHT_INITIALIZER: 'he_normal'  # Weight initialization method for layers (if no transfer learning)
     I3D:
       LR: 0.000005  # Initial learning rate
       LR_DECAY_VAL: 0.1  # Set equal to initial learning rate for no LR decay
