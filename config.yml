@@ -33,7 +33,7 @@ PREPROCESS:
 TRAIN:
   MIXED_PRECISION: False
   OUTPUT_BIAS: False
-  PATIENCE: 100
+  PATIENCE: 25
   MODEL_DEF: 'inflated_resnet50'  # xception_raw, lrcn, threeDCNN, vgg16_raw, inflated_resnet50, i3d
   SAVE_BEST_ONLY: True
 
@@ -44,7 +44,7 @@ TRAIN:
     TEST: 0
 
   PARAMS:
-    EPOCHS: 150
+    EPOCHS: 50
     BATCH_SIZE: 1  # MAKE SURE THIS IS SET TO 1 FOR GRADCAM
     SHUFFLE: True
     AUGMENTATION_CHANCE: 0.8
@@ -71,11 +71,12 @@ TRAIN:
       LR: 0.0001
       DROPOUT: 0.5
     INFLATED_RESNET50:
-      LR: 0.000005  # Initial learning rate
+      LR: 0.0001  # Initial learning rate
       LR_DECAY_VAL: 0.1  # Set equal to initial learning rate for no LR decay
       DROPOUT: 0.5
-      LAST_FROZEN: 74  # Last layer (number) to freeze (NOT 0-indexed)
       L2_REG: 0.01  # Regularizer penalty
+      TRANSFER: False  # Whether to use transfer learning (inflated weights from imagenet training) or not
+      LAST_FROZEN: 40  # Last layer (number) to freeze (NOT 0-indexed) if using transfer learning - 40 for end of stage 1, 63 for middle of stage 2, 86 for end of stage 2
     I3D:
       LR: 0.000005  # Initial learning rate
       LR_DECAY_VAL: 0.1  # Set equal to initial learning rate for no LR decay

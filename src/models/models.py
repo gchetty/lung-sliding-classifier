@@ -526,7 +526,8 @@ def inflated_resnet50(model_config, input_shape, metrics, class_counts):
     model.summary()
 
     # Bootstrap weights & biases and freeze layers, only for convolutional and batch norm layers
-    if not flow:
+    transfer = model_config['TRANSFER']
+    if (not flow) and transfer:
 
         for i in range(len(model.layers)):
 
