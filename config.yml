@@ -34,7 +34,7 @@ TRAIN:
   MIXED_PRECISION: False
   OUTPUT_BIAS: False
   PATIENCE: 25
-  MODEL_DEF: 'inflated_resnet50'  # xception_raw, lrcn, threeDCNN, vgg16, inflated_resnet50, i3d
+  MODEL_DEF: 'vgg16'  # xception_raw, lrcn, threeDCNN, vgg16, inflated_resnet50, i3d
   SAVE_BEST_ONLY: True
 
   SPLITS:
@@ -95,7 +95,7 @@ TRAIN:
 
   PATHS:
     CSVS: 'csvs_split/'
-    MODEL_OUT: 'results/models/inflated_resnet50/'
+    MODEL_OUT: 'results/models/vgg16/'
     TENSORBOARD: 'results/logs/fit/'
 
 EXPLAINABILITY:

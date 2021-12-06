@@ -23,7 +23,7 @@ cfg = yaml.full_load(open(os.path.join(os.getcwd(), '../config.yml'), 'r'))
 
 
 def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'], 
-                hparams=cfg['TRAIN']['PARAMS']['INFLATED_RESNET50'],  # SHOULD REALLY MAKE THIS MORE DYNAMIC
+                hparams=cfg['TRAIN']['PARAMS']['VGG16'],  # SHOULD REALLY MAKE THIS MORE DYNAMIC
                 model_out_dir=cfg['TRAIN']['PATHS']['MODEL_OUT']):
 
     '''
