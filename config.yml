@@ -34,7 +34,7 @@ TRAIN:
   MIXED_PRECISION: False
   OUTPUT_BIAS: False
   PATIENCE: 25
-  MODEL_DEF: 'inflated_resnet50'  # xception_raw, lrcn, threeDCNN, vgg16_raw, inflated_resnet50, i3d
+  MODEL_DEF: 'inflated_resnet50'  # xception_raw, lrcn, threeDCNN, vgg16, inflated_resnet50, i3d
   SAVE_BEST_ONLY: True
 
   SPLITS:
@@ -44,7 +44,7 @@ TRAIN:
     TEST: 0
 
   PARAMS:
-    EPOCHS: 50
+    EPOCHS: 75
     BATCH_SIZE: 1  # MAKE SURE THIS IS SET TO 1 FOR GRADCAM
     SHUFFLE: True
     AUGMENTATION_CHANCE: 0.8
@@ -64,18 +64,24 @@ TRAIN:
     XCEPTION_RAW:
       LR: 0.0001
       DROPOUT: 0.5
-    VGG16_RAW:
+    VGG16:
       LR: 0.0001
+      LR_DECAY_VAL: 0.1
       DROPOUT: 0.5
+      BLOCKS: 3
+      L2_REG: 0.01  # Not currently used
+      TRANSFER: False  # Whether to use transfer learning (inflated weights from imagenet training) or not
+      LAST_FROZEN: 4  # Only if transfer learning is used - for blocks 1 through 5, use 4, 7, 11, 15, 19
+      WEIGHT_INITIALIZER: 'he_normal'  # Only currently used for output head
     RES3D:
       LR: 0.0001
       DROPOUT: 0.5
     INFLATED_RESNET50:
-      LR: 0.0001  # Initial learning rate
+      LR: 0.0005  # Initial learning rate
       LR_DECAY_VAL: 0.1  # Set equal to initial learning rate for no LR decay
       DROPOUT: 0.5
       L2_REG: 0.01  # Regularizer penalty
-      TRANSFER: False  # Whether to use transfer learning (inflated weights from imagenet training) or not
+      TRANSFER: True  # Whether to use transfer learning (inflated weights from imagenet training) or not
       LAST_FROZEN: 40  # Last layer (number) to freeze (NOT 0-indexed) if using transfer learning - 40 for end of stage 1, 63 for middle of stage 2, 86 for end of stage 2
       WEIGHT_INITIALIZER: 'he_normal'  # Weight initialization method for layers (if no transfer learning)
     I3D:

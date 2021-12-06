@@ -45,8 +45,8 @@ def get_model(model_name):
     elif model_name == 'xception_raw':
         model_def_fn = xception_raw
         preprocessing_fn = xception_preprocess
-    elif model_name == 'vgg16_raw':
-        model_def_fn = vgg16_raw
+    elif model_name == 'vgg16':
+        model_def_fn = vgg16
         preprocessing_fn = vgg16_preprocess
     elif model_name == 'res3d':
         model_def_fn = res3d
@@ -160,7 +160,7 @@ def xception_raw(model_config, input_shape, metrics, class_counts):
     return model
 
 
-def vgg16_raw(model_config, input_shape, metrics, class_counts):
+def vgg16(model_config, input_shape, metrics, class_counts):
 
     '''
     Time-distributed raw (not pre-trained) VGG16 feature extractor with LSTM and output head on top
@@ -173,23 +173,51 @@ def vgg16_raw(model_config, input_shape, metrics, class_counts):
     :return: Compiled tensorflow model
     '''
 
+    flow = True if cfg['PREPROCESS']['PARAMS']['FLOW'] == 'Yes' else False
+
     lr = model_config['LR']
-    dropout = model_config['DROPOUT']
     optimizer = Adam(learning_rate=lr)
 
-    base = VGG16(include_top=False, weights=None, input_shape=input_shape[1:], pooling='avg')
+    dropout = model_config['DROPOUT']
+    l2_reg = model_config['L2_REG']  # NOT USED RN
+
+    output_bias = None
+    if cfg['TRAIN']['OUTPUT_BIAS']:
+        count0 = class_counts[0]
+        count1 = class_counts[1]
+        output_bias = math.log(count1 / count0)
+        output_bias = tf.keras.initializers.Constant(output_bias)
+
+    kernel_init = model_config['WEIGHT_INITIALIZER']  # NOT USED IN CONV LAYERS RN
+
+    # Download VGG16
+    transfer = model_config['TRANSFER']
+    if flow or (not transfer):
+        base = VGG16(include_top=False, input_tensor=None, input_shape=(input_shape[1:3] + [3]), pooling='avg')
+    else:
+        base = VGG16(include_top=False, weights='imagenet', input_tensor=None, input_shape=input_shape[1:],
+                     pooling='avg')
 
     model = tf.keras.models.Sequential()
 
     model.add(InputLayer(input_shape=input_shape))
 
-    for layer in base.layers[1:]:
-        model.add(TimeDistributed(layer))
+    stop_block = model_config['BLOCKS'] + 1
+    for layer in base.layers[1:-1]:
+        if int(layer.name[5:6]) < stop_block:  # only add blocks up to specified 'last block'
+            model.add(TimeDistributed(layer, name=layer.name))
 
+    model.add(TimeDistributed(base.layers[-1], name=base.layers[-1].name))  # GAP
     model.add(LSTM(256, return_sequences=False, dropout=dropout))
-    model.add(Dense(1, activation='sigmoid'))
+    model.add(Dense(1, activation='sigmoid', kernel_initializer=kernel_init, bias_initializer=output_bias,
+                    dtype='float32'))
 
     model.summary()
+
+    # Freeze layers
+    for i in range(len(model.layers)):
+        if i < model_config['LAST_FROZEN']:
+            model.layers[i].trainable = False
 
     model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=metrics)
 
