@@ -34,10 +34,22 @@ def video_to_frames_downsampled(orig_id, patient_id, df_rows, cap, fr, seq_lengt
 
     cap_width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
     cap_height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
-    new_width = tuple(resize)[0]
-    height_resize = int((cap_height / cap_width) * new_width)
-    pad_top = int((tuple(resize)[1] - height_resize) / 2)
-    pad_bottom = tuple(resize)[1] - height_resize - pad_top
+
+    new_width = None
+    new_height = None
+
+    if cap_width > cap_height:
+        new_width = tuple(resize)[0]
+        height_resize = int((cap_height / cap_width) * new_width)
+        pad_top = int((tuple(resize)[1] - height_resize) / 2)
+        pad_bottom = tuple(resize)[1] - height_resize - pad_top
+        pad_left, pad_right = 0, 0
+    else:
+        new_height = tuple(resize)[1]
+        width_resize = int((cap_width / cap_height) * new_height)
+        pad_left = int((tuple(resize)[0] - width_resize) / 2)
+        pad_right = tuple(resize)[0] - width_resize - pad_left
+        pad_top, pad_bottom = 0, 0
 
     try:
         while True:
@@ -45,8 +57,11 @@ def video_to_frames_downsampled(orig_id, patient_id, df_rows, cap, fr, seq_lengt
             if not ret:
                 break
             if index == 0:  # Add every nth frame only
-                frame = cv2.resize(frame, (new_width, height_resize))
-                frame = cv2.copyMakeBorder(frame, pad_top, pad_bottom, 0, 0, cv2.BORDER_CONSTANT, value=[0, 0, 0])
+                if new_width:
+                    frame = cv2.resize(frame, (new_width, height_resize))
+                else:
+                    frame = cv2.resize(frame, (width_resize, new_height))
+                frame = cv2.copyMakeBorder(frame, pad_top, pad_bottom, pad_left, pad_right, cv2.BORDER_CONSTANT, value=[0, 0, 0])
                 frames.append(frame)
             index = (index + 1) % stride
 
@@ -84,10 +99,22 @@ def video_to_frames_contig(orig_id, patient_id, df_rows, cap, seq_length=cfg['PA
 
     cap_width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
     cap_height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
-    new_width = tuple(resize)[0]
-    height_resize = int((cap_height / cap_width) * new_width)
-    pad_top = int((tuple(resize)[1] - height_resize) / 2)
-    pad_bottom = tuple(resize)[1] - height_resize - pad_top
+
+    new_width = None
+    new_height = None
+
+    if cap_width > cap_height:
+        new_width = tuple(resize)[0]
+        height_resize = int((cap_height / cap_width) * new_width)
+        pad_top = int((tuple(resize)[1] - height_resize) / 2)
+        pad_bottom = tuple(resize)[1] - height_resize - pad_top
+        pad_left, pad_right = 0, 0
+    else:
+        new_height = tuple(resize)[1]
+        width_resize = int((cap_width / cap_height) * new_height)
+        pad_left = int((tuple(resize)[0] - width_resize) / 2)
+        pad_right = tuple(resize)[0] - width_resize - pad_left
+        pad_top, pad_bottom = 0, 0
 
     try:
         while True:
@@ -106,8 +133,12 @@ def video_to_frames_contig(orig_id, patient_id, df_rows, cap, seq_length=cfg['PA
             if not ret:
                 break
 
-            frame = cv2.resize(frame, (new_width, height_resize))
-            frame = cv2.copyMakeBorder(frame, pad_top, pad_bottom, 0, 0, cv2.BORDER_CONSTANT, value=[0, 0, 0])
+            if new_width:
+                frame = cv2.resize(frame, (new_width, height_resize))
+            else:
+                frame = cv2.resize(frame, (width_resize, new_height))
+            frame = cv2.copyMakeBorder(frame, pad_top, pad_bottom, pad_left, pad_right, cv2.BORDER_CONSTANT,
+                                       value=[0, 0, 0])
             frames.append(frame)
 
             counter -= 1
