@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import os
 import yaml
+import argparse
 from utils import refresh_folder
 
 cfg = yaml.full_load(open(os.path.join(os.getcwd(),"../../config.yml"), 'r'))['PREPROCESS']
@@ -272,6 +273,22 @@ def video_to_npz(path, orig_id, patient_id, df_rows, write_path='', method=cfg['
   else:
     raise Exception('Stride method not yet implemented!')
 
+'''
+def parse_args():
+    parser = argparse.ArgumentParser(description="densely extract the video frames and optical flows")
+    parser.add_argument('--flow', default='False', type=str)
+    parser.add_argument('--crop', default='False', type=str)
+    args = parser.parse_args()
+    return args
+
+
+if __name__ == 'main':
+
+    args = parse_args()
+
+    flow = True if (args.flow == 'True') else False
+    crop = True if (args.crop == 'True') else False
+'''
 
 flow = cfg['PARAMS']['FLOW']
 

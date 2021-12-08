@@ -6,6 +6,7 @@ PREPROCESS:
   PARAMS:
     AMOUNT_ONLY: False  # If set to True, the tool exits after querying the database and returning counts
     FLOW: 'No'  # Yes for flow only, No for no flow, and Mixed for videos and flow
+    CROP: True  # Whether clips are to be cropped to the pleural line or not
     SHUFFLE: True # If you want to randomize the videos downloaded
     RANDOM_SEED: 1 # If SHUFFLE=False, this does nothing. Otherwise, this is the seed for shuffling
     SLIDING_PROPORTION: 1
@@ -13,11 +14,11 @@ PREPROCESS:
     METHOD: 'Contiguous'  # 'Stride' or 'Contiguous'
     WINDOW: 90 # Mini-clip length
     STRIDE: 1  # 1 = contiguous (METHOD='Contiguous' param overrides this)
-    IMG_SIZE: [224, 224]
+    IMG_SIZE: [90, 90]
 
   PATHS:
     UNMASKED_VIDEOS: 'raw_videos/'
-    MASKED_VIDEOS: 'masked_videos/'
+    MASKED_VIDEOS: 'cropped_videos/'
     FLOW_VIDEOS: 'flow_videos/'
     CSVS_OUTPUT: 'csvs/'
     NPZ: 'npzs/'
