@@ -208,7 +208,8 @@ def vgg16(model_config, input_shape, metrics, class_counts):
             model.add(TimeDistributed(layer, name=layer.name))
 
     model.add(TimeDistributed(base.layers[-1], name=base.layers[-1].name))  # GAP
-    model.add(LSTM(256, return_sequences=False, dropout=dropout))
+    model.add(LSTM(256, return_sequences=False))
+    model.add(Dropout(dropout))
     model.add(Dense(1, activation='sigmoid', kernel_initializer=kernel_init, bias_initializer=output_bias,
                     dtype='float32'))
 

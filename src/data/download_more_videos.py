@@ -80,7 +80,7 @@ fr_no_sliding_rows = []
 
 # Call download with dataframe
 download(df, sliding=False, fr_rows=fr_no_sliding_rows)
-'''
+
 # Append to existing frame rate CSV
 csv_out_folder = cfg['PATHS']['CSVS_OUTPUT']
 
@@ -89,4 +89,4 @@ csv_out_path_no_sliding = os.path.join(csv_out_folder, 'no_sliding_frame_rates.c
 orig_df = pd.read_csv(csv_out_path_no_sliding)
 out_df_no_sliding = pd.concat([orig_df, out_df_no_sliding])
 out_df_no_sliding.to_csv(csv_out_path_no_sliding, index=False)
-'''
+
