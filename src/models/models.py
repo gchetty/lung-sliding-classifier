@@ -545,7 +545,7 @@ def inflated_resnet50(model_config, input_shape, metrics, class_counts):
 
     x, index = stage(x, x, 3, 64, index, False, l2_reg, kernel_init)  # stage 1
     x, index = stage(x, x, 4, 128, index, False, l2_reg, kernel_init)  # stage 2
-    #x, index = stage(x, x, 6, 256, index, False, l2_reg, kernel_init)  # stage 3
+    x, index = stage(x, x, 6, 256, index, False, l2_reg, kernel_init)  # stage 3
     #x, index = stage(x, x, 3, 512, index, True, l2_reg, kernel_init)  # stage 4
 
     # Output head
