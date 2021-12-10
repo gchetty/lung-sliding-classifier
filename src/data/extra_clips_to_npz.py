@@ -303,7 +303,7 @@ if not (flow == 'No'):
             flow_frames_to_npz_contig(path, orig_id=id, patient_id='N/A', df_rows=df_rows_flow,
                                       write_path=(flow_npz_folder + id))
         else:
-            flow_frames_to_npz_downsampled(path, orig_id=id, patient_id='N/A', df_rows=df_rows_flow,
+            flow_frames_to_npz_downsampled(path, orig_id=id, patient_id='N/A', df_rows=df_rows_flow, fr=fr,
                                            write_path=(flow_npz_folder + id))
 
 if not (flow == 'Yes'):
