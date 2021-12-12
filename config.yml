@@ -11,7 +11,7 @@ PREPROCESS:
     RANDOM_SEED: 1 # If SHUFFLE=False, this does nothing. Otherwise, this is the seed for shuffling
     SLIDING_PROPORTION: 1
     NO_SLIDING_PROPORTION: 1
-    METHOD: 'Contiguous'  # 'Stride' or 'Contiguous'
+    METHOD: 'Contiguous'  # 'Stride' or 'Contiguous' - WE DONT NEED THIS ?????
     WINDOW: 90 # Mini-clip length
     STRIDE: 1  # 1 = contiguous (METHOD='Contiguous' param overrides this)
     IMG_SIZE: [90, 90]

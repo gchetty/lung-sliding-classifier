@@ -1,17 +1,17 @@
+# Temporary script to only convert absent sliding examples to npz
+
 import cv2
 import numpy as np
 import pandas as pd
 import os
 import yaml
 import argparse
-from utils import refresh_folder
 
-cfg = yaml.full_load(open(os.path.join(os.getcwd(),"../../config.yml"), 'r'))['PREPROCESS']
+cfg = yaml.full_load(open(os.path.join(os.getcwd(), "../../config.yml"), 'r'))['PREPROCESS']
 
 
 def video_to_frames_downsampled(orig_id, patient_id, df_rows, cap, fr, seq_length=cfg['PARAMS']['WINDOW'],
                                 resize=cfg['PARAMS']['IMG_SIZE'], write_path='', crop=True):
-
     '''
     Converts a LUS video file to mini-clips downsampled to 30 FPS with specified sequence length
 
@@ -27,8 +27,8 @@ def video_to_frames_downsampled(orig_id, patient_id, df_rows, cap, fr, seq_lengt
     '''
 
     # Check validity of frame rate param
-    assert(isinstance(fr, int))
-    assert(fr % 30 == 0)
+    assert (isinstance(fr, int))
+    assert (fr % 30 == 0)
 
     frames = []
     stride = fr // 30
@@ -93,7 +93,6 @@ def video_to_frames_downsampled(orig_id, patient_id, df_rows, cap, fr, seq_lengt
 
 def video_to_frames_contig(orig_id, patient_id, df_rows, cap, seq_length=cfg['PARAMS']['WINDOW'],
                            resize=cfg['PARAMS']['IMG_SIZE'], write_path='', crop=True):
-
     '''
     Converts a LUS video file to contiguous-frame mini-clips with specified sequence length
 
@@ -141,7 +140,8 @@ def video_to_frames_contig(orig_id, patient_id, df_rows, cap, seq_length=cfg['PA
             # When seq_length frames have been read, update df rows and write npz files
             # The id of the xth mini-clip from a main clip is the id of the main clip with _x appended to it
             if counter == 0:
-                df_rows.append([orig_id + '_' + str(mini_clip_num), patient_id])  # append to what will make output dataframes
+                df_rows.append(
+                    [orig_id + '_' + str(mini_clip_num), patient_id])  # append to what will make output dataframes
                 np.savez(write_path + '_' + str(mini_clip_num), frames=frames)  # output
                 counter = seq_length
                 mini_clip_num += 1
@@ -171,8 +171,8 @@ def video_to_frames_contig(orig_id, patient_id, df_rows, cap, seq_length=cfg['PA
     return
 
 
-def flow_frames_to_npz_downsampled(path, orig_id, patient_id, df_rows, fr, seq_length=cfg['PARAMS']['WINDOW'], resize=cfg['PARAMS']['IMG_SIZE'], write_path='', crop=True):
-
+def flow_frames_to_npz_downsampled(path, orig_id, patient_id, df_rows, fr, seq_length=cfg['PARAMS']['WINDOW'],
+                                   resize=cfg['PARAMS']['IMG_SIZE'], write_path='', crop=True):
     '''
     Converts a directory of x and y flow frames to mini-clips downsampled to 30 FPS, with flows stacked on axis = -1
 
@@ -246,8 +246,8 @@ def flow_frames_to_npz_downsampled(path, orig_id, patient_id, df_rows, fr, seq_l
     return
 
 
-def flow_frames_to_npz_contig(path, orig_id, patient_id, df_rows, seq_length=cfg['PARAMS']['WINDOW'], resize=cfg['PARAMS']['IMG_SIZE'], write_path='', crop=True):
-
+def flow_frames_to_npz_contig(path, orig_id, patient_id, df_rows, seq_length=cfg['PARAMS']['WINDOW'],
+                              resize=cfg['PARAMS']['IMG_SIZE'], write_path='', crop=True):
     '''
     Converts a directory of x and y flow frames to contiguous mini-clips, with flows stacked on axis = -1
 
@@ -316,10 +316,9 @@ def flow_frames_to_npz_contig(path, orig_id, patient_id, df_rows, seq_length=cfg
 
 
 def video_to_npz(path, orig_id, patient_id, df_rows, write_path='', method=cfg['PARAMS']['METHOD'], fr=None, crop=True):
-
     '''
     Converts a LUS video file to mini-clips
-  
+
     :param path: Path to video file to be converted
     :param orig_id: ID of the video file to be converted
     :param patient_id: Patient ID corresponding to the video file
@@ -329,7 +328,7 @@ def video_to_npz(path, orig_id, patient_id, df_rows, write_path='', method=cfg['
     :param fr: Frame rate of input
     :param crop: Boolean, Whether inputs are cropped to pleural line or not
     '''
-  
+
     cap = cv2.VideoCapture(path)
 
     if not fr:
@@ -372,7 +371,6 @@ if __name__ == 'main':
         input_folder = cfg['PATHS']['CROPPED_VIDEOS']
     else:
         input_folder = cfg['PATHS']['MASKED_VIDEOS']
-    sliding_input = os.path.join(input_folder, 'sliding/')
     no_sliding_input = os.path.join(input_folder, 'no_sliding/')
 
     # Paths for npz output
@@ -383,41 +381,26 @@ if __name__ == 'main':
     else:
         npz_folder = cfg['PATHS']['FLOW_NPZ']
 
-    refresh_folder(npz_folder)
-
-    sliding_npz_folder = os.path.join(npz_folder, 'sliding/')
-    os.makedirs(sliding_npz_folder)
+    if not os.path.exists(npz_folder):
+        os.makedirs(npz_folder)
 
     no_sliding_npz_folder = os.path.join(npz_folder, 'no_sliding/')
-    os.makedirs(no_sliding_npz_folder)
+    if not os.path.exists(no_sliding_npz_folder):
+        os.makedirs(no_sliding_npz_folder)
 
     # Each element is (mini-clip_id, patient_id) for download as csv
-    df_rows_sliding = []
     df_rows_no_sliding = []
 
     # Load original csvs for patient ids and frame rate csvs
     csv_out_folder = cfg['PATHS']['CSVS_OUTPUT']
 
-    sliding_df = pd.read_csv(os.path.join(csv_out_folder, 'sliding.csv'))
     no_sliding_df = pd.read_csv(os.path.join(csv_out_folder, 'no_sliding.csv'))
 
-    sliding_fps_df = pd.read_csv(os.path.join(csv_out_folder, 'sliding_frame_rates.csv'))
     no_sliding_fps_df = pd.read_csv(os.path.join(csv_out_folder, 'no_sliding_frame_rates.csv'))
 
     # Iterate through clips and extract & download mini-clips
 
     if flow:
-
-        for id in os.listdir(sliding_input):
-            path = os.path.join(sliding_input, id)
-            patient_id = ((sliding_df[sliding_df['id'] == id])['patient_id']).values[0]
-            fr = ((sliding_fps_df[sliding_fps_df['id'] == id])['frame_rate']).values[0]
-            if fr == 30:
-                flow_frames_to_npz_contig(path, orig_id=id, patient_id=patient_id, df_rows=df_rows_sliding,
-                                          write_path=(sliding_npz_folder + id), crop=crop)
-            else:
-                flow_frames_to_npz_downsampled(path, orig_id=id, patient_id=patient_id, df_rows=df_rows_sliding, fr=fr,
-                                               write_path=(sliding_npz_folder + id), crop=crop)
 
         for id in os.listdir(no_sliding_input):
             path = os.path.join(no_sliding_input, id)
@@ -432,12 +415,6 @@ if __name__ == 'main':
 
     else:
 
-        for file in os.listdir(sliding_input):
-            f = os.path.join(sliding_input, file)
-            patient_id = ((sliding_df[sliding_df['id'] == file[:-4]])['patient_id']).values[0]
-            video_to_npz(f, orig_id=file[:-4], patient_id=patient_id, df_rows=df_rows_sliding,
-                         write_path=(sliding_npz_folder + file[:-4]), crop=crop)
-
         for file in os.listdir(no_sliding_input):
             f = os.path.join(no_sliding_input, file)
             patient_id = ((no_sliding_df[no_sliding_df['id'] == file[:-4]])['patient_id']).values[0]
@@ -445,18 +422,17 @@ if __name__ == 'main':
                          write_path=(no_sliding_npz_folder + file[:-4]), crop=crop)
 
     # Download dataframes linking mini-clip ids and patient ids as csv files
-    out_df_sliding = pd.DataFrame(df_rows_sliding, columns=['id', 'patient_id'])
     out_df_no_sliding = pd.DataFrame(df_rows_no_sliding, columns=['id', 'patient_id'])
 
-    csv_out_path_sliding = ''
     csv_out_path_no_sliding = ''
 
     if flow:
-        csv_out_path_sliding = os.path.join(csv_out_folder, 'sliding_flow_mini_clips.csv')
         csv_out_path_no_sliding = os.path.join(csv_out_folder, 'no_sliding_flow_mini_clips.csv')
     else:
-        csv_out_path_sliding = os.path.join(csv_out_folder, 'sliding_mini_clips.csv')
         csv_out_path_no_sliding = os.path.join(csv_out_folder, 'no_sliding_mini_clips.csv')
 
-    out_df_sliding.to_csv(csv_out_path_sliding, index=False)
+    # Append to existing rows (for older clips that we already have)
+    orig_csv = pd.read_csv(csv_out_path_no_sliding)
+    out_df_no_sliding = pd.concat([orig_csv, out_df_no_sliding])
+
     out_df_no_sliding.to_csv(csv_out_path_no_sliding, index=False)
