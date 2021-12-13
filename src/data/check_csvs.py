@@ -3,10 +3,12 @@ import pandas as pd
 
 df = pd.read_csv('csvs/no_sliding_flow_mini_clips.csv')
 
-bad_count = 0
+indices = []
 
 for index, row in df.iterrows():
     if not (os.path.exists(os.path.join('flow_npzs/no_sliding/', row['id'] + '.npz')) or os.path.exists(os.path.join('flow_npzs/orig_no_sliding/', row['id'] + '.npz'))):
-        bad_count += 1
+        indices.append(index)
 
-print(bad_count)
+df = df.drop(indices)
+
+df.to_csv('csvs/no_sliding_flow_mini_clips.csv', index=False)
