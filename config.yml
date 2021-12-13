@@ -64,6 +64,7 @@ TRAIN:
       SHEAR_RANGE: [ 0.0, 0.1 ]
       ZOOM_RANGE: [ 1.0, 1.5 ]  # DO NOT use lower bound < 1 --> otherwise might cut out parts of pleural line
       RANDOM_NOISE: [ 0.0, 5.0 ]  # Mean, std of sampling distribution, for pixel values in range [0, 255]
+      MEDIAN_FILTER_SIZE: 5
     TEST1:
       LR: 0.000001
       L2_LAMBDA: 0.001
