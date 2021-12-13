@@ -87,11 +87,12 @@ def dense_flow(args, run_num):
         save_dir: Destination path's final directory
         step: Number of frames between each two extracted frames
         bound: Upper and lower bounds
+        crop: Boolean, whether or not cropping to pleural line was used
     '''
 
     global num_vals, sum_x, sum_y, mean_x, mean_y, squared_diff_sum_x, squared_diff_sum_y
 
-    video_root, video_name, save_dir, step, bound = args
+    video_root, video_name, save_dir, step, bound, crop = args
     video_path = os.path.join(video_root, video_name)
 
     print(video_path)
@@ -107,10 +108,11 @@ def dense_flow(args, run_num):
     image, prev_image, gray, prev_gray = None, None, None, None
     num0 = 0
 
-    cap_width = videocapture.get(cv2.CAP_PROP_FRAME_WIDTH)
-    cap_height = videocapture.get(cv2.CAP_PROP_FRAME_HEIGHT)
-    new_width = cfg['PARAMS']['FLOW_CROP_WIDTH']  # HAVE TO MAKE THIS ONLY RUN IF CROP IS TRUE
-    height_resize = int((cap_height / cap_width) * new_width)
+    if crop:
+        cap_width = videocapture.get(cv2.CAP_PROP_FRAME_WIDTH)
+        cap_height = videocapture.get(cv2.CAP_PROP_FRAME_HEIGHT)
+        new_width = cfg['PARAMS']['FLOW_CROP_WIDTH']  # HAVE TO MAKE THIS ONLY RUN IF CROP IS TRUE
+        height_resize = int((cap_height / cap_width) * new_width)
 
     while True:
         frame = videocapture.read()[1]
@@ -119,7 +121,8 @@ def dense_flow(args, run_num):
         num0 += 1
         if frame_num == 0:
             prev_image = frame
-            prev_image = cv2.resize(prev_image, (new_width, height_resize))
+            if crop:
+                prev_image = cv2.resize(prev_image, (new_width, height_resize))
             prev_gray = cv2.cvtColor(prev_image, cv2.COLOR_RGB2GRAY)
             frame_num += 1
 
@@ -132,7 +135,8 @@ def dense_flow(args, run_num):
             continue
 
         image = frame
-        image = cv2.resize(image, (new_width, height_resize))
+        if crop:
+            image = cv2.resize(image, (new_width, height_resize))
         gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
         frame_0 = prev_gray
         frame_1 = gray
@@ -188,6 +192,7 @@ def parse_args():
     parser.add_argument('--videos_root', default='', type=str)
     parser.add_argument('--data_root', default='/n/zqj/video_classification/data', type=str)
     # parser.add_argument('--new_dir', default='flows', type=str)
+    parser.add_argument('--crop', default='False', type=str)
     parser.add_argument('--num_workers', default=4, type=int, help='num of workers to act multi-process')
     parser.add_argument('--step', default=1, type=int, help='gap frames')
     parser.add_argument('--bound', default=3.5, type=float, help='set the maximum of optical flow')
@@ -212,18 +217,17 @@ if __name__ == '__main__':
     e_ = args.e_
     # new_dir = args.new_dir
     mode = args.mode
+    crop = True if (args.crop == 'True') else False
 
     video_root = args.videos_root  # Cropped or masked clip root folder
-    #root1 = os.path.join(video_root, 'sliding/')
+    root1 = os.path.join(video_root, 'sliding/')
     root2 = os.path.join(video_root, 'no_sliding/')
 
     # get video list
-    #list1, len1 = get_video_list(root1, 'sliding/')
+    list1, len1 = get_video_list(root1, 'sliding/')
     list2, len2 = get_video_list(root2, 'no_sliding/')
-    #video_list = list1 + list2
-    #len_videos = len1 + len2
-    video_list = list2
-    len_videos = len2
+    video_list = list1 + list2
+    len_videos = len1 + len2
 
     print('find {} videos.'.format(len_videos))
     flows_dirs = [video.split('.')[0][video.split('.')[0].index('/') + 1:] for video in
@@ -233,7 +237,7 @@ if __name__ == '__main__':
     # First run - get mean of all values (separate for x and y)
     print('Getting mean')
     for i in range(len_videos):
-        dense_flow((video_root, video_list[i], flows_dirs[i], step, bound), 1)
+        dense_flow((video_root, video_list[i], flows_dirs[i], step, bound, crop), 1)
 
     mean_x = sum_x / num_vals
     mean_y = sum_y / num_vals
@@ -244,7 +248,7 @@ if __name__ == '__main__':
     # Second run - get standard deviation of all values (separate for x and y)
     print('Getting standard deviation')
     for i in range(len_videos):
-        dense_flow((video_root, video_list[i], flows_dirs[i], step, bound), 2)
+        dense_flow((video_root, video_list[i], flows_dirs[i], step, bound, crop), 2)
 
     std_x = (squared_diff_sum_x / num_vals) ** 0.5
     std_y = (squared_diff_sum_y / num_vals) ** 0.5
@@ -254,7 +258,7 @@ if __name__ == '__main__':
 
     # Third run - scale flow frames by normalizing (standard Gaussian)
     for i in range(len_videos):
-        dense_flow((video_root, video_list[i], flows_dirs[i], step, bound), 3)
+        dense_flow((video_root, video_list[i], flows_dirs[i], step, bound, crop), 3)
 
     '''
     pool = Pool(num_workers)

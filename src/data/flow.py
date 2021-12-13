@@ -4,15 +4,19 @@ from utils import refresh_folder
 
 # Load dictionary of constants stored in config.yml
 cfg = yaml.full_load(open(os.path.join(os.getcwd(), "../../config.yml"), 'r'))['PREPROCESS']
+crop = cfg['PARAMS']['CROP']
 
 # Obtain input folder paths where the masked videos are stored
-masked_folder = cfg['PATHS']['MASKED_VIDEOS']
-masked_sliding_folder = os.path.join(masked_folder, 'sliding/')
-masked_no_sliding_folder = os.path.join(masked_folder, 'no_sliding/')
+if crop:
+    input_folder = cfg['PATHS']['CROPPED_VIDEOS']
+else:
+    input_folder = cfg['PATHS']['MASKED_VIDEOS']
+input_sliding_folder = os.path.join(input_folder, 'sliding/')
+input_no_sliding_folder = os.path.join(input_folder, 'no_sliding/')
 
 # These input folders need to exist for this to work, so we terminate if they don't
-if (not os.path.exists(masked_folder)) or (not os.path.exists(masked_sliding_folder)) or (not os.path.exists(masked_no_sliding_folder)):
-    raise NotADirectoryError('You need to specify a folder for masked clips in the config file!')
+if (not os.path.exists(input_folder)) or (not os.path.exists(input_sliding_folder)) or (not os.path.exists(input_no_sliding_folder)):
+    raise NotADirectoryError('You need to specify a folder for masked / cropped clips in the config file!')
 
 # Ensure all contents in the folder for outputting the flow clips are deleted, but that the folder structure exist
 flow_folder = cfg['PATHS']['FLOW_VIDEOS']
@@ -25,5 +29,4 @@ flow_no_sliding_folder = os.path.join(flow_folder, 'no_sliding/')
 os.makedirs(flow_no_sliding_folder)
 
 # Call optical flow tool
-os.system('python denseflow.py --videos_root=' + masked_sliding_folder + ' --data_root=' + flow_folder + ' --new_dir=sliding --num_workers=1')
-os.system('python denseflow.py --videos_root=' + masked_no_sliding_folder + ' --data_root=' + flow_folder + ' --new_dir=no_sliding --num_workers=1')
+os.system('python denseflow.py --videos_root=' + input_folder + ' --data_root=' + flow_folder + ' --crop=' + str(crop))
