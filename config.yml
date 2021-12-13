@@ -8,6 +8,8 @@ PREPROCESS:
     FLOW: 'Yes'  # Yes for flow only, No for no flow, and Mixed for videos and flow
     FLOW_CROP_WIDTH: 90  # Width to resize to for flow if cropping used
     CROP: True  # Whether clips are to be cropped to the pleural line or not
+    SMOOTHING: True
+    SMOOTHING_KERNEL_SIZE: 5  # Integer, kernel size of smoothing kernel filter - MUST be odd
     SHUFFLE: True # If you want to randomize the videos downloaded
     RANDOM_SEED: 1 # If SHUFFLE=False, this does nothing. Otherwise, this is the seed for shuffling
     SLIDING_PROPORTION: 1
@@ -21,6 +23,7 @@ PREPROCESS:
     UNMASKED_VIDEOS: 'raw_videos/'
     MASKED_VIDEOS: 'masked_videos/'
     CROPPED_VIDEOS: 'cropped_videos/'
+    SMOOTHED_VIDEOS: 'smoothed_videos/'
     FLOW_VIDEOS: 'flow_videos/'
     CSVS_OUTPUT: 'csvs/'
     NPZ: 'npzs/'

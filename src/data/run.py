@@ -9,6 +9,7 @@ cfg = yaml.full_load(open(os.path.join(os.getcwd(), "../../config.yml"), 'r'))['
 
 flow = cfg['FLOW']
 crop = cfg['CROP']
+smooth = cfg['SMOOTHING']
 amount_only = cfg['AMOUNT_ONLY']
 
 os.system('python download_videos.py')
@@ -16,10 +17,14 @@ os.system('python download_videos.py')
 if amount_only:
     exit()
 
+os.system('python mask.py')
+
 if crop:
     print()  # CALL CROPPING SCRIPT
 
-os.system('python mask.py')
+# Smoothing
+if smooth:
+    os.system('python smooth.py')
 
 if not (flow == 'No'):
     os.system('python flow.py')
