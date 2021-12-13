@@ -109,7 +109,7 @@ def dense_flow(args, run_num):
 
     cap_width = videocapture.get(cv2.CAP_PROP_FRAME_WIDTH)
     cap_height = videocapture.get(cv2.CAP_PROP_FRAME_HEIGHT)
-    new_width = cfg['PARAMS']['FLOW_CROP_WIDTH']
+    new_width = cfg['PARAMS']['FLOW_CROP_WIDTH']  # HAVE TO MAKE THIS ONLY RUN IF CROP IS TRUE
     height_resize = int((cap_height / cap_width) * new_width)
 
     while True:
