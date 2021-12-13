@@ -214,14 +214,16 @@ if __name__ == '__main__':
     mode = args.mode
 
     video_root = args.videos_root  # Cropped or masked clip root folder
-    root1 = os.path.join(video_root, 'sliding/')
+    #root1 = os.path.join(video_root, 'sliding/')
     root2 = os.path.join(video_root, 'no_sliding/')
 
     # get video list
-    list1, len1 = get_video_list(root1, 'sliding/')
+    #list1, len1 = get_video_list(root1, 'sliding/')
     list2, len2 = get_video_list(root2, 'no_sliding/')
-    video_list = list1 + list2
-    len_videos = len1 + len2
+    #video_list = list1 + list2
+    #len_videos = len1 + len2
+    video_list = list2
+    len_videos = len2
 
     print('find {} videos.'.format(len_videos))
     flows_dirs = [video.split('.')[0][video.split('.')[0].index('/') + 1:] for video in
