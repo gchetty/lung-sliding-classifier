@@ -50,9 +50,19 @@ else:
 input_sliding = os.path.join(input_folder, 'sliding/')
 input_no_sliding = os.path.join(input_folder, 'no_sliding/')
 
+if not (os.path.exists(input_folder) and os.path.exists(input_sliding) and os.path.exists(input_no_sliding)):
+    print('Input directories don\'t exist!')
+
 output_folder = cfg['PATHS']['SMOOTHED_VIDEOS']
 output_sliding = os.path.join(output_folder, 'sliding/')
 output_no_sliding = os.path.join(output_folder, 'no_sliding/')
+
+if not os.path.exists(output_folder):
+    os.makedirs(output_folder)
+if not os.path.exists(output_sliding):
+    os.makedirs(output_sliding)
+if not os.path.exists(output_no_sliding):
+    os.makedirs(output_no_sliding)
 
 kernel = cfg['PARAMS']['SMOOTHING_KERNEL_SIZE']
 

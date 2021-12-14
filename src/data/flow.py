@@ -5,9 +5,12 @@ from utils import refresh_folder
 # Load dictionary of constants stored in config.yml
 cfg = yaml.full_load(open(os.path.join(os.getcwd(), "../../config.yml"), 'r'))['PREPROCESS']
 crop = cfg['PARAMS']['CROP']
+smooth = cfg['PARAMS']['SMOOTHING']
 
 # Obtain input folder paths where the masked videos are stored
-if crop:
+if smooth:
+    input_folder = cfg['PATHS']['SMOOTHED_VIDEOS']
+elif crop:
     input_folder = cfg['PATHS']['CROPPED_VIDEOS']
 else:
     input_folder = cfg['PATHS']['MASKED_VIDEOS']

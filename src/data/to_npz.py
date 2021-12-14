@@ -353,6 +353,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="densely extract the video frames and optical flows")
     parser.add_argument('--flow', default='False', type=str)
     parser.add_argument('--crop', default='False', type=str)
+    parser.add_argument('--smooth', default='False', type=str)
     args = parser.parse_args()
     return args
 
@@ -363,11 +364,14 @@ if __name__ == '__main__':
 
     flow = True if (args.flow == 'True') else False
     crop = True if (args.crop == 'True') else False
+    smooth = True if (args.smooth == 'True') else False
 
     # Paths for video or frame input
     input_folder = ''
     if flow:
         input_folder = cfg['PATHS']['FLOW_VIDEOS']
+    elif smooth:
+        input_folder = cfg['PATHS']['SMOOTHED_VIDEOS']
     elif crop:
         input_folder = cfg['PATHS']['CROPPED_VIDEOS']
     else:
