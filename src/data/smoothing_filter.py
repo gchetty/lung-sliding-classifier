@@ -35,9 +35,7 @@ def median_filter(path_in, path_out, kernel_size):
         cap.release()
 
     # Save as video
-    size = (frames[0].shape[0], frames[0].shape[1])
-    print(size)
-    print(fr)
+    size = (frames[0].shape[1], frames[0].shape[0])
     out = cv2.VideoWriter(path_out, cv2.VideoWriter_fourcc(*'mp4v'), fr, size)
     for frame in frames:
         out.write(frame)
