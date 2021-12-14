@@ -140,6 +140,12 @@ def random_noise(x):
     return x
 
 
+def median_filter(x):
+    kernel_size = cfg['TRAIN']['PARAMS']['AUGMENTATION']['MEDIAN_FILTER_SIZE']
+    x = tf.map_fn(lambda x1: tfa.image.median_filter2d(x1, kernel_size), x)
+    return x
+
+
 def augment_clip(x):
     '''
     Applies a series of transformations to a video
@@ -414,6 +420,9 @@ class FlowPreprocessor:
 
         # Define batch size
         ds = ds.batch(self.batch_size, num_parallel_calls=self.autotune)
+
+        # Median filter for smoothing
+        ds = ds.map(lambda x, y: (median_filter(x), y), num_parallel_calls=self.autotune)
 
         # Optionally apply a series of augmentations
         if augment:
