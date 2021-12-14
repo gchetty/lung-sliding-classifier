@@ -1,6 +1,7 @@
 import os
 import yaml
 import cv2
+from utils import refresh_folder
 
 cfg = yaml.full_load(open(os.path.join(os.getcwd(), "../../config.yml"), 'r'))['PREPROCESS']
 
@@ -35,6 +36,8 @@ def median_filter(path_in, path_out, kernel_size):
 
     # Save as video
     size = (frames[0].shape[0], frames[0].shape[1])
+    print(size)
+    print(fr)
     out = cv2.VideoWriter(path_out, cv2.VideoWriter_fourcc(*'mp4v'), fr, size)
     for frame in frames:
         out.write(frame)
@@ -63,6 +66,9 @@ if not os.path.exists(output_sliding):
     os.makedirs(output_sliding)
 if not os.path.exists(output_no_sliding):
     os.makedirs(output_no_sliding)
+
+refresh_folder(output_sliding)
+refresh_folder(output_no_sliding)
 
 kernel = cfg['PARAMS']['SMOOTHING_KERNEL_SIZE']
 
