@@ -75,7 +75,7 @@ def video_to_frames_downsampled(orig_id, patient_id, df_rows, cap, fr, seq_lengt
                 else:
                     frame = cv2.resize(frame, tuple(resize))
                 weights = [0.2989, 0.5870, 0.1140]  # In accordance with tfa rgb to grayscale
-                frame = np.dot(frame, weights)
+                frame = np.dot(frame, weights).astype(np.uint8)
                 frames.append(frame)
             index = (index + 1) % stride
 
@@ -87,7 +87,7 @@ def video_to_frames_downsampled(orig_id, patient_id, df_rows, cap, fr, seq_lengt
     num_mini_clips = len(frames) // seq_length
     for i in range(num_mini_clips):
         df_rows.append([orig_id + '_' + str(counter), patient_id])
-        np.savez(write_path + '_' + str(counter), frames=frames[i * seq_length:i * seq_length + seq_length])
+        np.savez_compressed(write_path + '_' + str(counter), frames=frames[i * seq_length:i * seq_length + seq_length])
         counter += 1
 
     return
@@ -144,7 +144,7 @@ def video_to_frames_contig(orig_id, patient_id, df_rows, cap, seq_length=cfg['PA
             # The id of the xth mini-clip from a main clip is the id of the main clip with _x appended to it
             if counter == 0:
                 df_rows.append([orig_id + '_' + str(mini_clip_num), patient_id])  # append to what will make output dataframes
-                np.savez(write_path + '_' + str(mini_clip_num), frames=frames)  # output
+                np.savez_compressed(write_path + '_' + str(mini_clip_num), frames=frames)  # output
                 counter = seq_length
                 mini_clip_num += 1
                 frames = []
@@ -164,7 +164,7 @@ def video_to_frames_contig(orig_id, patient_id, df_rows, cap, seq_length=cfg['PA
                 frame = cv2.resize(frame, tuple(resize))
 
             weights = [0.2989, 0.5870, 0.1140]  # In accordance with tfa rgb to grayscale
-            frame = np.dot(frame, weights)
+            frame = np.dot(frame, weights).astype(np.uint8)
 
             frames.append(frame)
 
@@ -231,7 +231,7 @@ def flow_frames_to_npz_downsampled(path, orig_id, patient_id, df_rows, fr, seq_l
 
         # NOT TESTED
         weights = [0.2989, 0.5870, 0.1140]  # In accordance with tfa rgb to grayscale
-        frame = np.dot(frame, weights)
+        frame = np.dot(frame, weights).astype(np.uint8)
 
         ind = int(file[7:12])  # flow frame number
 
@@ -249,7 +249,7 @@ def flow_frames_to_npz_downsampled(path, orig_id, patient_id, df_rows, fr, seq_l
         df_rows.append([orig_id + '_' + str(counter), patient_id])
         x_seq = np.array(frames_x[i * seq_length:i * seq_length + seq_length])
         y_seq = np.array(frames_y[i * seq_length:i * seq_length + seq_length])
-        np.savez(write_path + '_' + str(counter), frames=np.stack((x_seq, y_seq), axis=-1))
+        np.savez_compressed(write_path + '_' + str(counter), frames=np.stack((x_seq, y_seq), axis=-1))
         counter += 1
 
     return
@@ -307,7 +307,7 @@ def flow_frames_to_npz_contig(path, orig_id, patient_id, df_rows, seq_length=cfg
 
         # NOT TESTED
         weights = [0.2989, 0.5870, 0.1140]  # In accordance with tfa rgb to grayscale
-        frame = np.dot(frame, weights)
+        frame = np.dot(frame, weights).astype(np.uint8)
 
         if '_x_' in file:
             frames_x.append(frame)
@@ -322,7 +322,7 @@ def flow_frames_to_npz_contig(path, orig_id, patient_id, df_rows, seq_length=cfg
         df_rows.append([orig_id + '_' + str(counter), patient_id])
         x_seq = np.array(frames_x[i * seq_length:i * seq_length + seq_length])
         y_seq = np.array(frames_y[i * seq_length:i * seq_length + seq_length])
-        np.savez(write_path + '_' + str(counter), frames=np.stack((x_seq, y_seq), axis=-1))
+        np.savez_compressed(write_path + '_' + str(counter), frames=np.stack((x_seq, y_seq), axis=-1))
         counter += 1
 
     return
