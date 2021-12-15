@@ -12,7 +12,8 @@ heights = []
 widths = []
 for index, row in df.iterrows():
     s = row['id']
-    ids.append(s[s.rindex('/')+1:s.rindex('.mp4')])
+    s = s[s.rindex('/')+1:s.rindex('.mp4')]
+    ids.append(s)
 
     # Add original dimensions
     cap = cv2.VideoCapture(vid_dir + s + '.mp4')
