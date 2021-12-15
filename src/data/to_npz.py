@@ -471,22 +471,28 @@ if __name__ == '__main__':
             f = os.path.join(sliding_input, file)
             patient_id = ((sliding_df[sliding_df['id'] == file[:-4]])['patient_id']).values[0]
 
-            box_info = sliding_box_df[sliding_box_df['id'] == file[:-4]].iloc[0]
-            box = (box_info['ymin'], box_info['xmin'], box_info['ymax'], box_info['xmax'])
+            query = sliding_box_df[sliding_box_df['id'] == file[:-4]]
 
-            video_to_npz(f, orig_id=file[:-4], patient_id=patient_id, df_rows=df_rows_sliding,
-                         write_path=(sliding_npz_folder + file[:-4]), crop=crop, box=box)
+            if not query.empty():
+                box_info = query.iloc[0]
+                box = (box_info['ymin'], box_info['xmin'], box_info['ymax'], box_info['xmax'])
+
+                video_to_npz(f, orig_id=file[:-4], patient_id=patient_id, df_rows=df_rows_sliding,
+                             write_path=(sliding_npz_folder + file[:-4]), crop=crop, box=box)
 
         for file in os.listdir(no_sliding_input):
 
             f = os.path.join(no_sliding_input, file)
             patient_id = ((no_sliding_df[no_sliding_df['id'] == file[:-4]])['patient_id']).values[0]
 
-            box_info = no_sliding_box_df[no_sliding_box_df['id'] == file[:-4]].iloc[0]
-            box = (box_info['ymin'], box_info['xmin'], box_info['ymax'], box_info['xmax'])
+            query = no_sliding_box_df[no_sliding_box_df['id'] == file[:-4]]
 
-            video_to_npz(f, orig_id=file[:-4], patient_id=patient_id, df_rows=df_rows_no_sliding,
-                         write_path=(no_sliding_npz_folder + file[:-4]), crop=crop, box=box)
+            if not query.empty():
+                box_info = query.iloc[0]
+                box = (box_info['ymin'], box_info['xmin'], box_info['ymax'], box_info['xmax'])
+
+                video_to_npz(f, orig_id=file[:-4], patient_id=patient_id, df_rows=df_rows_no_sliding,
+                             write_path=(no_sliding_npz_folder + file[:-4]), crop=crop, box=box)
 
     # Download dataframes linking mini-clip ids and patient ids as csv files
     out_df_sliding = pd.DataFrame(df_rows_sliding, columns=['id', 'patient_id'])
