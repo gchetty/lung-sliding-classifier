@@ -25,4 +25,4 @@ df['id'] = ids
 df['height'] = heights
 df['width'] = widths
 
-df.to_csv(csv)
+df.to_csv(csv, index=False)
