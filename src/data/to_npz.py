@@ -473,7 +473,7 @@ if __name__ == '__main__':
 
             query = sliding_box_df[sliding_box_df['id'] == file[:-4]]
 
-            if not query.empty():
+            if not query:
                 box_info = query.iloc[0]
                 box = (box_info['ymin'], box_info['xmin'], box_info['ymax'], box_info['xmax'])
 
@@ -487,7 +487,7 @@ if __name__ == '__main__':
 
             query = no_sliding_box_df[no_sliding_box_df['id'] == file[:-4]]
 
-            if not query.empty():
+            if not query:
                 box_info = query.iloc[0]
                 box = (box_info['ymin'], box_info['xmin'], box_info['ymax'], box_info['xmax'])
 
