@@ -74,6 +74,8 @@ def video_to_frames_downsampled(orig_id, patient_id, df_rows, cap, fr, seq_lengt
                                                value=[0, 0, 0])
                 else:
                     frame = cv2.resize(frame, tuple(resize))
+                weights = [0.2989, 0.5870, 0.1140]  # In accordance with tfa rgb to grayscale
+                frame = np.dot(frame, weights)
                 frames.append(frame)
             index = (index + 1) % stride
 
@@ -161,6 +163,9 @@ def video_to_frames_contig(orig_id, patient_id, df_rows, cap, seq_length=cfg['PA
             else:
                 frame = cv2.resize(frame, tuple(resize))
 
+            weights = [0.2989, 0.5870, 0.1140]  # In accordance with tfa rgb to grayscale
+            frame = np.dot(frame, weights)
+
             frames.append(frame)
 
             counter -= 1
@@ -223,6 +228,10 @@ def flow_frames_to_npz_downsampled(path, orig_id, patient_id, df_rows, fr, seq_l
         else:
 
             frame = cv2.resize(frame, tuple(resize))
+
+        # NOT TESTED
+        weights = [0.2989, 0.5870, 0.1140]  # In accordance with tfa rgb to grayscale
+        frame = np.dot(frame, weights)
 
         ind = int(file[7:12])  # flow frame number
 
@@ -295,6 +304,10 @@ def flow_frames_to_npz_contig(path, orig_id, patient_id, df_rows, seq_length=cfg
         else:
 
             frame = cv2.resize(frame, tuple(resize))
+
+        # NOT TESTED
+        weights = [0.2989, 0.5870, 0.1140]  # In accordance with tfa rgb to grayscale
+        frame = np.dot(frame, weights)
 
         if '_x_' in file:
             frames_x.append(frame)
@@ -407,6 +420,10 @@ if __name__ == '__main__':
 
     sliding_fps_df = pd.read_csv(os.path.join(csv_out_folder, 'sliding_frame_rates.csv'))
     no_sliding_fps_df = pd.read_csv(os.path.join(csv_out_folder, 'no_sliding_frame_rates.csv'))
+
+    # Load object detection csv for m-mode
+    #sliding_box_df = pd.read_csv(os.path.join(csv_out_folder, 'object_detection_original_masked_sliding.csv'))
+    #no_sliding_box_df = pd.read_csv(os.path.join(csv_out_folder, 'object_detection_original_masked_no_sliding.csv'))
 
     # Iterate through clips and extract & download mini-clips
 

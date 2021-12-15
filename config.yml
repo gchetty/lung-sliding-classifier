@@ -7,9 +7,10 @@ PREPROCESS:
     AMOUNT_ONLY: False  # If set to True, the tool exits after querying the database and returning counts
     FLOW: 'Yes'  # Yes for flow only, No for no flow, and Mixed for videos and flow
     FLOW_CROP_WIDTH: 90  # Width to resize to for flow if cropping used
-    CROP: True  # Whether clips are to be cropped to the pleural line or not
-    SMOOTHING: True
+    CROP: False  # Whether clips are to be cropped to the pleural line or not
+    SMOOTHING: False  # DOESNT WORK WITH M MODE RIGHT NOW
     SMOOTHING_KERNEL_SIZE: 5  # Integer, kernel size of smoothing kernel filter - MUST be odd
+    M_MODE: True  # Whether to extract M-mode like reconstructions
     SHUFFLE: True # If you want to randomize the videos downloaded
     RANDOM_SEED: 1 # If SHUFFLE=False, this does nothing. Otherwise, this is the seed for shuffling
     SLIDING_PROPORTION: 1
@@ -17,7 +18,7 @@ PREPROCESS:
     METHOD: 'Contiguous'  # 'Stride' or 'Contiguous' - WE DONT NEED THIS ?????
     WINDOW: 90 # Mini-clip length
     STRIDE: 1  # 1 = contiguous (METHOD='Contiguous' param overrides this)
-    IMG_SIZE: [90, 90]
+    IMG_SIZE: [224, 224]
 
   PATHS:
     UNMASKED_VIDEOS: 'raw_videos/'
@@ -28,6 +29,7 @@ PREPROCESS:
     CSVS_OUTPUT: 'csvs/'
     NPZ: 'npzs/'
     FLOW_NPZ: 'flow_npzs/'
+    M_MODE_NPZ: 'm_mode_npzs'
     MASKING_TOOL: 'auto_masking_deeper.h5'
     EXTRA_UNMASKED_VIDEOS: 'extra_unmasked_videos/'  # assumed to be negative class only
     EXTRA_MASKED_VIDEOS: 'extra_masked_videos/'
