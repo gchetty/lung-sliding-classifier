@@ -8,9 +8,11 @@ from utils import refresh_folder
 
 cfg = yaml.full_load(open(os.path.join(os.getcwd(),"../../config.yml"), 'r'))['PREPROCESS']
 
+# PIPELINE UPDATE FOR BOX AND ORIG DIMS NOT APPLIED FOR FLOW!!!
+
 
 def video_to_frames_downsampled(orig_id, patient_id, df_rows, cap, fr, seq_length=cfg['PARAMS']['WINDOW'],
-                                resize=cfg['PARAMS']['IMG_SIZE'], write_path='', crop=True):
+                                resize=cfg['PARAMS']['IMG_SIZE'], write_path='', crop=True, box=None):
 
     '''
     Converts a LUS video file to mini-clips downsampled to 30 FPS with specified sequence length
@@ -24,6 +26,7 @@ def video_to_frames_downsampled(orig_id, patient_id, df_rows, cap, fr, seq_lengt
     :param resize: [width, height], dimensions to resize frames to before saving
     :param write_path: Path to directory where output mini-clips are saved
     :param crop: Boolean, Whether inputs are cropped to pleural line or not
+    :param box: Tuple of (ymin, xmin, ymax, xmax) of pleural line ROI
     '''
 
     # Check validity of frame rate param
@@ -35,13 +38,13 @@ def video_to_frames_downsampled(orig_id, patient_id, df_rows, cap, fr, seq_lengt
 
     index = 0  # Position in 'frames' array where the next frame is to be appended
 
+    cap_width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+    cap_height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+
+    if cap_width == 0 or cap_height == 0:
+        return
+
     if crop:
-
-        cap_width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
-        cap_height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
-
-        if cap_width == 0 or cap_height == 0:
-            return
 
         new_width = None
         new_height = None
@@ -88,14 +91,15 @@ def video_to_frames_downsampled(orig_id, patient_id, df_rows, cap, fr, seq_lengt
     num_mini_clips = len(frames) // seq_length
     for i in range(num_mini_clips):
         df_rows.append([orig_id + '_' + str(counter), patient_id])
-        np.savez_compressed(write_path + '_' + str(counter), frames=frames[i * seq_length:i * seq_length + seq_length])
+        np.savez_compressed(write_path + '_' + str(counter), frames=frames[i * seq_length:i * seq_length + seq_length],
+                            bounding_box=box, height_width=(cap_height, cap_width))
         counter += 1
 
     return
 
 
 def video_to_frames_contig(orig_id, patient_id, df_rows, cap, seq_length=cfg['PARAMS']['WINDOW'],
-                           resize=cfg['PARAMS']['IMG_SIZE'], write_path='', crop=True):
+                           resize=cfg['PARAMS']['IMG_SIZE'], write_path='', crop=True, box=None):
 
     '''
     Converts a LUS video file to contiguous-frame mini-clips with specified sequence length
@@ -108,19 +112,20 @@ def video_to_frames_contig(orig_id, patient_id, df_rows, cap, seq_length=cfg['PA
     :param resize: [width, height], dimensions to resize frames to before saving
     :param write_path: Path to directory where output mini-clips are saved
     :param crop: Boolean, Whether inputs are cropped to pleural line or not
+    :param box: Tuple of (ymin, xmin, ymax, xmax) of pleural line ROI
     '''
 
     counter = seq_length
     mini_clip_num = 1  # nth mini-clip being made from the main clip
     frames = []
 
+    cap_width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+    cap_height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+
+    if cap_width == 0 or cap_height == 0:
+        return
+
     if crop:
-
-        cap_width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
-        cap_height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
-
-        if cap_width == 0 or cap_height == 0:
-            return
 
         new_width = None
         new_height = None
@@ -145,7 +150,8 @@ def video_to_frames_contig(orig_id, patient_id, df_rows, cap, seq_length=cfg['PA
             # The id of the xth mini-clip from a main clip is the id of the main clip with _x appended to it
             if counter == 0:
                 df_rows.append([orig_id + '_' + str(mini_clip_num), patient_id])  # append to what will make output dataframes
-                np.savez_compressed(write_path + '_' + str(mini_clip_num), frames=frames)  # output
+                np.savez_compressed(write_path + '_' + str(mini_clip_num), frames=frames,
+                                    bounding_box=box, height_width=(cap_height, cap_width))  # output
                 counter = seq_length
                 mini_clip_num += 1
                 frames = []
@@ -332,7 +338,8 @@ def flow_frames_to_npz_contig(path, orig_id, patient_id, df_rows, seq_length=cfg
     return
 
 
-def video_to_npz(path, orig_id, patient_id, df_rows, write_path='', method=cfg['PARAMS']['METHOD'], fr=None, crop=True):
+def video_to_npz(path, orig_id, patient_id, df_rows, write_path='', method=cfg['PARAMS']['METHOD'], fr=None, crop=True,
+                 box=None):
 
     '''
     Converts a LUS video file to mini-clips
@@ -345,6 +352,7 @@ def video_to_npz(path, orig_id, patient_id, df_rows, write_path='', method=cfg['
     :param method: Method of frame extraction for mini-clips, either 'Contiguous' or ' Stride'
     :param fr: Frame rate of input
     :param crop: Boolean, Whether inputs are cropped to pleural line or not
+    :param box: Tuple of (ymin, xmin, ymax, xmax) of pleural line ROI
     '''
   
     cap = cv2.VideoCapture(path)
@@ -359,9 +367,10 @@ def video_to_npz(path, orig_id, patient_id, df_rows, write_path='', method=cfg['
 
     if method == 'Contiguous':
         if fr == 30:
-            video_to_frames_contig(orig_id, patient_id, df_rows, cap, write_path=write_path, crop=crop)
+            video_to_frames_contig(orig_id, patient_id, df_rows, cap, write_path=write_path, crop=crop, box=box)
         else:
-            video_to_frames_downsampled(orig_id, patient_id, df_rows, cap, fr, write_path=write_path, crop=crop)
+            video_to_frames_downsampled(orig_id, patient_id, df_rows, cap, fr, write_path=write_path, crop=crop,
+                                        box=box)
     else:
         raise Exception('Stride method not yet implemented!')
 
@@ -458,16 +467,26 @@ if __name__ == '__main__':
     else:
 
         for file in os.listdir(sliding_input):
+
             f = os.path.join(sliding_input, file)
             patient_id = ((sliding_df[sliding_df['id'] == file[:-4]])['patient_id']).values[0]
+
+            box_info = sliding_box_df[sliding_box_df['id'] == file[:-4]].iloc[0]
+            box = (box_info['ymin'], box_info['xmin'], box_info['ymax'], box_info['xmax'])
+
             video_to_npz(f, orig_id=file[:-4], patient_id=patient_id, df_rows=df_rows_sliding,
-                         write_path=(sliding_npz_folder + file[:-4]), crop=crop)
+                         write_path=(sliding_npz_folder + file[:-4]), crop=crop, box=box)
 
         for file in os.listdir(no_sliding_input):
+
             f = os.path.join(no_sliding_input, file)
             patient_id = ((no_sliding_df[no_sliding_df['id'] == file[:-4]])['patient_id']).values[0]
+
+            box_info = no_sliding_box_df[no_sliding_box_df['id'] == file[:-4]].iloc[0]
+            box = (box_info['ymin'], box_info['xmin'], box_info['ymax'], box_info['xmax'])
+
             video_to_npz(f, orig_id=file[:-4], patient_id=patient_id, df_rows=df_rows_no_sliding,
-                         write_path=(no_sliding_npz_folder + file[:-4]), crop=crop)
+                         write_path=(no_sliding_npz_folder + file[:-4]), crop=crop, box=box)
 
     # Download dataframes linking mini-clip ids and patient ids as csv files
     out_df_sliding = pd.DataFrame(df_rows_sliding, columns=['id', 'patient_id'])
