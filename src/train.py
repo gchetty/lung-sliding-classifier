@@ -78,7 +78,7 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
         val_set = preprocessor.prepare(val_set, val_df, shuffle=False, augment=False)
         test_set = preprocessor.prepare(test_set, test_df, shuffle=False, augment=False)
 
-    if flow == 'No':
+    if flow == 'No' and not m_mode:
 
         # Read in training, validation, and test dataframes
         train_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'train.csv'))#[:20]
@@ -100,7 +100,7 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
         val_set = preprocessor.prepare(val_set, val_df, shuffle=False, augment=False)
         test_set = preprocessor.prepare(test_set, test_df, shuffle=False, augment=False)
 
-    elif flow == 'Yes':
+    elif flow == 'Yes' and not m_mode:
 
         train_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'flow_train.csv'))  # [:20]
         val_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'flow_val.csv'))  # [:20]
@@ -121,7 +121,7 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
         val_set = preprocessor.prepare(val_set, val_df, shuffle=False, augment=False)
         test_set = preprocessor.prepare(test_set, test_df, shuffle=False, augment=False)
 
-    elif flow == 'Both':
+    elif flow == 'Both' and not m_mode:
 
         train_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'train.csv'))  # [:20]
         val_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'val.csv'))  # [:20]
