@@ -413,7 +413,7 @@ def inflated_resnet50(model_config, input_shape, metrics, class_counts):
 
     '''
     Creates ResNet50 model inflated to 3 dimensions (as per Quo Vadis)
-    Inflated iImagenet weights are used if inputs have 3 channels
+    Inflated Imagenet weights are used if inputs have 3 channels
 
     :param model_config: Hyperparameter dictionary
     :param input_shape: Tuple, shape of individual input tensor (without batch dimension)
@@ -597,6 +597,19 @@ def inflated_resnet50(model_config, input_shape, metrics, class_counts):
 
 def i3d(model_config, input_shapes, metrics, class_counts):
 
+    '''
+    Creates two-stream inflated inception, without transfer learning
+
+    :param model_config: Hyperparameter dictionary
+    :param input_shapes: Tuple of tuples, shapes of individual input tensors (without batch dimension)
+        First shape corresponds to clip input shape
+        Second shape corresponds to optical flow clip input shape
+    :param metrics: List of metrics for model compilation
+    :param class_counts: 2-element list - number of each class in training set
+
+    :return: Compiled tensorflow model
+    '''
+
     clip_shape = input_shapes[0]
     flow_shape = input_shapes[1]
 
@@ -718,6 +731,17 @@ def i3d(model_config, input_shapes, metrics, class_counts):
 
 def xception(model_config, input_shape, metrics, class_counts):
 
+    '''
+    Creates 2-dimensional Xception as specified by parameters in config file
+
+    :param model_config: Hyperparameter dictionary
+    :param input_shape: Tuple, shape of individual input tensor (without batch dimension)
+    :param metrics: List of metrics for model compilation
+    :param class_counts: 2-element list - number of each class in training set
+
+    :return: Compiled tensorflow model
+    '''
+
     lr = model_config['LR']
     optimizer = Adam(learning_rate=lr)
 
@@ -733,19 +757,35 @@ def xception(model_config, input_shape, metrics, class_counts):
 
     kernel_init = model_config['WEIGHT_INITIALIZER']
 
+    block_cutoffs = [6, 15, 25, 35, 45, 55, 65, 75, 85, 95, 105, 115, 125, -1]
+    cutoff = block_cutoffs[model_config['BLOCKS'] - 1]
+    freeze_cutoff = block_cutoffs[model_config['FROZEN_BLOCKS'] - 1]
+
     base_model = tf.keras.applications.Xception(input_shape=input_shape,
                                                 include_top=False,
                                                 weights='imagenet')
 
-    after = Sequential([])
-    after.add(GlobalAveragePooling2D())
-    after.add(Dense(16, activation='relu', kernel_regularizer=L2(l2_reg), bias_regularizer=L2(l2_reg)))
-    after.add(Dropout(dropout))
-    after.add(Dense(1, activation='sigmoid', kernel_initializer=kernel_init, bias_initializer=output_bias,
-                    dtype='float32'))
-    model = Sequential([base_model, after])
+    # Take first n blocks as specified
+    x = base_model.layers[cutoff].output
+
+    # FC and output head
+    x = GlobalAveragePooling2D()(x)
+    x = Dense(16, activation='relu', kernel_regularizer=L2(l2_reg), bias_regularizer=L2(l2_reg))(x)
+    x = Dropout(dropout)(x)
+    outputs = Dense(1, activation='sigmoid', kernel_initializer=kernel_init, bias_initializer=output_bias,
+                    dtype='float32')(x)
+
+    model = tf.keras.Model(inputs=base_model.inputs, outputs=outputs)
 
     model.summary()
+
+    # Freeze layers as specified
+    for i in range(len(model.layers)):
+        if i <= freeze_cutoff:
+            model.layers[i].trainable = False
+        # Freeze all batch norm layers
+        elif ('batch' in model.layers[i].name) or ('bn' in model.layers[i].name):
+            model.layers[i].trainable = False
 
     model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=metrics)
 

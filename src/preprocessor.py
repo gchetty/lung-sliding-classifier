@@ -289,6 +289,12 @@ def parse_flow(filename, label):
 
 
 def parse_fn_no_label(filename):
+    '''
+
+    :param filename:
+    :return:
+    '''
+
     with np.load(filename, allow_pickle=True) as loaded_file:
         clip = loaded_file['frames']
     clip = tf.cast(clip, tf.float32)
@@ -339,6 +345,14 @@ def parse_label(label):
 
 
 def augment_m_mode(x):
+    '''
+    Augments and M-mode image
+
+    :param x: M-mode image to be augmented
+
+    :return: Augmented M-mode image
+    '''
+
     x = tf.image.random_brightness(x, max_delta=cfg['TRAIN']['PARAMS']['AUGMENTATION']['BRIGHTNESS_DELTA'])
     x = tf.image.random_contrast(x, cfg['TRAIN']['PARAMS']['AUGMENTATION']['CONTRAST_BOUNDS'][0],
                                  cfg['TRAIN']['PARAMS']['AUGMENTATION']['CONTRAST_BOUNDS'][1])
@@ -347,28 +361,59 @@ def augment_m_mode(x):
 
 
 def augment_clip_m_mode_video(x):
+    '''
+    Augments a LUS clip (or mini-clip) before m-mode reconstruction
+
+    :param x: LUS clip to be augmented
+
+    :return: Augmented LUS clip
+    '''
+
     x = tf.convert_to_tensor(x, dtype=tf.float32)
     x = tf.image.random_brightness(x, max_delta=cfg['TRAIN']['PARAMS']['AUGMENTATION']['BRIGHTNESS_DELTA'])
     x = tf.image.random_contrast(x, cfg['TRAIN']['PARAMS']['AUGMENTATION']['CONTRAST_BOUNDS'][0],
                                  cfg['TRAIN']['PARAMS']['AUGMENTATION']['CONTRAST_BOUNDS'][1])
     x = random_flip_left_right_clip(x)  # Function says clip but it works for single images as well
+    # Test rotation (little bit)
     return x
 
 
 def parse_tf_m_mode(filename, label, augment=False):
+    '''
+    Loads an LUS clip corresponding to an inputted filename, and returns the corresponding M-mode reconstruction
+    as well as the associated label
+
+    :param filename: Path to LUS clip to load
+    :param label: Binary label indicating whether the LUS clip exhibits lung sliding
+    :param augment: Whether to augment LUS clips before extracting M-mode images
+
+    :return: Tuple of (M-mode reconstruction, label), both as tensors
+    '''
+
+    img_height = cfg['PREPROCESS']['PARAMS']['IMG_SIZE'][0]
+    num_frames = cfg['PREPROCESS']['PARAMS']['WINDOW']
+    shape = (img_height, num_frames, 3)
     pic, label = tf.numpy_function(parse_fn_m_mode, [filename, label, augment], (tf.float32, tf.float32))
-    shape = (224, 90, 3)
     pic.set_shape(shape)
     label.set_shape((1,))
     return pic, label
 
 
 def parse_fn_m_mode(filename, label, augment=False):
+    '''
+    Loads an LUS clip, optionally augments it, and extracts an M-mode representation
+
+    :param filename: Path to LUS clip to load
+    :param label: Binary label indicating whether the LUS clip exhibits lung sliding
+    :param augment: Whether to augment LUS clips before extracting M-mode images
+
+    :return: Tuple of (M-mode reconstruction, label), both as tensors
+    '''
+
     loaded = np.load(filename)
     clip, bounding_box, height_width = loaded['frames'], loaded['bounding_box'], loaded['height_width']
 
     # Augment clip before extracting m-mode
-    #clip = clip / 255  # Shouldn't need this here - xception preprocess should do it
     if augment:
         clip = augment_clip_m_mode_video(clip)
     clip = tf.clip_by_value(clip, 0, 255)
@@ -376,14 +421,12 @@ def parse_fn_m_mode(filename, label, augment=False):
     # Extract m-mode
     ymin, xmin, ymax, xmax = bounding_box
     box_middle_val = (xmax + xmin) / 2
-    original_height = height_width[0]
     original_width = height_width[1]
     correct_width_frac = box_middle_val / original_width
     num_frames, new_height, new_width = clip.shape[0], clip.shape[1], clip.shape[2]
     middle_pixel = int(correct_width_frac * new_width)
     # Fix bad bounding box
     if middle_pixel == 0:
-        # print('(Warning): Encountered 0-valued middle pixel')
         middle_pixel = new_width // 2
     three_slice = clip[:, :, middle_pixel - 1:middle_pixel + 1, 0]
     mmode = np.median(three_slice, axis=2).T
@@ -394,8 +437,9 @@ def parse_fn_m_mode(filename, label, augment=False):
 
     return final_pic, (1 - tf.one_hot(label, 1))
 
+# PREPROCESSOR CLASS THAT HANDLES NO LABELS - FOR HOLDOUTS???
 
-# Options in this class (most likely) - or another class - to handle ds without labels ?
+
 class Preprocessor:
 
     '''
@@ -496,13 +540,29 @@ class FlowPreprocessor:
 
 class TwoStreamPreprocessor:
 
+    '''
+    Preprocessor for datasets consisting of LUS clips (or mini-clips) and corresponding optical flow videos (2-channel)
+    as model input, and their corresponding labels
+    '''
+
     def __init__(self, preprocessing_fns):
         self.batch_size = cfg['TRAIN']['PARAMS']['BATCH_SIZE']
         self.autotune = tf.data.AUTOTUNE
         self.preprocessing_fn_1 = preprocessing_fns[0]  # Preprocessing function for clips
         self.preprocessing_fn_2 = preprocessing_fns[1]  # Preprocessing function for flow
 
-    def prepare(self, ds, df, shuffle=False, augment=False):  # ds must give ((clip, flow clip), label)
+    def prepare(self, ds, df, shuffle=False, augment=False):
+
+        '''
+        Defines the pipeline for loading and preprocessing each item in a TF dataset
+
+        :param ds: The TF dataset to define the pipeline for - must return items of the form ((clip, flow clip), label)
+        :param df: The DataFrame corresponding to ds
+        :param shuffle: A boolean to decide if shuffling is desired
+        :param augment: A boolean to decide if augmentation is desired
+
+        :return: A TF dataset with either preprocessed data or a full pipeline for eventual preprocessing
+        '''
 
         # Shuffle the dataset
         if shuffle:
@@ -532,12 +592,28 @@ class TwoStreamPreprocessor:
 
 class MModePreprocessor:
 
+    '''
+    Preprocessor for datasets consisting of LUS clips (or mini-clips) and their corresponding labels
+    From which m-mode reconstructions will be assembled and used as inputs
+    '''
+
     def __init__(self, preprocessing_fn):
         self.batch_size = cfg['TRAIN']['PARAMS']['BATCH_SIZE']
         self.autotune = tf.data.AUTOTUNE
         self.preprocessing_fn = preprocessing_fn
 
     def prepare(self, ds, df, shuffle=False, augment=False):
+
+        '''
+        Defines the pipeline for loading and preprocessing each item in a TF dataset
+
+        :param ds: The TF dataset to define the pipeline for
+        :param df: The DataFrame corresponding to ds
+        :param shuffle: A boolean to decide if shuffling is desired
+        :param augment: A boolean to decide if augmentation is desired
+
+        :return: A TF dataset with either preprocessed data or a full pipeline for eventual preprocessing
+        '''
 
         # Shuffle the dataset
         if shuffle:

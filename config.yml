@@ -18,7 +18,7 @@ PREPROCESS:
     METHOD: 'Contiguous'  # 'Stride' or 'Contiguous' - WE DONT NEED THIS ?????
     WINDOW: 90 # Mini-clip length
     STRIDE: 1  # 1 = contiguous (METHOD='Contiguous' param overrides this)
-    IMG_SIZE: [224, 224]
+    IMG_SIZE: [224, 224]  # (Height, width)
 
   PATHS:
     UNMASKED_VIDEOS: 'raw_videos/'
@@ -105,6 +105,8 @@ TRAIN:
       LR: 0.00001
       LR_DECAY_VAL: 0.1
       DROPOUT: 0.5
+      BLOCKS: 12  # Integer, in the range [1, 14]
+      BLOCKS_FROZEN: 4  # Number of blocks to freeze - MUST be less than or equal to the previous ('BLOCKS')
       L2_REG: 0.01
       TRANSFER: True
       LAST_FROZEN: 0  # WHAT ARE THE BREAKPOINTS?

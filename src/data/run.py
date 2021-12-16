@@ -7,7 +7,10 @@ cfg = yaml.full_load(open(os.path.join(os.getcwd(), "../../config.yml"), 'r'))['
 # If flow is selected, optical flow frames are extracted between masking and miniclip extraction
 # This assumes a Python 3.7 virtual environment has been created and requirements.txt is pip installed
 
-# CURRENTLY OUTDATED
+# TO PREPARE FOR M-MODE:
+#    Ensure SMOOTHING = False
+#    Ensure FLOW = False
+#    Ensure CROP = False
 
 flow = cfg['FLOW']
 crop = cfg['CROP']
@@ -27,7 +30,7 @@ if crop:
 
 # Smoothing
 if smooth:
-    os.system('python smooth.py')
+    os.system('python smoothing_filter.py')
 
 if not (flow == 'No'):
     os.system('python flow.py')

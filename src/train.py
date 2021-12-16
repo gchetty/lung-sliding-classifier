@@ -23,7 +23,7 @@ cfg = yaml.full_load(open(os.path.join(os.getcwd(), '../config.yml'), 'r'))
 
 
 def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'], 
-                hparams=cfg['TRAIN']['PARAMS']['XCEPTION'],  # SHOULD REALLY MAKE THIS MORE DYNAMIC
+                hparams=cfg['TRAIN']['PARAMS']['XCEPTION'],
                 model_out_dir=cfg['TRAIN']['PATHS']['MODEL_OUT']):
 
     '''
@@ -33,6 +33,8 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
     :param hparams: A dictionary specifying the hyperparameters to use
     :param model_out_dir: The path to save the model
     '''
+
+    hparams = cfg['TRAIN']['PARAMS'][model_def_str.upper()]
 
     # Enable mixed precision
     mixed_precision = cfg['TRAIN']['MIXED_PRECISION']
