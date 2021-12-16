@@ -58,12 +58,17 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
     val_set = None
     test_set = None
 
-    if m_mode:
+    if m_mode or (not (flow == 'Both')):
 
         # Read in training, validation, and test dataframes
-        train_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'train.csv'))  # [:20]
-        val_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'val.csv'))  # [:20]
-        test_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'test.csv'))  # [:20]
+        if flow == 'Yes':
+            train_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'flow_train.csv'))  # [:20]
+            val_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'flow_val.csv'))  # [:20]
+            test_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'flow_test.csv'))  # [:20]
+        else:
+            train_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'train.csv'))  # [:20]
+            val_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'val.csv'))  # [:20]
+            test_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'test.csv'))  # [:20]
 
         # Create TF datasets for training, validation and test sets
         # Note: This does NOT load the dataset into memory! We specify paths,
@@ -73,50 +78,12 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
         test_set = tf.data.Dataset.from_tensor_slices((test_df['filename'].tolist(), test_df['label']))
 
         # Create preprocessing object given the preprocessing function for model_def
-        preprocessor = MModePreprocessor(preprocessing_fn)
-
-        # Define the preprocessing pipelines for train, test and validation
-        train_set = preprocessor.prepare(train_set, train_df, shuffle=True, augment=True)
-        val_set = preprocessor.prepare(val_set, val_df, shuffle=False, augment=False)
-        test_set = preprocessor.prepare(test_set, test_df, shuffle=False, augment=False)
-
-    if flow == 'No' and not m_mode:
-
-        # Read in training, validation, and test dataframes
-        train_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'train.csv'))#[:20]
-        val_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'val.csv'))#[:20]
-        test_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'test.csv'))#[:20]
-
-        # Create TF datasets for training, validation and test sets
-        # Note: This does NOT load the dataset into memory! We specify paths,
-        #       and labels so that TensorFlow can perform dynamic loading.
-        train_set = tf.data.Dataset.from_tensor_slices((train_df['filename'].tolist(), train_df['label']))
-        val_set = tf.data.Dataset.from_tensor_slices((val_df['filename'].tolist(), val_df['label']))
-        test_set = tf.data.Dataset.from_tensor_slices((test_df['filename'].tolist(), test_df['label']))
-
-        # Create preprocessing object given the preprocessing function for model_def
-        preprocessor = Preprocessor(preprocessing_fn)
-
-        # Define the preprocessing pipelines for train, test and validation
-        train_set = preprocessor.prepare(train_set, train_df, shuffle=True, augment=True)
-        val_set = preprocessor.prepare(val_set, val_df, shuffle=False, augment=False)
-        test_set = preprocessor.prepare(test_set, test_df, shuffle=False, augment=False)
-
-    elif flow == 'Yes' and not m_mode:
-
-        train_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'flow_train.csv'))  # [:20]
-        val_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'flow_val.csv'))  # [:20]
-        test_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'flow_test.csv'))  # [:20]
-
-        # Create TF datasets for training, validation and test sets
-        # Note: This does NOT load the dataset into memory! We specify paths,
-        #       and labels so that TensorFlow can perform dynamic loading.
-        train_set = tf.data.Dataset.from_tensor_slices((train_df['filename'].tolist(), train_df['label']))
-        val_set = tf.data.Dataset.from_tensor_slices((val_df['filename'].tolist(), val_df['label']))
-        test_set = tf.data.Dataset.from_tensor_slices((test_df['filename'].tolist(), test_df['label']))
-
-        # Create preprocessing object given the preprocessing function for model_def
-        preprocessor = FlowPreprocessor(preprocessing_fn)
+        if m_mode:
+            preprocessor = MModePreprocessor(preprocessing_fn)
+        elif flow == 'Yes':
+            preprocessor = FlowPreprocessor(preprocessing_fn)
+        else:
+            preprocessor = Preprocessor(preprocessing_fn)
 
         # Define the preprocessing pipelines for train, test and validation
         train_set = preprocessor.prepare(train_set, train_df, shuffle=True, augment=True)

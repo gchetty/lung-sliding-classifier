@@ -11,9 +11,9 @@ def median_filter(path_in, path_out, kernel_size):
     '''
     Applies median filter to video specified in path_in, and saves to path_out
 
-    :param path_in:
-    :param path_out:
-    :param kernel_size:
+    :param path_in: Path of video to apply filter to
+    :param path_out: Write path for filtered video
+    :param kernel_size: Size of median filter kernel
     '''
 
     cap = cv2.VideoCapture(path_in)
