@@ -759,7 +759,7 @@ def xception(model_config, input_shape, metrics, class_counts):
 
     block_cutoffs = [6, 15, 25, 35, 45, 55, 65, 75, 85, 95, 105, 115, 125, -1]
     cutoff = block_cutoffs[model_config['BLOCKS'] - 1]
-    freeze_cutoff = block_cutoffs[model_config['FROZEN_BLOCKS'] - 1]
+    freeze_cutoff = block_cutoffs[model_config['BLOCKS_FROZEN'] - 1]
 
     base_model = tf.keras.applications.Xception(input_shape=input_shape,
                                                 include_top=False,
