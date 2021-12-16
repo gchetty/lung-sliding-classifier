@@ -170,7 +170,7 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
 
     # Get the model
     if m_mode:
-        input_shape = [cfg['PREPROCESS']['PARAMS']['WINDOW'], cfg['PREPROCESS']['PARAMS']['IMG_SIZE'][0], 3]
+        input_shape = [cfg['PREPROCESS']['PARAMS']['IMG_SIZE'][0], cfg['PREPROCESS']['PARAMS']['WINDOW'], 3]
     elif flow == 'Yes':
         input_shape = [cfg['PREPROCESS']['PARAMS']['WINDOW']] + cfg['PREPROCESS']['PARAMS']['IMG_SIZE'] + [2]
     else:
