@@ -371,7 +371,7 @@ def parse_fn_m_mode(filename, label, augment=False):
     #clip = clip / 255  # Shouldn't need this here - xception preprocess should do it
     if augment:
         clip = augment_clip_m_mode_video(clip)
-    clip = tf.clip_by_value(clip, 0.0, 255.0)
+    clip = tf.clip_by_value(clip, 0, 255)
 
     # Extract m-mode
     ymin, xmin, ymax, xmax = bounding_box
