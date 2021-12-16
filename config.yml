@@ -5,7 +5,7 @@
 PREPROCESS:
   PARAMS:
     AMOUNT_ONLY: False  # If set to True, the tool exits after querying the database and returning counts
-    FLOW: 'Yes'  # Yes for flow only, No for no flow, and Mixed for videos and flow
+    FLOW: 'No'  # Yes for flow only, No for no flow, and Mixed for videos and flow
     FLOW_CROP_WIDTH: 90  # Width to resize to for flow if cropping used
     CROP: False  # Whether clips are to be cropped to the pleural line or not
     SMOOTHING: False  # DOESNT WORK WITH M MODE RIGHT NOW
@@ -39,10 +39,11 @@ PREPROCESS:
     EXTRA_FLOW_NPZ: 'extra_flow_npzs/'  # assumed to be negative class only
 
 TRAIN:
+  M_MODE: True
   MIXED_PRECISION: False
   OUTPUT_BIAS: False
-  PATIENCE: 50
-  MODEL_DEF: 'inflated_resnet50'  # xception_raw, lrcn, threeDCNN, vgg16, inflated_resnet50, i3d
+  PATIENCE: 20
+  MODEL_DEF: 'xception'  # xception_raw, lrcn, threeDCNN, vgg16, inflated_resnet50, i3d, xception
   SAVE_BEST_ONLY: True
 
   SPLITS:
@@ -52,7 +53,7 @@ TRAIN:
     TEST: 0
 
   PARAMS:
-    EPOCHS: 100
+    EPOCHS: 50
     BATCH_SIZE: 1  # MAKE SURE THIS IS SET TO 1 FOR GRADCAM
     SHUFFLE: True
     AUGMENTATION_CHANCE: 0.8
@@ -100,11 +101,19 @@ TRAIN:
       LAST_FROZEN: 74  # Last layer (number) to freeze (NOT 0-indexed)
       L2_REG: 0.01  # Regularizer penalty
       WEIGHT_INITIALIZER: 'he_normal'  # Weight initialization method for layers (if no transfer learning)
+    XCEPTION:  # 2D Xception
+      LR: 0.00001
+      LR_DECAY_VAL: 0.1
+      DROPOUT: 0.5
+      L2_REG: 0.01
+      TRANSFER: True
+      LAST_FROZEN: 0  # WHAT ARE THE BREAKPOINTS?
+      WEIGHT_INITIALIZER: 'he_normal
     INCREASE: False
 
   PATHS:
     CSVS: 'csvs_split/'
-    MODEL_OUT: 'results/models/inflated_resnet50/'
+    MODEL_OUT: 'results/models/xception/'
     TENSORBOARD: 'results/logs/fit/'
 
 EXPLAINABILITY:

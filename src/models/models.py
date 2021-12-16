@@ -12,7 +12,8 @@ from tensorflow.keras.layers import Dense, Flatten
 from tensorflow.keras.layers import LSTM
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import TimeDistributed, Conv3D, AveragePooling3D, Dropout, Input, Add, InputLayer, MaxPooling3D,\
-    Conv2D, MaxPooling2D, BatchNormalization, Activation, GlobalAveragePooling3D, ZeroPadding3D, Concatenate
+    Conv2D, MaxPooling2D, BatchNormalization, Activation, GlobalAveragePooling3D, ZeroPadding3D, Concatenate, \
+    GlobalAveragePooling2D
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.regularizers import L2
 from tensorflow.keras.applications.xception import Xception
@@ -57,6 +58,9 @@ def get_model(model_name):
     elif model_name == 'i3d':
         model_def_fn = i3d
         preprocessing_fn = [normalize, normalize]
+    elif model_name == 'xception':
+        model_def_fn = xception
+        preprocessing_fn = xception_preprocess
 
     if flow:
         preprocessing_fn = normalize
@@ -711,3 +715,38 @@ def i3d(model_config, input_shapes, metrics, class_counts):
 
     return model
 
+
+def xception(model_config, input_shape, metrics, class_counts):
+
+    lr = model_config['LR']
+    optimizer = Adam(learning_rate=lr)
+
+    dropout = model_config['DROPOUT']
+    l2_reg = model_config['L2_REG']
+
+    output_bias = None
+    if cfg['TRAIN']['OUTPUT_BIAS']:
+        count0 = class_counts[0]
+        count1 = class_counts[1]
+        output_bias = math.log(count1 / count0)
+        output_bias = tf.keras.initializers.Constant(output_bias)
+
+    kernel_init = model_config['WEIGHT_INITIALIZER']
+
+    base_model = tf.keras.applications.Xception(input_shape=input_shape,
+                                                include_top=False,
+                                                weights='imagenet')
+
+    after = Sequential([])
+    after.add(GlobalAveragePooling2D())
+    after.add(Dense(16, activation='relu', kernel_regularizer=L2(l2_reg), bias_regularizer=L2(l2_reg)))
+    after.add(Dropout(dropout))
+    after.add(Dense(1, activation='sigmoid', kernel_initializer=kernel_init, bias_initializer=output_bias,
+                    dtype='float32'))
+    model = Sequential([base_model, after])
+
+    model.summary()
+
+    model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=metrics)
+
+    return model

@@ -338,6 +338,63 @@ def parse_label(label):
     return label
 
 
+def augment_m_mode(x):
+    x = tf.image.random_brightness(x, max_delta=cfg['TRAIN']['PARAMS']['AUGMENTATION']['BRIGHTNESS_DELTA'])
+    x = tf.image.random_contrast(x, cfg['TRAIN']['PARAMS']['AUGMENTATION']['CONTRAST_BOUNDS'][0],
+                                 cfg['TRAIN']['PARAMS']['AUGMENTATION']['CONTRAST_BOUNDS'][1])
+    x = random_flip_left_right_clip(x)  # Function says clip but it works for single images as well
+    return x
+
+
+def augment_clip_m_mode_video(x):
+    x = tf.convert_to_tensor(x, dtype=tf.float32)
+    x = tf.image.random_brightness(x, max_delta=cfg['TRAIN']['PARAMS']['AUGMENTATION']['BRIGHTNESS_DELTA'])
+    x = tf.image.random_contrast(x, cfg['TRAIN']['PARAMS']['AUGMENTATION']['CONTRAST_BOUNDS'][0],
+                                 cfg['TRAIN']['PARAMS']['AUGMENTATION']['CONTRAST_BOUNDS'][1])
+    x = random_flip_left_right_clip(x)  # Function says clip but it works for single images as well
+    return x
+
+
+def parse_tf_m_mode(filename, label, augment=False):
+    pic, label = tf.numpy_function(parse_fn_m_mode, [filename, label, augment], (tf.float32, tf.float32))
+    shape = (224, 90, 3)
+    pic.set_shape(shape)
+    label.set_shape((1,))
+    return pic, label
+
+
+def parse_fn_m_mode(filename, label, augment=False):
+    loaded = np.load(filename)
+    clip, bounding_box, height_width = loaded['frames'], loaded['bounding_box'], loaded['height_width']
+
+    # Augment clip before extracting m-mode
+    #clip = clip / 255  # Shouldn't need this here - xception preprocess should do it
+    if augment:
+        clip = augment_clip_m_mode_video(clip)
+    clip = tf.clip_by_value(clip, 0.0, 255.0)
+
+    # Extract m-mode
+    ymin, xmin, ymax, xmax = bounding_box
+    box_middle_val = (xmax + xmin) / 2
+    original_height = height_width[0]
+    original_width = height_width[1]
+    correct_width_frac = box_middle_val / original_width
+    num_frames, new_height, new_width = clip.shape[0], clip.shape[1], clip.shape[2]
+    middle_pixel = int(correct_width_frac * new_width)
+    # Fix bad bounding box
+    if middle_pixel == 0:
+        # print('(Warning): Encountered 0-valued middle pixel')
+        middle_pixel = new_width // 2
+    three_slice = clip[:, :, middle_pixel - 1:middle_pixel + 1, 0]
+    mmode = np.median(three_slice, axis=2).T
+    mmode_image = mmode.reshape((new_height, num_frames, 1))
+    as_tensor = tf.convert_to_tensor(mmode_image)
+    converted = tf.image.grayscale_to_rgb(as_tensor)
+    final_pic = tf.cast(converted, tf.float32)
+
+    return final_pic, (1 - tf.one_hot(label, 1))
+
+
 # Options in this class (most likely) - or another class - to handle ds without labels ?
 class Preprocessor:
 
@@ -472,3 +529,35 @@ class TwoStreamPreprocessor:
 
         return ds
 
+
+class MModePreprocessor:
+
+    def __init__(self, preprocessing_fn):
+        self.batch_size = cfg['TRAIN']['PARAMS']['BATCH_SIZE']
+        self.autotune = tf.data.AUTOTUNE
+        self.preprocessing_fn = preprocessing_fn
+
+    def prepare(self, ds, df, shuffle=False, augment=False):
+
+        # Shuffle the dataset
+        if shuffle:
+            shuffle_val = len(df)
+            ds = ds.shuffle(shuffle_val)
+
+        # Augment clip and extract m-mode reconstructions
+        ds = ds.map(lambda x, y: parse_tf_m_mode(x, y, augment), num_parallel_calls=self.autotune)
+
+        # Define batch size
+        ds = ds.batch(self.batch_size, num_parallel_calls=self.autotune)
+
+        # Optionally augment m-mode images
+        if augment:
+            ds = ds.map(lambda x, y: (augment_m_mode(x), y), num_parallel_calls=self.autotune)
+
+        # Map the preprocessing (scaling, resizing) function to each element
+        ds = ds.map(lambda x, y: (self.preprocessing_fn(x), y), num_parallel_calls=self.autotune)
+
+        # Allows later elements to be prepared while the current element is being processed
+        ds = ds.prefetch(buffer_size=self.autotune)
+
+        return ds
