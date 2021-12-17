@@ -40,6 +40,7 @@ PREPROCESS:
 
 TRAIN:
   M_MODE: True
+  M_MODE_SLICE_METHOD: 'brightest_vertical_sum'  # brightest_vertical_sum, brightest, or box_middle
   MIXED_PRECISION: False
   OUTPUT_BIAS: False
   PATIENCE: 20
@@ -106,10 +107,9 @@ TRAIN:
       LR_DECAY_VAL: 0.1
       DROPOUT: 0.5
       BLOCKS: 12  # Integer, in the range [1, 14]
-      BLOCKS_FROZEN: 4  # Number of blocks to freeze - MUST be less than or equal to the previous ('BLOCKS')
+      BLOCKS_FROZEN: 0  # Number of blocks to freeze - MUST be less than or equal to the previous ('BLOCKS')
       L2_REG: 0.01
       TRANSFER: True
-      LAST_FROZEN: 0  # WHAT ARE THE BREAKPOINTS?
       WEIGHT_INITIALIZER: 'he_normal'
     INCREASE: False
 

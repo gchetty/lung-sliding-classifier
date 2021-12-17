@@ -421,7 +421,8 @@ def parse_fn_m_mode(filename, label, augment=False):
 
     # Extract m-mode
     num_frames, new_height, new_width = clip.shape[0], clip.shape[1], clip.shape[2]
-    middle_pixel = get_middle_pixel_index(clip[0], bounding_box, height_width, method='brightest_vertical_sum')
+    method = cfg['TRAIN']['M_MODE_SLICE_METHOD']
+    middle_pixel = get_middle_pixel_index(clip[0], bounding_box, height_width, method=method)
     # Fix bad bounding box
     if middle_pixel == 0:
         middle_pixel = new_width // 2

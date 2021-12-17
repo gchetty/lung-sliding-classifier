@@ -758,12 +758,20 @@ def xception(model_config, input_shape, metrics, class_counts):
     kernel_init = model_config['WEIGHT_INITIALIZER']
 
     block_cutoffs = [6, 15, 25, 35, 45, 55, 65, 75, 85, 95, 105, 115, 125, -1]
-    cutoff = block_cutoffs[model_config['BLOCKS'] - 1]
-    freeze_cutoff = block_cutoffs[model_config['BLOCKS_FROZEN'] - 1]
 
-    base_model = tf.keras.applications.Xception(input_shape=input_shape,
-                                                include_top=False,
-                                                weights='imagenet')
+    cutoff = block_cutoffs[model_config['BLOCKS'] - 1]
+
+    if model_config['BLOCKS_FROZEN'] == 0:
+        freeze_cutoff = -1
+    else:
+        freeze_cutoff = block_cutoffs[model_config['BLOCKS_FROZEN'] - 1]
+
+    transfer = cfg['TRANSFER']
+
+    if transfer:
+        base_model = tf.keras.applications.Xception(input_shape=input_shape, include_top=False, weights='imagenet')
+    else:
+        base_model = tf.keras.applications.Xception(input_shape=input_shape, include_top=False, weights=None)
 
     # Take first n blocks as specified
     x = base_model.layers[cutoff].output
@@ -779,13 +787,14 @@ def xception(model_config, input_shape, metrics, class_counts):
 
     model.summary()
 
-    # Freeze layers as specified
-    for i in range(len(model.layers)):
-        if i <= freeze_cutoff:
-            model.layers[i].trainable = False
-        # Freeze all batch norm layers
-        elif ('batch' in model.layers[i].name) or ('bn' in model.layers[i].name):
-            model.layers[i].trainable = False
+    # Freeze layers as specified if transfer learning is employed
+    if transfer:
+        for i in range(len(model.layers)):
+            if i <= freeze_cutoff:
+                model.layers[i].trainable = False
+            # Freeze all batch norm layers
+            elif ('batch' in model.layers[i].name) or ('bn' in model.layers[i].name):
+                model.layers[i].trainable = False
 
     model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=metrics)
 
