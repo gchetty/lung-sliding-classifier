@@ -8,14 +8,13 @@ PREPROCESS:
     FLOW: 'No'  # Yes for flow only, No for no flow, and Mixed for videos and flow
     FLOW_CROP_WIDTH: 90  # Width to resize to for flow if cropping used
     CROP: False  # Whether clips are to be cropped to the pleural line or not
-    SMOOTHING: False  # DOESNT WORK WITH M MODE RIGHT NOW
-    SMOOTHING_KERNEL_SIZE: 5  # Integer, kernel size of smoothing kernel filter - MUST be odd
+    SMOOTHING: False
+    SMOOTHING_KERNEL_SIZE: 5  # Integer, kernel size of square smoothing kernel filter - MUST be odd
     M_MODE: True  # Whether to extract M-mode like reconstructions
     SHUFFLE: True # If you want to randomize the videos downloaded
     RANDOM_SEED: 1 # If SHUFFLE=False, this does nothing. Otherwise, this is the seed for shuffling
     SLIDING_PROPORTION: 1
     NO_SLIDING_PROPORTION: 1
-    METHOD: 'Contiguous'  # 'Stride' or 'Contiguous' - WE DONT NEED THIS ?????
     WINDOW: 90 # Mini-clip length
     STRIDE: 1  # 1 = contiguous (METHOD='Contiguous' param overrides this)
     IMG_SIZE: [224, 224]  # (Height, width)
@@ -63,7 +62,7 @@ TRAIN:
       CONTRAST_BOUNDS: [ 0.7, 1.0 ]
       SHIFT_LEFTRIGHT_BOUNDS: [ -0.25, 0.25 ]  # Proportion of width to shift by - originally -0.25 to 0.25
       SHIFT_UPDOWN_BOUNDS: [ -0.0, 0.2 ]  # Proportion of height to shift by - No upwards shift since many areas of interest are near the top - originally 0.0 to 0.2
-      ROTATE_RANGE: [ -0.1, 0.1 ]  # Range of possible rotation angles
+      ROTATE_RANGE: [ -0.1, 0.1 ]  # Range of possible rotation angles (radians)
       SHEAR_RANGE: [ 0.0, 0.1 ]
       ZOOM_RANGE: [ 1.0, 1.5 ]  # DO NOT use lower bound < 1 --> otherwise might cut out parts of pleural line
       RANDOM_NOISE: [ 0.0, 5.0 ]  # Mean, std of sampling distribution, for pixel values in range [0, 255]

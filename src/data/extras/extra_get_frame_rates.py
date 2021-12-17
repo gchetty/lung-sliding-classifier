@@ -1,5 +1,4 @@
 # Saves frame rates of extra (undocumented) clips
-# Also deletes clips with frame rates that are not a multiple of 30
 
 import cv2
 import pandas as pd
@@ -19,12 +18,8 @@ for file in os.listdir(input_folder):
     fr = round(cap.get(cv2.CAP_PROP_FPS))
     cap.release()
 
-    #if fr % 30 == 0:
     ids.append(file[:-4])
     frs.append(fr)
-
-    #else:  # delete video
-        #os.remove(f)
 
 cols = {'id': ids, 'frame_rate': frs}
 df = pd.DataFrame(data=cols)

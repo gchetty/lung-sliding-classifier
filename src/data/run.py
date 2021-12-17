@@ -8,28 +8,33 @@ cfg = yaml.full_load(open(os.path.join(os.getcwd(), "../../config.yml"), 'r'))['
 # This assumes a Python 3.7 virtual environment has been created and requirements.txt is pip installed
 
 # TO PREPARE FOR M-MODE:
-#    Ensure SMOOTHING = False
-#    Ensure FLOW = False
+#    Ensure FLOW = 'No'
 #    Ensure CROP = False
+#    Ensure M_MODE = True
 
 flow = cfg['FLOW']
 crop = cfg['CROP']
 smooth = cfg['SMOOTHING']
+m_mode = cfg['M_MODE']
 amount_only = cfg['AMOUNT_ONLY']
+
+if m_mode:
+    if crop or (not (flow == 'No')):
+        raise AssertionError('Please set flow to \'No\' and crop to False in the config file!')
 
 os.system('python download_videos.py')
 
 if amount_only:
     exit()
 
-os.system('python mask.py')
+os.system('python mask.py')  # accommodate for new masking tool ?
 
 if crop:
     print()  # CALL CROPPING SCRIPT
 
 # Smoothing
 if smooth:
-    os.system('python smoothing_filter.py')
+    os.system('python smoothing_filter.py')  # FIX THIS AS PART OF PR
 
 if not (flow == 'No'):
     os.system('python flow.py')

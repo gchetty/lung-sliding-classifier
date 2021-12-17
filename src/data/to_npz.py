@@ -338,8 +338,7 @@ def flow_frames_to_npz_contig(path, orig_id, patient_id, df_rows, seq_length=cfg
     return
 
 
-def video_to_npz(path, orig_id, patient_id, df_rows, write_path='', method=cfg['PARAMS']['METHOD'], fr=None, crop=True,
-                 box=None):
+def video_to_npz(path, orig_id, patient_id, df_rows, write_path='', fr=None, crop=True, box=None):
 
     '''
     Converts a LUS video file to mini-clips
@@ -349,7 +348,6 @@ def video_to_npz(path, orig_id, patient_id, df_rows, write_path='', method=cfg['
     :param patient_id: Patient ID corresponding to the video file
     :param df_rows: list of (mini-clip_ID, patient_ID), updated in this function, and later downloaded
     :param write_path: Path to directory where output mini-clips are saved
-    :param method: Method of frame extraction for mini-clips, either 'Contiguous' or ' Stride'
     :param fr: Frame rate of input
     :param crop: Boolean, Whether inputs are cropped to pleural line or not
     :param box: Tuple of (ymin, xmin, ymax, xmax) of pleural line ROI
@@ -365,14 +363,10 @@ def video_to_npz(path, orig_id, patient_id, df_rows, write_path='', method=cfg['
     else:  # If frame rate is passed, cast frame rate to closest multiple of 30
         fr = round(fr / 30.0) * 30.0
 
-    if method == 'Contiguous':
-        if fr == 30:
-            video_to_frames_contig(orig_id, patient_id, df_rows, cap, write_path=write_path, crop=crop, box=box)
-        else:
-            video_to_frames_downsampled(orig_id, patient_id, df_rows, cap, fr, write_path=write_path, crop=crop,
-                                        box=box)
+    if fr == 30:
+        video_to_frames_contig(orig_id, patient_id, df_rows, cap, write_path=write_path, crop=crop, box=box)
     else:
-        raise Exception('Stride method not yet implemented!')
+        video_to_frames_downsampled(orig_id, patient_id, df_rows, cap, fr, write_path=write_path, crop=crop, box=box)
 
 
 def parse_args():

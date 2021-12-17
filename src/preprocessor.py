@@ -5,6 +5,7 @@ import yaml
 import tensorflow as tf
 import tensorflow_addons as tfa
 from tensorflow.python.ops import random_ops
+from copy import deepcopy
 
 
 cfg = yaml.full_load(open(os.getcwd() + '/../config.yml', 'r'))
@@ -419,12 +420,8 @@ def parse_fn_m_mode(filename, label, augment=False):
     clip = tf.clip_by_value(clip, 0, 255)
 
     # Extract m-mode
-    ymin, xmin, ymax, xmax = bounding_box
-    box_middle_val = (xmax + xmin) / 2
-    original_width = height_width[1]
-    correct_width_frac = box_middle_val / original_width
     num_frames, new_height, new_width = clip.shape[0], clip.shape[1], clip.shape[2]
-    middle_pixel = int(correct_width_frac * new_width)
+    middle_pixel = get_middle_pixel_index(clip[0], bounding_box, height_width, method='brightest_vertical_sum')
     # Fix bad bounding box
     if middle_pixel == 0:
         middle_pixel = new_width // 2
@@ -436,6 +433,48 @@ def parse_fn_m_mode(filename, label, augment=False):
     final_pic = tf.cast(converted, tf.float32)
 
     return final_pic, (1 - tf.one_hot(label, 1))
+
+
+def get_middle_pixel_index(image, bounding_box, original_height_width, method='brightest', apply_median_filter=True):
+
+    image = deepcopy(image)
+
+    if apply_median_filter:
+        image = tfa.image.median_filter2d(image, filter_shape=(3, 3))
+
+    middle_pixel_index = None
+
+    if method == 'brightest':
+        middle_pixel_index = get_middle_pixel_index_brightest(image, bounding_box, original_height_width)
+
+    elif method == 'box_middle':
+        middle_pixel_index = get_middle_pixel_index_box_middle(image, bounding_box, original_height_width)
+
+    elif method == 'brightest_vertical_sum':
+        middle_pixel_index = get_middle_pixel_index_brightest_vertical_sum(image, bounding_box, original_height_width)
+
+    return middle_pixel_index
+
+
+def get_middle_pixel_index_brightest(image, bounding_box, original_height_width):
+    max_horizontal_slice = np.max(image, axis=0)
+    middle_pixel_index = np.argmax(max_horizontal_slice)
+    return middle_pixel_index
+
+
+def get_middle_pixel_index_box_middle(image, bounding_box, original_height_width):
+    resized_width = cfg['PREPROCESS']['PARAMS']['IMG_SIZE'][1]
+    o_height, o_width = original_height_width
+    ymin, xmin, ymax, xmax = bounding_box
+    original_middle = (xmin + xmax) / 2
+    width_frac = original_middle / o_width
+    return int(resized_width * (width_frac))
+
+
+def get_middle_pixel_index_brightest_vertical_sum(image, bounding_box, original_height_width):
+    sum_horizontal_slice = np.sum(image, axis=0)
+    middle_pixel_index = np.argmax(sum_horizontal_slice)
+    return middle_pixel_index
 
 # PREPROCESSOR CLASS THAT HANDLES NO LABELS - FOR HOLDOUTS???
 

@@ -16,6 +16,7 @@ def download(df, sliding, fr_rows, video_out_root_folder=cfg['PATHS']['UNMASKED_
 
     :param df: A Pandas DataFrame which is the result of a specific query to the database. This is the saved .csv.
     :param sliding: A boolean for whether df is holding information on sliding or non_sliding clips.
+    :param fr_rows: Dataframe of (clip id, frame rate)
     :param video_out_root_folder: The folder path for outputting the downloaded videos.
     :param csv_out_folder: The folder path for outputting the .csv.
     '''
@@ -89,4 +90,3 @@ csv_out_path_no_sliding = os.path.join(csv_out_folder, 'no_sliding_frame_rates.c
 orig_df = pd.read_csv(csv_out_path_no_sliding)
 out_df_no_sliding = pd.concat([orig_df, out_df_no_sliding])
 out_df_no_sliding.to_csv(csv_out_path_no_sliding, index=False)
-
