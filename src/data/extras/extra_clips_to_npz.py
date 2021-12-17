@@ -9,26 +9,27 @@ cfg = yaml.full_load(open(os.path.join(os.getcwd(),"../../config.yml"), 'r'))['P
 
 
 def video_to_frames_downsampled(orig_id, patient_id, df_rows, cap, fr, seq_length=cfg['PARAMS']['WINDOW'],
-                                resize=cfg['PARAMS']['IMG_SIZE'], write_path=''):
+                                resize=cfg['PARAMS']['IMG_SIZE'], write_path='', base_fr=cfg['PARAMS']['BASE_FR']):
     '''
-    Converts a LUS video file to mini-clips downsampled to 30 FPS with specified sequence length
+    Converts a LUS video file to mini-clips downsampled to specified FPS with specified sequence length
 
     :param orig_id: ID of the video file to be converted
     :param patient_id: Patient ID corresponding to the video file
     :param df_rows: list of (mini-clip_ID, patient_ID), updated in this function, and later downloaded
     :param cap: Captured video of full clip, returned by cv2.VideoCapture()
-    :param fr: Frame rate (integer) of original clip - MUST be divisible by 30
+    :param fr: Frame rate (integer) of original clip - MUST be divisible by base frame rate
     :param seq_length: Length of each mini-clip
     :param resize: [width, height], dimensions to resize frames to before saving
     :param write_path: Path to directory where output mini-clips are saved
+    :param base_fr: Base frame rate to downsample to
     '''
 
     # Check validity of frame rate param
     assert (isinstance(fr, int))
-    assert (fr % 30 == 0)
+    assert (fr % base_fr == 0)
 
     frames = []
-    stride = fr // 30
+    stride = fr // base_fr
 
     index = 0  # Position in 'frames' array where the next frame is to be appended
 
@@ -156,9 +157,9 @@ def video_to_frames_contig(orig_id, patient_id, df_rows, cap, seq_length=cfg['PA
 
 
 def flow_frames_to_npz_downsampled(path, orig_id, patient_id, df_rows, fr, seq_length=cfg['PARAMS']['WINDOW'],
-                                   resize=cfg['PARAMS']['IMG_SIZE'], write_path=''):
+                                   resize=cfg['PARAMS']['IMG_SIZE'], write_path='', base_fr=cfg['PARAMS']['BASE_FR']):
     '''
-    Converts a directory of x and y flow frames to mini-clips downsampled to 30 FPS, with flows stacked on axis = -1
+    Converts a directory of x and y flow frames to mini-clips, downsampled, with flows stacked on axis = -1
 
     :param path: Path to directory containing flow frames
     :param orig_id: ID of the LUS video file associated with the flow frames
@@ -168,12 +169,13 @@ def flow_frames_to_npz_downsampled(path, orig_id, patient_id, df_rows, fr, seq_l
     :param seq_length: Length of each mini-clip
     :param resize: [width, height], dimensions to resize frames to before saving
     :param write_path: Path to directory where output mini-clips are saved
+    :param base_fr: Base frame rate to downsample to
     '''
 
     frames_x = []
     frames_y = []
 
-    stride = fr // 30
+    stride = fr // base_fr
 
     # Read all flow frames
     for file in os.listdir(path):
@@ -274,7 +276,8 @@ def flow_frames_to_npz_contig(path, orig_id, patient_id, df_rows, seq_length=cfg
     return
 
 
-def video_to_npz(path, orig_id, patient_id, df_rows, write_path='', method=cfg['PARAMS']['METHOD'], fr=None):
+def video_to_npz(path, orig_id, patient_id, df_rows, write_path='', method=cfg['PARAMS']['METHOD'], fr=None,
+                 base_fr=cfg['PARAMS']['BASE_FR']):
     '''
     Converts a LUS video file to mini-clips
 
@@ -284,6 +287,7 @@ def video_to_npz(path, orig_id, patient_id, df_rows, write_path='', method=cfg['
     :param df_rows: list of (mini-clip_ID, patient_ID), updated in this function, and later downloaded
     :param write_path: Path to directory where output mini-clips are saved
     :param method: Method of frame extraction for mini-clips, either 'Contiguous' or ' Stride'
+    :param base_fr: Base frame rate to downsample to
     '''
 
     cap = cv2.VideoCapture(path)
@@ -291,11 +295,11 @@ def video_to_npz(path, orig_id, patient_id, df_rows, write_path='', method=cfg['
     if fr is None:
         fr = round(cap.get(cv2.CAP_PROP_FPS)) \
             # Disregard clips with undesired frame rate, only if frame rate not passed in (passed in = override checking)
-        if not (fr % 30 == 0):
+        if not (fr % base_fr == 0):
             return
 
     if method == 'Contiguous':
-        if fr == 30:
+        if fr == base_fr:
             video_to_frames_contig(orig_id, patient_id, df_rows, cap, write_path=write_path)
         else:
             video_to_frames_downsampled(orig_id, patient_id, df_rows, cap, fr, write_path=write_path)
@@ -325,15 +329,17 @@ fr_df = pd.read_csv(fr_path)
 df_rows = []
 df_rows_flow = []
 
+base_fr = cfg['PARAMS']['BASE_FR']
+
 if not (flow == 'No'):
 
     for id in os.listdir(flow_input_folder):
         path = os.path.join(flow_input_folder, id)
         fr = ((fr_df[fr_df['id'] == id])['frame_rate']).values[0]
-        fr = int(round(fr / 30.0) * 30.0)  # Cast to nearest multiple of 30
+        fr = int(round(fr / base_fr) * base_fr)  # Cast to nearest multiple of base frame rate
         if fr == 0:
-            fr = 30
-        if fr == 30:
+            fr = base_fr
+        if fr == base_fr:
             flow_frames_to_npz_contig(path, orig_id=id, patient_id='N/A', df_rows=df_rows_flow,
                                       write_path=(flow_npz_folder + id))
         else:
@@ -345,9 +351,9 @@ if not (flow == 'Yes'):
     for file in os.listdir(input_folder):
         f = os.path.join(input_folder, file)
         fr = ((fr_df[fr_df['id'] == file[:-4]])['frame_rate']).values[0]
-        fr = int(round(fr / 30.0) * 30.0)  # Cast to nearest multiple of 30
+        fr = int(round(fr / base_fr) * base_fr)  # Cast to nearest multiple of base frame rate
         if fr == 0:
-            fr = 30
+            fr = base_fr
         video_to_npz(f, orig_id=file[:-4], patient_id='N/A', df_rows=df_rows, write_path=(npz_folder + file[:-4]),
                      fr=fr)
 

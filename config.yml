@@ -18,6 +18,7 @@ PREPROCESS:
     WINDOW: 90 # Mini-clip length
     STRIDE: 1  # 1 = contiguous (METHOD='Contiguous' param overrides this)
     IMG_SIZE: [224, 224]  # (Height, width)
+    BASE_FR: 30  # Base frame rate - videos are downsampled to this
 
   PATHS:
     UNMASKED_VIDEOS: 'raw_videos/'
