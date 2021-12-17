@@ -766,7 +766,7 @@ def xception(model_config, input_shape, metrics, class_counts):
     else:
         freeze_cutoff = block_cutoffs[model_config['BLOCKS_FROZEN'] - 1]
 
-    transfer = cfg['TRANSFER']
+    transfer = model_config['TRANSFER']
 
     if transfer:
         base_model = tf.keras.applications.Xception(input_shape=input_shape, include_top=False, weights='imagenet')
