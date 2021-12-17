@@ -12,7 +12,7 @@ from tensorflow.keras.metrics import Precision, Recall, AUC, TrueNegatives, True
 from tensorflow_addons.metrics import F1Score, FBetaScore
 from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
 
-from preprocessor import Preprocessor, FlowPreprocessor
+from preprocessor import Preprocessor, FlowPreprocessor, TwoStreamPreprocessor, MModePreprocessor
 from visualization.visualization import log_confusion_matrix
 from models.models import *
 from custom.metrics import Specificity
@@ -23,7 +23,7 @@ cfg = yaml.full_load(open(os.path.join(os.getcwd(), '../config.yml'), 'r'))
 
 
 def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'], 
-                hparams=cfg['TRAIN']['PARAMS']['INFLATED_RESNET50'],  # SHOULD REALLY MAKE THIS MORE DYNAMIC
+                hparams=cfg['TRAIN']['PARAMS']['XCEPTION'],
                 model_out_dir=cfg['TRAIN']['PATHS']['MODEL_OUT']):
 
     '''
@@ -34,6 +34,8 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
     :param model_out_dir: The path to save the model
     '''
 
+    hparams = cfg['TRAIN']['PARAMS'][model_def_str.upper()]
+
     # Enable mixed precision
     mixed_precision = cfg['TRAIN']['MIXED_PRECISION']
     if mixed_precision:
@@ -41,6 +43,7 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
         tf.keras.mixed_precision.set_global_policy(policy)
 
     flow = cfg['PREPROCESS']['PARAMS']['FLOW']
+    m_mode = cfg['TRAIN']['M_MODE']
     
     # Get the model function and preprocessing function 
     model_def_fn, preprocessing_fn = get_model(model_def_str)
@@ -55,12 +58,17 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
     val_set = None
     test_set = None
 
-    if not (flow == 'Yes'):
+    if m_mode or (not (flow == 'Both')):
 
         # Read in training, validation, and test dataframes
-        train_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'train.csv'))#[:20]
-        val_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'val.csv'))#[:20]
-        test_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'test.csv'))#[:20]
+        if flow == 'Yes':
+            train_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'flow_train.csv'))  # [:20]
+            val_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'flow_val.csv'))  # [:20]
+            test_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'flow_test.csv'))  # [:20]
+        else:
+            train_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'train.csv'))  # [:20]
+            val_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'val.csv'))  # [:20]
+            test_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'test.csv'))  # [:20]
 
         # Create TF datasets for training, validation and test sets
         # Note: This does NOT load the dataset into memory! We specify paths,
@@ -70,33 +78,45 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
         test_set = tf.data.Dataset.from_tensor_slices((test_df['filename'].tolist(), test_df['label']))
 
         # Create preprocessing object given the preprocessing function for model_def
-        preprocessor = Preprocessor(preprocessing_fn)
+        if m_mode:
+            preprocessor = MModePreprocessor(preprocessing_fn)
+        elif flow == 'Yes':
+            preprocessor = FlowPreprocessor(preprocessing_fn)
+        else:
+            preprocessor = Preprocessor(preprocessing_fn)
 
         # Define the preprocessing pipelines for train, test and validation
         train_set = preprocessor.prepare(train_set, train_df, shuffle=True, augment=True)
         val_set = preprocessor.prepare(val_set, val_df, shuffle=False, augment=False)
         test_set = preprocessor.prepare(test_set, test_df, shuffle=False, augment=False)
 
-    if not (flow == 'No'):
+    elif flow == 'Both' and not m_mode:
 
-        train_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'flow_train.csv'))  # [:20]
-        val_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'flow_val.csv'))  # [:20]
-        test_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'flow_test.csv'))  # [:20]
+        train_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'train.csv'))  # [:20]
+        val_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'val.csv'))  # [:20]
+        test_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'test.csv'))  # [:20]
 
-        # Create TF datasets for training, validation and test sets
-        # Note: This does NOT load the dataset into memory! We specify paths,
-        #       and labels so that TensorFlow can perform dynamic loading.
-        train_set = tf.data.Dataset.from_tensor_slices((train_df['filename'].tolist(), train_df['label']))
-        val_set = tf.data.Dataset.from_tensor_slices((val_df['filename'].tolist(), val_df['label']))
-        test_set = tf.data.Dataset.from_tensor_slices((test_df['filename'].tolist(), test_df['label']))
+        x_train_ds = tf.data.Dataset.from_tensor_slices((train_df['filename'].tolist(),
+                                                         train_df['flow_filename'].tolist()))
+        x_val_ds = tf.data.Dataset.from_tensor_slices((val_df['filename'].tolist(), val_df['flow_filename'].tolist()))
+        x_test_ds = tf.data.Dataset.from_tensor_slices((test_df['filename'].tolist(),
+                                                        test_df['flow_filename'].tolist()))
+
+        y_train_ds = tf.data.Dataset.from_tensor_slices(train_df['label'])
+        y_val_ds = tf.data.Dataset.from_tensor_slices(val_df['label'])
+        y_test_ds = tf.data.Dataset.from_tensor_slices(test_df['label'])
+
+        train_set = tf.data.Dataset.zip((x_train_ds, y_train_ds))
+        val_set = tf.data.Dataset.zip((x_val_ds, y_val_ds))
+        test_set = tf.data.Dataset.zip((x_test_ds, y_test_ds))
 
         # Create preprocessing object given the preprocessing function for model_def
-        preprocessor = FlowPreprocessor(preprocessing_fn)
+        preprocessor = TwoStreamPreprocessor(preprocessing_fn)
 
         # Define the preprocessing pipelines for train, test and validation
-        train_set = preprocessor.prepare(train_set, train_df, shuffle=True)
-        val_set = preprocessor.prepare(val_set, val_df, shuffle=False)
-        test_set = preprocessor.prepare(test_set, test_df, shuffle=False)
+        train_set = preprocessor.prepare(train_set, train_df, shuffle=True, augment=True)
+        val_set = preprocessor.prepare(val_set, val_df, shuffle=False, augment=False)
+        test_set = preprocessor.prepare(test_set, test_df, shuffle=False, augment=False)
 
     # Create dictionary for class weights:
     # Taken from https://www.tensorflow.org/tutorials/structured_data/imbalanced_data
@@ -118,11 +138,15 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
     metrics += [TrueNegatives(), TruePositives(), FalseNegatives(), FalsePositives(), Specificity()]
 
     # Get the model
-    input_shape = None
-    if flow == 'Yes':
+    if m_mode:
+        input_shape = [cfg['PREPROCESS']['PARAMS']['IMG_SIZE'][0], cfg['PREPROCESS']['PARAMS']['WINDOW'], 3]
+    elif flow == 'Yes':
         input_shape = [cfg['PREPROCESS']['PARAMS']['WINDOW']] + cfg['PREPROCESS']['PARAMS']['IMG_SIZE'] + [2]
-    elif flow == 'No':
+    else:
         input_shape = [cfg['PREPROCESS']['PARAMS']['WINDOW']] + cfg['PREPROCESS']['PARAMS']['IMG_SIZE'] + [3]
+    if flow == 'Both' and not m_mode:
+        input_shape = [input_shape]
+        input_shape.append([cfg['PREPROCESS']['PARAMS']['WINDOW']] + cfg['PREPROCESS']['PARAMS']['IMG_SIZE'] + [2])
 
     model = model_def_fn(hparams, input_shape, metrics, counts)
 

@@ -12,8 +12,10 @@ from tensorflow.keras.layers import Dense, Flatten
 from tensorflow.keras.layers import LSTM
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import TimeDistributed, Conv3D, AveragePooling3D, Dropout, Input, Add, InputLayer, MaxPooling3D,\
-    Conv2D, MaxPooling2D, BatchNormalization, Activation, GlobalAveragePooling3D, ZeroPadding3D
+    Conv2D, MaxPooling2D, BatchNormalization, Activation, GlobalAveragePooling3D, ZeroPadding3D, Concatenate, \
+    GlobalAveragePooling2D
 from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.regularizers import L2
 from tensorflow.keras.applications.xception import Xception
 from tensorflow.keras.applications.xception import preprocess_input as xception_preprocess
 from tensorflow.keras.applications.vgg16 import VGG16
@@ -44,8 +46,8 @@ def get_model(model_name):
     elif model_name == 'xception_raw':
         model_def_fn = xception_raw
         preprocessing_fn = xception_preprocess
-    elif model_name == 'vgg16_raw':
-        model_def_fn = vgg16_raw
+    elif model_name == 'vgg16':
+        model_def_fn = vgg16
         preprocessing_fn = vgg16_preprocess
     elif model_name == 'res3d':
         model_def_fn = res3d
@@ -53,6 +55,12 @@ def get_model(model_name):
     elif model_name == 'inflated_resnet50':
         model_def_fn = inflated_resnet50
         preprocessing_fn = resnet_preprocess
+    elif model_name == 'i3d':
+        model_def_fn = i3d
+        preprocessing_fn = [normalize, normalize]
+    elif model_name == 'xception':
+        model_def_fn = xception
+        preprocessing_fn = xception_preprocess
 
     if flow:
         preprocessing_fn = normalize
@@ -156,7 +164,7 @@ def xception_raw(model_config, input_shape, metrics, class_counts):
     return model
 
 
-def vgg16_raw(model_config, input_shape, metrics, class_counts):
+def vgg16(model_config, input_shape, metrics, class_counts):
 
     '''
     Time-distributed raw (not pre-trained) VGG16 feature extractor with LSTM and output head on top
@@ -169,23 +177,52 @@ def vgg16_raw(model_config, input_shape, metrics, class_counts):
     :return: Compiled tensorflow model
     '''
 
+    flow = True if cfg['PREPROCESS']['PARAMS']['FLOW'] == 'Yes' else False
+
     lr = model_config['LR']
-    dropout = model_config['DROPOUT']
     optimizer = Adam(learning_rate=lr)
 
-    base = VGG16(include_top=False, weights=None, input_shape=input_shape[1:], pooling='avg')
+    dropout = model_config['DROPOUT']
+    l2_reg = model_config['L2_REG']  # NOT USED RN
+
+    output_bias = None
+    if cfg['TRAIN']['OUTPUT_BIAS']:
+        count0 = class_counts[0]
+        count1 = class_counts[1]
+        output_bias = math.log(count1 / count0)
+        output_bias = tf.keras.initializers.Constant(output_bias)
+
+    kernel_init = model_config['WEIGHT_INITIALIZER']  # NOT USED IN CONV LAYERS RN
+
+    # Download VGG16
+    transfer = model_config['TRANSFER']
+    if flow or (not transfer):
+        base = VGG16(include_top=False, input_tensor=None, input_shape=(input_shape[1:3] + [3]), pooling='avg')
+    else:
+        base = VGG16(include_top=False, weights='imagenet', input_tensor=None, input_shape=input_shape[1:],
+                     pooling='avg')
 
     model = tf.keras.models.Sequential()
 
     model.add(InputLayer(input_shape=input_shape))
 
-    for layer in base.layers[1:]:
-        model.add(TimeDistributed(layer))
+    stop_block = model_config['BLOCKS'] + 1
+    for layer in base.layers[1:-1]:
+        if int(layer.name[5:6]) < stop_block:  # only add blocks up to specified 'last block'
+            model.add(TimeDistributed(layer, name=layer.name))
 
-    model.add(LSTM(256, return_sequences=False, dropout=dropout))
-    model.add(Dense(1, activation='sigmoid'))
+    model.add(TimeDistributed(base.layers[-1], name=base.layers[-1].name))  # GAP
+    model.add(LSTM(256, return_sequences=False))
+    model.add(Dropout(dropout))
+    model.add(Dense(1, activation='sigmoid', kernel_initializer=kernel_init, bias_initializer=output_bias,
+                    dtype='float32'))
 
     model.summary()
+
+    # Freeze layers
+    for i in range(len(model.layers)):
+        if i < model_config['LAST_FROZEN']:
+            model.layers[i].trainable = False
 
     model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=metrics)
 
@@ -376,7 +413,7 @@ def inflated_resnet50(model_config, input_shape, metrics, class_counts):
 
     '''
     Creates ResNet50 model inflated to 3 dimensions (as per Quo Vadis)
-    Inflated iImagenet weights are used if inputs have 3 channels
+    Inflated Imagenet weights are used if inputs have 3 channels
 
     :param model_config: Hyperparameter dictionary
     :param input_shape: Tuple, shape of individual input tensor (without batch dimension)
@@ -389,8 +426,10 @@ def inflated_resnet50(model_config, input_shape, metrics, class_counts):
     flow = True if cfg['PREPROCESS']['PARAMS']['FLOW'] == 'Yes' else False
 
     lr = model_config['LR']
-    dropout = model_config['DROPOUT']
     optimizer = Adam(learning_rate=lr)
+
+    dropout = model_config['DROPOUT']
+    l2_reg = model_config['L2_REG']
 
     output_bias = None
     if cfg['TRAIN']['OUTPUT_BIAS']:
@@ -399,6 +438,8 @@ def inflated_resnet50(model_config, input_shape, metrics, class_counts):
         output_bias = math.log(count1 / count0)
         output_bias = tf.keras.initializers.Constant(output_bias)
 
+    kernel_init = model_config['WEIGHT_INITIALIZER']
+
     # Download 2D ResNet50
     if flow:
         base = ResNet50V2(include_top=False, input_tensor=None, input_shape=(input_shape[1:3]+[3]), pooling='avg')
@@ -406,7 +447,7 @@ def inflated_resnet50(model_config, input_shape, metrics, class_counts):
         base = ResNet50V2(include_top=False, weights='imagenet', input_tensor=None, input_shape=input_shape[1:],
                           pooling='avg')
 
-    def block(x, last, filters, ind, pos):
+    def block(x, last, filters, ind, pos, l2, kernel_init):
 
         '''
         Adds layers corresponding to a ResNet50 block (inflated to 3D)
@@ -416,6 +457,8 @@ def inflated_resnet50(model_config, input_shape, metrics, class_counts):
         :param filters: Base number of filters in convolutions
         :param ind: Integer, tracking index of base ResNet50 layers (for naming purposes)
         :param pos: String, position of block in stage - either 'first', 'last', or a different arbitrary value
+        :param l2: L2 regularization penalty, applied to all convolutional layers
+        :param kernel_init: Kernel initialization method
 
         :return: Tensor - block output
         '''
@@ -426,34 +469,41 @@ def inflated_resnet50(model_config, input_shape, metrics, class_counts):
         if pos == 'first':
             last = x
 
-        x = Conv3D(filters=filters, kernel_size=1, strides=1, use_bias=False, name=base.layers[ind + 2].name)(x)
+        x = Conv3D(filters=filters, kernel_size=1, strides=1, kernel_initializer=kernel_init,
+                   use_bias=False, kernel_regularizer=L2(l2), name=base.layers[ind + 2].name)(x)
         x = BatchNormalization(name=base.layers[ind + 3].name)(x)
         x = Activation(activation='relu', name=base.layers[ind + 4].name)(x)
         x = ZeroPadding3D(padding=1, name=base.layers[ind + 5].name)(x)
 
         if pos == 'last':
-            x = Conv3D(filters=filters, kernel_size=3, strides=2, use_bias=False, name=base.layers[ind + 6].name)(x)
+            x = Conv3D(filters=filters, kernel_size=3, strides=2, kernel_initializer=kernel_init,
+                       use_bias=False, kernel_regularizer=L2(l2), name=base.layers[ind + 6].name)(x)
         else:
-            x = Conv3D(filters=filters, kernel_size=3, strides=1, use_bias=False, name=base.layers[ind + 6].name)(x)
+            x = Conv3D(filters=filters, kernel_size=3, strides=1, kernel_initializer=kernel_init,
+                       use_bias=False, kernel_regularizer=L2(l2), name=base.layers[ind + 6].name)(x)
         x = BatchNormalization(name=base.layers[ind + 7].name)(x)
         x = Activation(activation='relu', name=base.layers[ind + 8].name)(x)
 
         # ADD STUFF
         if pos == 'first':
-            res = Conv3D(filters=filters * 4, kernel_size=1, strides=1, name=base.layers[ind + 9].name)(last)
-            x = Conv3D(filters=filters * 4, kernel_size=1, strides=1, name=base.layers[ind + 10].name)(x)
+            res = Conv3D(filters=filters * 4, kernel_size=1, strides=1, kernel_initializer=kernel_init,
+                         kernel_regularizer=L2(l2), name=base.layers[ind + 9].name)(last)
+            x = Conv3D(filters=filters * 4, kernel_size=1, strides=1, kernel_initializer=kernel_init,
+                       kernel_regularizer=L2(l2), name=base.layers[ind + 10].name)(x)
             x = Add(name=base.layers[ind + 11].name)([x, res])
         elif pos == 'last':
             res = MaxPooling3D(pool_size=1, strides=2, name=base.layers[ind + 9].name)(last)
-            x = Conv3D(filters=filters * 4, kernel_size=1, strides=1, name=base.layers[ind + 10].name)(x)
+            x = Conv3D(filters=filters * 4, kernel_size=1, strides=1, kernel_initializer=kernel_init,
+                       kernel_regularizer=L2(l2), name=base.layers[ind + 10].name)(x)
             x = Add(name=base.layers[ind + 11].name)([x, res])
         else:
-            x = Conv3D(filters=filters * 4, kernel_size=1, strides=1, name=base.layers[ind + 9].name)(x)
+            x = Conv3D(filters=filters * 4, kernel_size=1, strides=1, kernel_initializer=kernel_init,
+                       kernel_regularizer=L2(l2), name=base.layers[ind + 9].name)(x)
             x = Add(name=base.layers[ind + 10].name)([x, last])
 
         return x
 
-    def stage(x, last, num_blocks, filters, ind, final):
+    def stage(x, last, num_blocks, filters, ind, final, l2, kernel_init):
 
         '''
         Adds layers corresponding to a ResNet50 stage (inflated to 3D)
@@ -464,6 +514,8 @@ def inflated_resnet50(model_config, input_shape, metrics, class_counts):
         :param filters: Base number of filters in convolutions
         :param ind: Integer, tracking index of base ResNet50 layers (for naming purposes)
         :param final: Boolean, flagging whether final stage or not (final stage has no dimensional reduction)
+        :param l2: L2 regularization penalty
+        :param kernel_init: Kernel initialization method
 
         :return: Tuple of (stage output tensor, index for next layer to be added)
         '''
@@ -475,7 +527,7 @@ def inflated_resnet50(model_config, input_shape, metrics, class_counts):
             elif i == (num_blocks - 1):
                 if not final:
                     pos = 'last'
-            x = block(x, last, filters, ind, pos)
+            x = block(x, last, filters, ind, pos, l2, kernel_init)
             last = x
             if (pos == 'first') or (pos == 'last'):
                 ind += 12
@@ -489,29 +541,32 @@ def inflated_resnet50(model_config, input_shape, metrics, class_counts):
     inputs = tf.keras.Input(shape=input_shape)
 
     x = ZeroPadding3D(padding=3, name=base.layers[1].name)(inputs)
-    x = Conv3D(filters=64, kernel_size=7, strides=2, name=base.layers[2].name)(x)
+    x = Conv3D(filters=64, kernel_size=7, strides=2, kernel_initializer=kernel_init, kernel_regularizer=L2(l2_reg),
+               name=base.layers[2].name)(x)
     x = ZeroPadding3D(padding=1, name=base.layers[3].name)(x)
     x = MaxPooling3D(pool_size=3, strides=2, name=base.layers[4].name)(x)
 
     index = 5
 
-    x, index = stage(x, x, 3, 64, index, False)  # stage 1
-    x, index = stage(x, x, 4, 128, index, False)  # stage 2
-    x, index = stage(x, x, 6, 256, index, False)  # stage 3
-    x, index = stage(x, x, 3, 512, index, True)  # stage 4
+    x, index = stage(x, x, 3, 64, index, False, l2_reg, kernel_init)  # stage 1
+    x, index = stage(x, x, 4, 128, index, False, l2_reg, kernel_init)  # stage 2
+    x, index = stage(x, x, 6, 256, index, False, l2_reg, kernel_init)  # stage 3
+    #x, index = stage(x, x, 3, 512, index, True, l2_reg, kernel_init)  # stage 4
 
     # Output head
     x = BatchNormalization(name=base.layers[-3].name)(x)
     x = Activation(activation='relu', name=base.layers[-2].name)(x)
     x = GlobalAveragePooling3D(name=base.layers[-1].name)(x)
     x = Dropout(dropout)(x)
-    outputs = Dense(1, activation='sigmoid', bias_initializer=output_bias, dtype='float32')(x)
+    outputs = Dense(1, activation='sigmoid', kernel_initializer=kernel_init, bias_initializer=output_bias,
+                    dtype='float32')(x)
 
     model = tf.keras.Model(inputs=inputs, outputs=outputs)
     model.summary()
 
     # Bootstrap weights & biases and freeze layers, only for convolutional and batch norm layers
-    if not flow:
+    transfer = model_config['TRANSFER']
+    if (not flow) and transfer:
 
         for i in range(len(model.layers)):
 
@@ -539,3 +594,199 @@ def inflated_resnet50(model_config, input_shape, metrics, class_counts):
 
     return model
 
+
+def i3d(model_config, input_shapes, metrics, class_counts):
+
+    '''
+    Creates two-stream inflated inception, without transfer learning
+
+    :param model_config: Hyperparameter dictionary
+    :param input_shapes: Tuple of tuples, shapes of individual input tensors (without batch dimension)
+        First shape corresponds to clip input shape
+        Second shape corresponds to optical flow clip input shape
+    :param metrics: List of metrics for model compilation
+    :param class_counts: 2-element list - number of each class in training set
+
+    :return: Compiled tensorflow model
+    '''
+
+    clip_shape = input_shapes[0]
+    flow_shape = input_shapes[1]
+
+    lr = model_config['LR']
+    optimizer = Adam(learning_rate=lr)
+
+    dropout = model_config['DROPOUT']
+    l2_reg = model_config['L2_REG']
+
+    output_bias = None
+    if cfg['TRAIN']['OUTPUT_BIAS']:
+        count0 = class_counts[0]
+        count1 = class_counts[1]
+        output_bias = math.log(count1 / count0)
+        output_bias = tf.keras.initializers.Constant(output_bias)
+
+    kernel_init = model_config['WEIGHT_INITIALIZER']
+
+    def inception_block(x, filters, l2):
+        a = Conv3D(filters, kernel_size=(1, 1, 1), strides=1, kernel_initializer=kernel_init,
+                   kernel_regularizer=L2(l2), padding='same', use_bias=False)(x)
+        a = BatchNormalization()(a)
+        a = Activation('relu')(a)
+
+        b = Conv3D(filters, kernel_size=(1, 1, 1), strides=1, kernel_initializer=kernel_init,
+                   kernel_regularizer=L2(l2), padding='same', use_bias=False)(x)
+        b = BatchNormalization()(b)
+        b = Activation('relu')(b)
+        b = Conv3D(filters, kernel_size=(3, 3, 3), strides=1, kernel_initializer=kernel_init,
+                   kernel_regularizer=L2(l2), padding='same', use_bias=False)(b)
+        b = BatchNormalization()(b)
+        b = Activation('relu')(b)
+
+        c = Conv3D(filters, kernel_size=(1, 1, 1), strides=1, kernel_initializer=kernel_init,
+                   kernel_regularizer=L2(l2), padding='same', use_bias=False)(x)
+        c = BatchNormalization()(c)
+        c = Activation('relu')(c)
+        c = Conv3D(filters, kernel_size=(3, 3, 3), strides=1, kernel_initializer=kernel_init,
+                   kernel_regularizer=L2(l2), padding='same', use_bias=False)(c)
+        c = BatchNormalization()(c)
+        c = Activation('relu')(c)
+
+        d = MaxPooling3D(pool_size=(3, 3, 3), strides=1, padding='same')(x)
+        d = Conv3D(filters, kernel_size=(1, 1, 1), strides=1, kernel_initializer=kernel_init,
+                   kernel_regularizer=L2(l2), padding='same', use_bias=False)(d)
+        d = BatchNormalization()(d)
+        d = Activation('relu')(d)
+
+        return Concatenate()([a, b, c, d])
+
+    def inception(x, l2):
+
+        # number of filters from inception paper - very deep CNNs for large scale image rec
+
+        x = Conv3D(64, kernel_size=(7, 7, 7), strides=2, kernel_initializer=kernel_init,
+                   kernel_regularizer=L2(l2), use_bias=False)(x)
+        x = BatchNormalization()(x)
+        x = Activation('relu')(x)
+
+        x = MaxPooling3D(pool_size=(1, 3, 3), strides=(1, 2, 2))(x)
+
+        x = Conv3D(128, kernel_size=(1, 1, 1), strides=1, kernel_initializer=kernel_init,
+                   kernel_regularizer=L2(l2), use_bias=False)(x)
+        x = BatchNormalization()(x)
+        x = Activation('relu')(x)
+        x = Conv3D(128, kernel_size=(3, 3, 3), strides=1, kernel_initializer=kernel_init,
+                   kernel_regularizer=L2(l2), use_bias=False)(x)
+        x = BatchNormalization()(x)
+        x = Activation('relu')(x)
+
+        x = MaxPooling3D(pool_size=(1, 3, 3), strides=(1, 2, 2))(x)
+        
+        for i in range(2):
+            x = inception_block(x, 256, l2)
+
+        x = MaxPooling3D(pool_size=(3, 3, 3), strides=(2, 2, 2))(x)
+        '''
+        for i in range(5):
+            x = inception_block(x, 512, l2)
+
+        x = MaxPooling3D(pool_size=(2, 2, 2), strides=(2, 2, 2))(x)
+
+        for i in range(2):
+            x = inception_block(x, 512, l2)
+        '''
+        x = Conv3D(512, kernel_size=(1, 1, 1), strides=1, kernel_initializer=kernel_init,
+                   kernel_regularizer=L2(l2), use_bias=False)(x)
+        x = BatchNormalization()(x)
+        x = Activation('relu')(x)
+
+        x = GlobalAveragePooling3D()(x)
+
+        return x
+
+    shape1 = clip_shape
+    inputs1 = Input(shape1)
+    x1 = inputs1
+    x1 = inception(x1, l2_reg)
+    m1 = tf.keras.Model(inputs=inputs1, outputs=x1)
+
+    shape2 = flow_shape
+    inputs2 = Input(shape2)
+    x2 = inputs2
+    x2 = inception(x2, l2_reg)
+    m2 = tf.keras.Model(inputs=inputs2, outputs=x2)
+
+    x = Concatenate()([m1.output, m2.output])
+    x = Dropout(dropout)(x)
+    x = Dense(32, activation='relu')(x)
+    outputs = Dense(1, activation='sigmoid', kernel_initializer=kernel_init, bias_initializer=output_bias)(x)
+
+    model = tf.keras.Model(inputs=[m1.input, m2.input], outputs=outputs)
+    model.summary()
+
+    model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=metrics)
+
+    return model
+
+
+def xception(model_config, input_shape, metrics, class_counts):
+
+    '''
+    Creates 2-dimensional Xception as specified by parameters in config file
+
+    :param model_config: Hyperparameter dictionary
+    :param input_shape: Tuple, shape of individual input tensor (without batch dimension)
+    :param metrics: List of metrics for model compilation
+    :param class_counts: 2-element list - number of each class in training set
+
+    :return: Compiled tensorflow model
+    '''
+
+    lr = model_config['LR']
+    optimizer = Adam(learning_rate=lr)
+
+    dropout = model_config['DROPOUT']
+    l2_reg = model_config['L2_REG']
+
+    output_bias = None
+    if cfg['TRAIN']['OUTPUT_BIAS']:
+        count0 = class_counts[0]
+        count1 = class_counts[1]
+        output_bias = math.log(count1 / count0)
+        output_bias = tf.keras.initializers.Constant(output_bias)
+
+    kernel_init = model_config['WEIGHT_INITIALIZER']
+
+    block_cutoffs = [6, 15, 25, 35, 45, 55, 65, 75, 85, 95, 105, 115, 125, -1]
+    cutoff = block_cutoffs[model_config['BLOCKS'] - 1]
+    freeze_cutoff = block_cutoffs[model_config['BLOCKS_FROZEN'] - 1]
+
+    base_model = tf.keras.applications.Xception(input_shape=input_shape,
+                                                include_top=False,
+                                                weights='imagenet')
+
+    # Take first n blocks as specified
+    x = base_model.layers[cutoff].output
+
+    # FC and output head
+    x = GlobalAveragePooling2D()(x)
+    x = Dense(16, activation='relu', kernel_regularizer=L2(l2_reg), bias_regularizer=L2(l2_reg))(x)
+    x = Dropout(dropout)(x)
+    outputs = Dense(1, activation='sigmoid', kernel_initializer=kernel_init, bias_initializer=output_bias,
+                    dtype='float32')(x)
+
+    model = tf.keras.Model(inputs=base_model.inputs, outputs=outputs)
+
+    model.summary()
+
+    # Freeze layers as specified
+    for i in range(len(model.layers)):
+        if i <= freeze_cutoff:
+            model.layers[i].trainable = False
+        # Freeze all batch norm layers
+        elif ('batch' in model.layers[i].name) or ('bn' in model.layers[i].name):
+            model.layers[i].trainable = False
+
+    model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=metrics)
+
+    return model

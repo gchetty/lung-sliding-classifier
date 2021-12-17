@@ -7,11 +7,12 @@ import cv2
 from utils import refresh_folder
 
 # Load dictionary of constants stored in config.yml & db credentials in database_config.yml
-cfg = yaml.full_load(open(os.path.join(os.getcwd(),"../../config.yml"), 'r'))['PREPROCESS']
-database_cfg = yaml.full_load(open(os.path.join(os.getcwd(),"../../database_config.yml"), 'r'))
+cfg = yaml.full_load(open(os.path.join(os.getcwd(), "../../config.yml"), 'r'))['PREPROCESS']
+database_cfg = yaml.full_load(open(os.path.join(os.getcwd(), "../../database_config.yml"), 'r'))
 
 
-def download(df, sliding, fr_rows, video_out_root_folder=cfg['PATHS']['UNMASKED_VIDEOS'], csv_out_folder=cfg['PATHS']['CSVS_OUTPUT']):
+def download(df, sliding, fr_rows, video_out_root_folder=cfg['PATHS']['UNMASKED_VIDEOS'],
+             csv_out_folder=cfg['PATHS']['CSVS_OUTPUT'], base_fr=cfg['PARAMS']['BASE_FR']):
 
     '''
     Downloads ultrasound videos from the database in .mp4 format, and saves .csvs for tracing their metadata.
@@ -30,8 +31,6 @@ def download(df, sliding, fr_rows, video_out_root_folder=cfg['PATHS']['UNMASKED_
         df = df.sample(frac=1, random_state=cfg['PARAMS']['RANDOM_SEED'])
 
     # Obtain the fraction of data we want from the database, according to config
-    fraction = 0.0
-    sliding_str = ''
     if sliding:
         sliding_str = 'sliding'
         fraction = cfg['PARAMS']['SLIDING_PROPORTION']
@@ -52,7 +51,7 @@ def download(df, sliding, fr_rows, video_out_root_folder=cfg['PATHS']['UNMASKED_
 
     # Make video root folder if it doesn't exist
     if not os.path.exists(video_out_root_folder):
-            os.makedirs(video_out_root_folder)
+        os.makedirs(video_out_root_folder)
     
     # Ensure all contents in the video folder are deleted, but that the folder exists
     video_out_folder = os.path.join(video_out_root_folder, sliding_str + '/')
@@ -70,8 +69,8 @@ def download(df, sliding, fr_rows, video_out_root_folder=cfg['PATHS']['UNMASKED_
         fr = round(cap.get(cv2.CAP_PROP_FPS))
         cap.release()
 
-        # Discard video if frame rate is not multiple of 30
-        if not (fr % 30 == 0):
+        # Discard video if frame rate is not multiple of base frame rate
+        if not (fr % base_fr == 0):
             os.remove(out_path)
         else:
             # Add to frame rate CSV rows
