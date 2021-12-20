@@ -48,9 +48,9 @@ TRAIN:
   SAVE_BEST_ONLY: True
 
   SPLITS:
-    RANDOM_SEED: -1  # -1 for unseeded
-    TRAIN: 0.85
-    VAL: 0.15
+    RANDOM_SEED: 12  # -1 for unseeded
+    TRAIN: 0.8
+    VAL: 0.2
     TEST: 0
 
   PARAMS:
