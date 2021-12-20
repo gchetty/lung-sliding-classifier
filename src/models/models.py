@@ -5,6 +5,7 @@ Script for defining TensorFlow neural network models
 import yaml
 import os
 import math
+import tempfile
 import tensorflow as tf
 import numpy as np
 
@@ -773,6 +774,32 @@ def xception(model_config, input_shape, metrics, class_counts):
     else:
         base_model = tf.keras.applications.Xception(input_shape=input_shape, include_top=False, weights=None)
 
+    # ----- Set regularization -------
+    # Setting l2 regularization only sets it in the model config, and not in the layers
+    # But reloading with the model config removes pre-trained weights
+    # We have to save pre-trained weights, load by config (to get L2), and then load in weights
+    # As per https://sthalles.github.io/keras-regularizer/
+
+    for layer in base_model.layers:
+        for attr in ['kernel_regularizer']:
+            if hasattr(layer, attr):
+                setattr(layer, attr, L2(l2_reg))
+
+    # This json will contain added L2 regularization
+    json = base_model.to_json()
+
+    # Save weights
+    weights_path = os.path.join(tempfile.gettempdir(), 'temp_weights.h5')
+    base_model.save_weights(weights_path)
+
+    # Load L2 regularization into layers (pre-trained weights will be lost here)
+    base_model = tf.keras.models.model_from_json(json)
+
+    # Load weights
+    base_model.load_weights(weights_path, by_name=True)
+
+    # --------------------------------
+
     # Take first n blocks as specified
     x = base_model.layers[cutoff].output
 
@@ -799,3 +826,25 @@ def xception(model_config, input_shape, metrics, class_counts):
     model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=metrics)
 
     return model
+
+
+def vit(model_config, input_shape, metrics, class_counts):
+
+    # Reference: https://keras.io/examples/vision/image_classification_with_vision_transformer/
+
+    # ViT params
+    learning_rate = 0.001
+    weight_decay = 0.0001
+    batch_size = 256
+    num_epochs = 100
+    image_size = 72  # We'll resize input images to this size
+    patch_size = 6  # Size of the patches to be extract from the input images
+    num_patches = (image_size // patch_size) ** 2
+    projection_dim = 64
+    num_heads = 4
+    transformer_units = [
+        projection_dim * 2,
+        projection_dim,
+    ]  # Size of the transformer layers
+    transformer_layers = 8
+    mlp_head_units = [2048, 1024]  # Size of the dense layers of the final classifier
