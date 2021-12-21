@@ -62,6 +62,9 @@ def get_model(model_name):
     elif model_name == 'xception':
         model_def_fn = xception
         preprocessing_fn = xception_preprocess
+    elif model_name == 'vit':
+        model_def_fn = vit
+        preprocessing_fn = normalize
 
     if flow:
         preprocessing_fn = normalize
@@ -848,12 +851,8 @@ def vit(model_config, input_shape, metrics, class_counts):
     kernel_init = model_config['WEIGHT_INITIALIZER']
 
     # ViT params
-    learning_rate = 0.001
-    weight_decay = 0.0001
-    batch_size = 256
-    num_epochs = 100
     image_size = 72  # We'll resize input images to this size
-    patch_size = 6  # Size of the patches to be extract from the input images
+    patch_size = 16  # Size of the patches to be extract from the input images
     num_patches = (image_size // patch_size) ** 2
     projection_dim = 64
     num_heads = 4
@@ -862,7 +861,6 @@ def vit(model_config, input_shape, metrics, class_counts):
         projection_dim,
     ]  # Size of the transformer layers
     transformer_layers = 8
-    mlp_head_units = [2048, 1024]  # Size of the dense layers of the final classifier
 
     class Patches(tf.keras.layers.Layer):
         def __init__(self, patch_size):
@@ -914,7 +912,7 @@ def vit(model_config, input_shape, metrics, class_counts):
         attention_output = MultiHeadAttention(num_heads=num_heads, key_dim=projection_dim, dropout=0.1)(x1, x1)
         x2 = Add()([attention_output, encoded_patches])
         x3 = LayerNormalization(epsilon=1e-6)(x2)
-        x3 = mlp(x3, hidden_units=transformer_units, dropout_rate=0.1)
+        x3 = mlp(x3, hidden_units=transformer_units, dropout_rate=dropout)
         encoded_patches = Add()([x3, x2])
 
     x = LayerNormalization(epsilon=1e-6)(encoded_patches)
