@@ -107,7 +107,7 @@ TRAIN:
       LR_DECAY_VAL: 0.1
       DROPOUT: 0.5
       BLOCKS: 12  # Integer, in the range [1, 14]
-      BLOCKS_FROZEN: 0  # Number of blocks to freeze - MUST be less than or equal to the previous ('BLOCKS')
+      BLOCKS_FROZEN: 4  # Number of blocks to freeze - MUST be less than or equal to the previous ('BLOCKS')
       L2_REG: 0.01
       TRANSFER: True
       WEIGHT_INITIALIZER: 'he_normal'
