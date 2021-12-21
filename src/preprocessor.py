@@ -374,8 +374,9 @@ def augment_clip_m_mode_video(x):
     x = tf.image.random_brightness(x, max_delta=cfg['TRAIN']['PARAMS']['AUGMENTATION']['BRIGHTNESS_DELTA'])
     x = tf.image.random_contrast(x, cfg['TRAIN']['PARAMS']['AUGMENTATION']['CONTRAST_BOUNDS'][0],
                                  cfg['TRAIN']['PARAMS']['AUGMENTATION']['CONTRAST_BOUNDS'][1])
-    x = random_flip_left_right_clip(x)  # Function says clip but it works for single images as well
-    # Test rotation (little bit)
+    x = random_flip_left_right_clip(x)  # Function says clip but these work for single images as well
+    x = random_shift_clip(x)
+    x = random_rotate_clip(x)
     return x
 
 

@@ -14,7 +14,7 @@ from tensorflow.keras.layers import LSTM
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import TimeDistributed, Conv3D, AveragePooling3D, Dropout, Input, Add, InputLayer, MaxPooling3D,\
     Conv2D, MaxPooling2D, BatchNormalization, Activation, GlobalAveragePooling3D, ZeroPadding3D, Concatenate, \
-    GlobalAveragePooling2D
+    GlobalAveragePooling2D, LayerNormalization, MultiHeadAttention, GlobalAveragePooling1D
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.regularizers import L2
 from tensorflow.keras.applications.xception import Xception
@@ -832,6 +832,21 @@ def vit(model_config, input_shape, metrics, class_counts):
 
     # Reference: https://keras.io/examples/vision/image_classification_with_vision_transformer/
 
+    lr = model_config['LR']
+    optimizer = Adam(learning_rate=lr)
+
+    dropout = model_config['DROPOUT']
+    l2_reg = model_config['L2_REG']
+
+    output_bias = None
+    if cfg['TRAIN']['OUTPUT_BIAS']:
+        count0 = class_counts[0]
+        count1 = class_counts[1]
+        output_bias = math.log(count1 / count0)
+        output_bias = tf.keras.initializers.Constant(output_bias)
+
+    kernel_init = model_config['WEIGHT_INITIALIZER']
+
     # ViT params
     learning_rate = 0.001
     weight_decay = 0.0001
@@ -848,3 +863,70 @@ def vit(model_config, input_shape, metrics, class_counts):
     ]  # Size of the transformer layers
     transformer_layers = 8
     mlp_head_units = [2048, 1024]  # Size of the dense layers of the final classifier
+
+    class Patches(tf.keras.layers.Layer):
+        def __init__(self, patch_size):
+            super(Patches, self).__init__()
+            self.patch_size = patch_size
+
+        def call(self, images):
+            batch_size = tf.shape(images)[0]
+            patches = tf.image.extract_patches(
+                images=images,
+                sizes=[1, self.patch_size, self.patch_size, 1],
+                strides=[1, self.patch_size, self.patch_size, 1],
+                rates=[1, 1, 1, 1],
+                padding="VALID",
+            )
+            patch_dims = patches.shape[-1]
+            patches = tf.reshape(patches, [batch_size, -1, patch_dims])
+            return patches
+
+        def compute_output_shape(input_shape):
+            return [1, 1, 1, 1]
+
+    def mlp(x, hidden_units, dropout_rate):
+        for units in hidden_units:
+            x = Dense(units, activation=tf.nn.gelu)(x)
+            x = Dropout(dropout_rate)(x)
+        return x
+
+    class PatchEncoder(tf.keras.layers.Layer):
+        def __init__(self, num_patches, projection_dim):
+            super(PatchEncoder, self).__init__()
+            self.num_patches = num_patches
+            self.projection = Dense(units=projection_dim)
+            self.position_embedding = Embedding(
+                input_dim=num_patches, output_dim=projection_dim
+            )
+
+        def call(self, patch):
+            positions = tf.range(start=0, limit=self.num_patches, delta=1)
+            encoded = self.projection(patch) + self.position_embedding(positions)
+            return encoded
+
+    inputs = tf.keras.Input(shape=(240, 90, 3))
+    patches = Patches(patch_size)(inputs)
+    encoded_patches = PatchEncoder(num_patches, projection_dim)(patches)
+
+    for _ in range(transformer_layers):
+        x1 = LayerNormalization(epsilon=1e-6)(encoded_patches)
+        attention_output = MultiHeadAttention(num_heads=num_heads, key_dim=projection_dim, dropout=0.1)(x1, x1)
+        x2 = Add()([attention_output, encoded_patches])
+        x3 = LayerNormalization(epsilon=1e-6)(x2)
+        x3 = mlp(x3, hidden_units=transformer_units, dropout_rate=0.1)
+        encoded_patches = Add()([x3, x2])
+
+    x = LayerNormalization(epsilon=1e-6)(encoded_patches)
+    x = GlobalAveragePooling1D()(x)
+    x = Dropout(0.5)(x)
+
+    outputs = Dense(1, activation='sigmoid', kernel_initializer=kernel_init, bias_initializer=output_bias,
+                    dtype='float32')(x)
+
+    model = tf.keras.Model(inputs=inputs, outputs=outputs)
+    model.summary()
+
+    model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=metrics)
+
+    return model
