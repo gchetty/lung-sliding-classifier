@@ -8,13 +8,14 @@ import math
 import tempfile
 import tensorflow as tf
 import numpy as np
+import math
 
 from tensorflow.keras.layers import Dense, Flatten
 from tensorflow.keras.layers import LSTM
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import TimeDistributed, Conv3D, AveragePooling3D, Dropout, Input, Add, InputLayer, MaxPooling3D,\
     Conv2D, MaxPooling2D, BatchNormalization, Activation, GlobalAveragePooling3D, ZeroPadding3D, Concatenate, \
-    GlobalAveragePooling2D, LayerNormalization, MultiHeadAttention, GlobalAveragePooling1D
+    GlobalAveragePooling2D, LayerNormalization, MultiHeadAttention, GlobalAveragePooling1D, Embedding, Resizing
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.regularizers import L2
 from tensorflow.keras.applications.xception import Xception
@@ -62,6 +63,9 @@ def get_model(model_name):
     elif model_name == 'xception':
         model_def_fn = xception
         preprocessing_fn = xception_preprocess
+    elif model_name == 'vit':
+        model_def_fn = vit
+        preprocessing_fn = normalize
 
     if flow:
         preprocessing_fn = normalize
@@ -836,7 +840,7 @@ def vit(model_config, input_shape, metrics, class_counts):
     optimizer = Adam(learning_rate=lr)
 
     dropout = model_config['DROPOUT']
-    l2_reg = model_config['L2_REG']
+    l2_reg = model_config['L2_REG']  # HAVENT ADDED THIS YET
 
     output_bias = None
     if cfg['TRAIN']['OUTPUT_BIAS']:
@@ -847,14 +851,19 @@ def vit(model_config, input_shape, metrics, class_counts):
 
     kernel_init = model_config['WEIGHT_INITIALIZER']
 
-    # ViT params
-    learning_rate = 0.001
-    weight_decay = 0.0001
-    batch_size = 256
-    num_epochs = 100
-    image_size = 72  # We'll resize input images to this size
-    patch_size = 6  # Size of the patches to be extract from the input images
-    num_patches = (image_size // patch_size) ** 2
+    # Calculate resize and patches
+    orig_size = [input_shape[0], input_shape[1]]
+    resize_height = None
+    resize_width = None
+    if orig_size[0] > orig_size[1]:
+        resize_height = int(math.ceil(orig_size[0] / orig_size[1]) * orig_size[1])
+    else:
+        resize_width = int(math.ceil(orig_size[1] / orig_size[0]) * orig_size[0])
+    resize_shape = [resize_height, orig_size[1]] if resize_height else [orig_size[0], resize_width]
+    patch_size = 10  # Size of the patches to be extract from the input images
+    num_patches = (resize_shape[0] // patch_size) * (resize_shape[1] // patch_size)
+
+    # Other ViT-related params
     projection_dim = 64
     num_heads = 4
     transformer_units = [
@@ -862,7 +871,6 @@ def vit(model_config, input_shape, metrics, class_counts):
         projection_dim,
     ]  # Size of the transformer layers
     transformer_layers = 8
-    mlp_head_units = [2048, 1024]  # Size of the dense layers of the final classifier
 
     class Patches(tf.keras.layers.Layer):
         def __init__(self, patch_size):
@@ -906,7 +914,8 @@ def vit(model_config, input_shape, metrics, class_counts):
             return encoded
 
     inputs = tf.keras.Input(shape=(240, 90, 3))
-    patches = Patches(patch_size)(inputs)
+    resized = Resizing(resize_shape[0], resize_shape[1])(inputs)
+    patches = Patches(patch_size)(resized)
     encoded_patches = PatchEncoder(num_patches, projection_dim)(patches)
 
     for _ in range(transformer_layers):
@@ -914,7 +923,7 @@ def vit(model_config, input_shape, metrics, class_counts):
         attention_output = MultiHeadAttention(num_heads=num_heads, key_dim=projection_dim, dropout=0.1)(x1, x1)
         x2 = Add()([attention_output, encoded_patches])
         x3 = LayerNormalization(epsilon=1e-6)(x2)
-        x3 = mlp(x3, hidden_units=transformer_units, dropout_rate=0.1)
+        x3 = mlp(x3, hidden_units=transformer_units, dropout_rate=dropout)
         encoded_patches = Add()([x3, x2])
 
     x = LayerNormalization(epsilon=1e-6)(encoded_patches)
