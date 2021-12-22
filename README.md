@@ -11,11 +11,7 @@ of predicting the presence (positive class) or absence (negative class) of lung 
 1. [**_Getting Started_**](#getting-started)
 2. [**_Building a Dataset_**](#building-a-dataset)
    i)[**_Extraneous data_**](#extraneous-data)
-3. [**_Use Cases_**](#use-cases)  
-   i)[**_Use Case 1_**](#use-case-1)  
-   ii) [**_Use Case 2_**](#use-case-2)  
-   iii) [**_Use Case 3_**](#use-case-3)
-4. [**_Project Configuration_**](#project-configuration)
+3. [**_Project Configuration_**](#project-configuration)
 5. [**_Project Structure_**](#project-structure)
 6. [**_Contacts_**](#contacts)
 
