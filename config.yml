@@ -35,6 +35,7 @@ PREPROCESS:
     EXTRA_MASKED_VIDEOS: 'extra_masked_videos/'
     EXTRA_CROPPED_VIDEOS: 'extra_cropped_videos/'  # assumed to be negative class only
     EXTRA_FLOW_VIDEOS: 'extra_flow_videos/'  # assumed to be negative class only
+    EXTRA_SMOOTHED_VIDEOS: 'extra_smoothed_videos/'
     EXTRA_NPZ: 'extra_npzs/'  # assumed to be negative class only
     EXTRA_FLOW_NPZ: 'extra_flow_npzs/'  # assumed to be negative class only
 

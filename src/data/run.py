@@ -41,9 +41,9 @@ if not (flow == 'No'):
 
 # Convert masked/cropped/flow videos to npz
 if flow == 'Yes':
-    os.system('python to_npz.py --flow=True --crop=' + str(crop) + ' --smooth=' + str(smooth))
+    os.system('python to_npz.py --flow=True --smooth=' + str(smooth))
 elif flow == 'No':
-    os.system('python to_npz.py --crop=' + str(crop) + ' --smooth=' + str(smooth))
+    os.system('python to_npz.py --smooth=' + str(smooth))
 else:
-    os.system('python to_npz.py --flow=True --crop=' + str(crop) + ' --smooth=' + str(smooth))
-    os.system('python to_npz.py --crop=' + str(crop) + ' --smooth=' + str(smooth))
+    os.system('python to_npz.py --flow=True --smooth=' + str(smooth))
+    os.system('python to_npz.py --smooth=' + str(smooth))
