@@ -1,12 +1,12 @@
 [comment]: <> (TODO: Add project name.)
-# PROJECT NAME
+# Lung Sliding Classifier
 ![Deep Breathe Logo](img/readme/deep-breathe-logo.jpg "Deep Breath AI")   
 
 [comment]: <> (TODO: Add project description.)
 We at [Deep Breathe](https://www.deepbreathe.ai/) sought to train a deep learning model for the task
 of predicting the presence (positive class) or absence (negative class) of lung sliding.
 
-[comment]: <> (TODO: Update table of contents to use corrent links and section titles.)
+[comment]: <> (TODO: Update table of contents to use correct links and section titles.)
 ## Table of Contents
 1. [**_Getting Started_**](#getting-started)
 2. [**_Building a Dataset_**](#building-a-dataset)
