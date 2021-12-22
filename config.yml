@@ -113,7 +113,7 @@ TRAIN:
       TRANSFER: True
       WEIGHT_INITIALIZER: 'he_normal'
     VIT:
-      LR: 0.001
+      LR: 0.0005
       LR_DECAY_VAL: 0.1
       DROPOUT: 0.5
       L2_REG: 0.01
