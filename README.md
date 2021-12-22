@@ -30,11 +30,9 @@ of predicting the presence (positive class) or absence (negative class) of lung 
    $ pip install -r requirements.txt
    ```
 [comment]: <> (TODO: Update the data type used for the project.)
-3. Obtain _some data type_ data and preprocess it accordingly. See
-   [building a dataset](#building-a-dataset) for more details.
    
 [comment]: <> (TODO: Update any specific steps, configuration, or directories.)
-4. Update the _TRAIN >> MODEL_DEF_ field of [_config.yml_](config.yml) with
+3. Update the _TRAIN >> MODEL_DEF_ field of [_config.yml_](config.yml) with
    the appropriate string representing the model type you wish to
    train. To train a model, ensure the _TRAIN >>
    EXPERIMENT_TYPE_ field is set to _'train_single'_.
