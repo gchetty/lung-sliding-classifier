@@ -329,6 +329,9 @@ if __name__ == '__main__':
 
             f = os.path.join(input_folder, file)
 
+            fr = ((fps_df[fps_df['id'] == id])['frame_rate']).values[0]
+            fr = int(round(fr / base_fr) * base_fr)  # Cast to nearest multiple of base frame rate
+
             query = box_df[box_df['id'] == file[:-4]]
 
             if not query.empty:
@@ -336,7 +339,7 @@ if __name__ == '__main__':
                 box = (box_info['ymin'], box_info['xmin'], box_info['ymax'], box_info['xmax'])
 
                 video_to_npz(f, orig_id=file[:-4], patient_id='N/A', df_rows=df_rows,
-                             write_path=(npz_folder + file[:-4]), box=box)
+                             write_path=(npz_folder + file[:-4]), fr=fr, box=box)
 
     # Download dataframes linking mini-clip ids and patient ids as csv files
     out_df = pd.DataFrame(df_rows, columns=['id', 'patient_id'])
