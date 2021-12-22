@@ -834,13 +834,23 @@ def xception(model_config, input_shape, metrics, class_counts):
 
 def vit(model_config, input_shape, metrics, class_counts):
 
-    # Reference: https://keras.io/examples/vision/image_classification_with_vision_transformer/
+    '''
+    Creates 2-dimensional from-scratch vision transformer as specified by parameters in config file
+    Reference: https://keras.io/examples/vision/image_classification_with_vision_transformer/
+
+    :param model_config: Hyperparameter dictionary
+    :param input_shape: Tuple, shape of individual input tensor (without batch dimension)
+    :param metrics: List of metrics for model compilation
+    :param class_counts: 2-element list - number of each class in training set
+
+    :return: Compiled tensorflow model
+    '''
 
     lr = model_config['LR']
     optimizer = Adam(learning_rate=lr)
 
     dropout = model_config['DROPOUT']
-    l2_reg = model_config['L2_REG']  # HAVENT ADDED THIS YET
+    l2_reg = model_config['L2_REG']
 
     output_bias = None
     if cfg['TRAIN']['OUTPUT_BIAS']:
@@ -864,15 +874,20 @@ def vit(model_config, input_shape, metrics, class_counts):
     num_patches = (resize_shape[0] // patch_size) * (resize_shape[1] // patch_size)
 
     # Other ViT-related params
-    projection_dim = 64
-    num_heads = 8
+    projection_dim = model_config['PROJECTION_DIM']
+    num_heads = model_config['NUM_HEADS']
     transformer_units = [
         projection_dim * 2,
         projection_dim,
     ]  # Size of the transformer layers
-    transformer_layers = 8
+    transformer_layers = model_config['TRANSFORMER_LAYERS']
+    layer_norm_epsilon = model_config['LAYER_NORM_EPSILON']
 
     class Patches(tf.keras.layers.Layer):
+        '''
+        Creates image patches from input image batch
+        '''
+
         def __init__(self, patch_size):
             super(Patches, self).__init__()
             self.patch_size = patch_size
@@ -893,13 +908,28 @@ def vit(model_config, input_shape, metrics, class_counts):
         def compute_output_shape(input_shape):
             return [1, 1, 1, 1]
 
-    def mlp(x, hidden_units, dropout_rate):
+    def mlp(x, hidden_units, dropout_rate, l2_reg):
+        '''
+        Applies a specified number of MLP units (where each unit is an FC layer with a GELU activation) to a tensor
+
+        :param x: Input tensor
+        :param hidden_units: Number of MLP units to apply
+        :param dropout_rate: Dropout rate from GELU to FC
+        :param l2_reg: L2 regularization penalty
+
+        :return: Output tensor from final MLP unit
+        '''
+
         for units in hidden_units:
-            x = Dense(units, activation=tf.nn.gelu)(x)
+            x = Dense(units, activation=tf.nn.gelu, kernel_regularizer=L2(l2_reg), bias_regularizer=L2(l2_reg))(x)
             x = Dropout(dropout_rate)(x)
         return x
 
     class PatchEncoder(tf.keras.layers.Layer):
+        '''
+        Embeds image patches and adds positional embeddings
+        '''
+
         def __init__(self, num_patches, projection_dim):
             super(PatchEncoder, self).__init__()
             self.num_patches = num_patches
@@ -913,23 +943,25 @@ def vit(model_config, input_shape, metrics, class_counts):
             encoded = self.projection(patch) + self.position_embedding(positions)
             return encoded
 
+    # Resize images and get patch embeddings
     inputs = tf.keras.Input(shape=input_shape)
     resized = Resizing(resize_shape[0], resize_shape[1])(inputs)
     patches = Patches(patch_size)(resized)
     encoded_patches = PatchEncoder(num_patches, projection_dim)(patches)
 
+    # Apply transformer architecture to embeddings
     for _ in range(transformer_layers):
-        x1 = LayerNormalization(epsilon=1e-6)(encoded_patches)
-        attention_output = MultiHeadAttention(num_heads=num_heads, key_dim=projection_dim, dropout=0.1)(x1, x1)
+        x1 = LayerNormalization(epsilon=layer_norm_epsilon)(encoded_patches)
+        attention_output = MultiHeadAttention(num_heads=num_heads, key_dim=projection_dim, dropout=dropout)(x1, x1)
         x2 = Add()([attention_output, encoded_patches])
-        x3 = LayerNormalization(epsilon=1e-6)(x2)
-        x3 = mlp(x3, hidden_units=transformer_units, dropout_rate=dropout)
+        x3 = LayerNormalization(epsilon=layer_norm_epsilon)(x2)
+        x3 = mlp(x3, hidden_units=transformer_units, dropout_rate=dropout, l2_reg=l2_reg)
         encoded_patches = Add()([x3, x2])
 
-    x = LayerNormalization(epsilon=1e-6)(encoded_patches)
+    # Output head
+    x = LayerNormalization(epsilon=layer_norm_epsilon)(encoded_patches)
     x = GlobalAveragePooling1D()(x)
-    x = Dropout(0.5)(x)
-
+    x = Dropout(dropout)(x)
     outputs = Dense(1, activation='sigmoid', kernel_initializer=kernel_init, bias_initializer=output_bias,
                     dtype='float32')(x)
 

@@ -118,6 +118,10 @@ TRAIN:
       DROPOUT: 0.5
       L2_REG: 0.01
       WEIGHT_INITIALIZER: 'he_normal'
+      PROJECTION_DIM: 64  # Dimensionality of patch embeddings
+      NUM_HEADS: 8  # Number of attention heads per multi-head attention layer
+      TRANSFORMER_LAYERS: 8
+      LAYER_NORM_EPSILON: 0.000001
     INCREASE: False
 
   PATHS:
