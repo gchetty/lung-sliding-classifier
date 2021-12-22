@@ -121,7 +121,7 @@ TRAIN:
 
   PATHS:
     CSVS: 'csvs_split/'
-    MODEL_OUT: 'results/models/xception/'
+    MODEL_OUT: 'results/models/vit/'
     TENSORBOARD: 'results/logs/fit/'
 
 EXPLAINABILITY:
