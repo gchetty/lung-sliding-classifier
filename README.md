@@ -19,7 +19,7 @@ of predicting the presence (positive class) or absence (negative class) of lung 
 5. [**_Project Structure_**](#project-structure)
 6. [**_Contacts_**](#contacts)
 
-[comment]: <> (TODO: Update the getting started section to refplect the project's specific setup.)
+[comment]: <> (TODO: Update the getting started section to reflect the project's specific setup.)
 ## Getting Started
 1. Clone this repository (for help see this
    [tutorial](https://help.github.com/en/github/creating-cloning-and-archiving-repositories/cloning-a-repository)).
