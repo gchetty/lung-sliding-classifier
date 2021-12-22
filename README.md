@@ -10,6 +10,7 @@ of predicting the presence (positive class) or absence (negative class) of lung 
 ## Table of Contents
 1. [**_Getting Started_**](#getting-started)
 2. [**_Building a Dataset_**](#building-a-dataset)
+
    i)[**_Extraneous data_**](#extraneous-data)
 3. [**_Use Cases_**](#use-cases)  
    i)[**_Use Case 1_**](#use-case-1)  
