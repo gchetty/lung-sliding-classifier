@@ -865,7 +865,7 @@ def vit(model_config, input_shape, metrics, class_counts):
 
     # Other ViT-related params
     projection_dim = 64
-    num_heads = 4
+    num_heads = 8
     transformer_units = [
         projection_dim * 2,
         projection_dim,
