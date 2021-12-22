@@ -913,7 +913,7 @@ def vit(model_config, input_shape, metrics, class_counts):
             encoded = self.projection(patch) + self.position_embedding(positions)
             return encoded
 
-    inputs = tf.keras.Input(shape=(240, 90, 3))
+    inputs = tf.keras.Input(shape=input_shape)
     resized = Resizing(resize_shape[0], resize_shape[1])(inputs)
     patches = Patches(patch_size)(resized)
     encoded_patches = PatchEncoder(num_patches, projection_dim)(patches)

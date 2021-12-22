@@ -44,7 +44,7 @@ TRAIN:
   MIXED_PRECISION: False
   OUTPUT_BIAS: False
   PATIENCE: 20
-  MODEL_DEF: 'xception'  # xception_raw, lrcn, threeDCNN, vgg16, inflated_resnet50, i3d, xception
+  MODEL_DEF: 'vit'  # xception_raw, lrcn, threeDCNN, vgg16, inflated_resnet50, i3d, xception, vit
   SAVE_BEST_ONLY: True
 
   SPLITS:
