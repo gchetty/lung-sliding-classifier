@@ -4,7 +4,7 @@
 
 [comment]: <> (TODO: Add project description.)
 We at [Deep Breathe](https://www.deepbreathe.ai/) sought to train a deep learning model for the task
-of predicting the presence (positive class) or absence (negative class) of lung sliding.
+of predicting the presence (positive class) or absence (negative class) of lung sliding, for the purpose of automatic pneumothorax detection from lung ultrasound videos.
 
 [comment]: <> (TODO: Update table of contents to use correct links and section titles.)
 ## Table of Contents
