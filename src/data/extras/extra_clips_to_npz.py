@@ -329,7 +329,7 @@ if __name__ == '__main__':
 
             f = os.path.join(input_folder, file)
 
-            fr = ((fps_df[fps_df['id'] == id])['frame_rate']).values[0]
+            fr = ((fps_df[fps_df['id'] == file[:-4]])['frame_rate']).values[0]
             fr = int(round(fr / base_fr) * base_fr)  # Cast to nearest multiple of base frame rate
 
             query = box_df[box_df['id'] == file[:-4]]
