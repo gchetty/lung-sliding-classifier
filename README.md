@@ -4,11 +4,7 @@
 
 [comment]: <> (TODO: Add project description.)
 We at [Deep Breathe](https://www.deepbreathe.ai/) sought to train a deep learning model for the task
-of _insert ml project task_.
-
-[comment]: <> (TODO: Add project description and paper link if applicable.)
-This repository contains work relating to development and validation of
-_insert the goal of the project and link to the associated paper when applicable_
+of predicting the presence (positive class) or absence (negative class) of lung sliding.
 
 [comment]: <> (TODO: Update table of contents to use corrent links and section titles.)
 ## Table of Contents
