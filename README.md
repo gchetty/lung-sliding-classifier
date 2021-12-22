@@ -26,7 +26,7 @@ of predicting the presence (positive class) or absence (negative class) of lung 
    $ pip install -r requirements.txt
    ```
 [comment]: <> (TODO: Update the data type used for the project.)
-3. Build the dataset (see #building-a-dataset)
+3. Build the dataset - see (#building-a-dataset)
    
 [comment]: <> (TODO: Update any specific steps, configuration, or directories.)
 3. Update the _TRAIN >> MODEL_DEF_ field of [_config.yml_](config.yml) with
