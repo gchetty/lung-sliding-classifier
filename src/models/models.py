@@ -5,19 +5,23 @@ Script for defining TensorFlow neural network models
 import yaml
 import os
 import math
+import tempfile
 import tensorflow as tf
 import numpy as np
+import math
 
-from tensorflow.keras.layers import Dense, Flatten
+from tensorflow.keras.layers import Dense, Flatten, Lambda, Reshape, Conv1D
 from tensorflow.keras.layers import LSTM
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import TimeDistributed, Conv3D, AveragePooling3D, Dropout, Input, Add, InputLayer, MaxPooling3D,\
     Conv2D, MaxPooling2D, BatchNormalization, Activation, GlobalAveragePooling3D, ZeroPadding3D, Concatenate, \
-    GlobalAveragePooling2D
+    GlobalAveragePooling2D, LayerNormalization, MultiHeadAttention, GlobalAveragePooling1D, Embedding, Resizing
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.regularizers import L2
 from tensorflow.keras.applications.xception import Xception
 from tensorflow.keras.applications.xception import preprocess_input as xception_preprocess
+from tensorflow.keras.applications import MobileNetV3Small
+from tensorflow.keras.applications.mobilenet_v3 import preprocess_input as mobilenet_v3_preprocess
 from tensorflow.keras.applications.vgg16 import VGG16
 from tensorflow.keras.applications.vgg16 import preprocess_input as vgg16_preprocess
 from tensorflow.keras.applications.resnet_v2 import ResNet50V2
@@ -30,7 +34,7 @@ def get_model(model_name):
     '''
     Gets the function that returns the desired model function and its associated preprocessing function.
 
-    :param model_name: A string in {'test1', ...} specifying the model
+    :param model_name: A string in the list below specifying the model
 
     :return: A Tuple (Function returning compiled model, Required preprocessing function)
     '''
@@ -61,6 +65,18 @@ def get_model(model_name):
     elif model_name == 'xception':
         model_def_fn = xception
         preprocessing_fn = xception_preprocess
+    elif model_name == 'vit':
+        model_def_fn = vit
+        preprocessing_fn = normalize
+    elif model_name == 'variance_mmode_net':
+        model_def_fn = variance_mmode_net
+        preprocessing_fn = normalize
+    elif model_name == 'one_d_conv':
+        model_def_fn = one_d_conv
+        preprocessing_fn = normalize
+    elif model_name == 'mobilenet_v3_small':
+        model_def_fn = mobile_net_v3_small
+        preprocessing_fn = mobilenet_v3_preprocess
 
     if flow:
         preprocessing_fn = normalize
@@ -732,7 +748,7 @@ def i3d(model_config, input_shapes, metrics, class_counts):
 def xception(model_config, input_shape, metrics, class_counts):
 
     '''
-    Creates 2-dimensional Xception as specified by parameters in config file
+    Creates 2-dimensional Xception as specified by parameters in config file. Assumes an M-mode reconstruction.
 
     :param model_config: Hyperparameter dictionary
     :param input_shape: Tuple, shape of individual input tensor (without batch dimension)
@@ -773,6 +789,32 @@ def xception(model_config, input_shape, metrics, class_counts):
     else:
         base_model = tf.keras.applications.Xception(input_shape=input_shape, include_top=False, weights=None)
 
+    # ----- Set regularization -------
+    # Setting l2 regularization only sets it in the model config, and not in the layers
+    # But reloading with the model config removes pre-trained weights
+    # We have to save pre-trained weights, load by config (to get L2), and then load in weights
+    # As per https://sthalles.github.io/keras-regularizer/
+
+    for layer in base_model.layers:
+        for attr in ['kernel_regularizer']:
+            if hasattr(layer, attr):
+                setattr(layer, attr, L2(l2_reg))
+
+    # This json will contain added L2 regularization
+    json = base_model.to_json()
+
+    # Save weights
+    weights_path = os.path.join(tempfile.gettempdir(), 'temp_weights.h5')
+    base_model.save_weights(weights_path)
+
+    # Load L2 regularization into layers (pre-trained weights will be lost here)
+    base_model = tf.keras.models.model_from_json(json)
+
+    # Load weights
+    base_model.load_weights(weights_path, by_name=True)
+
+    # --------------------------------
+
     # Take first n blocks as specified
     x = base_model.layers[cutoff].output
 
@@ -795,6 +837,241 @@ def xception(model_config, input_shape, metrics, class_counts):
             # Freeze all batch norm layers
             elif ('batch' in model.layers[i].name) or ('bn' in model.layers[i].name):
                 model.layers[i].trainable = False
+
+    model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=metrics)
+
+    return model
+
+
+def vit(model_config, input_shape, metrics, class_counts):
+
+    '''
+    Creates 2-dimensional from-scratch vision transformer as specified by parameters in config file
+    Reference: https://keras.io/examples/vision/image_classification_with_vision_transformer/
+
+    :param model_config: Hyperparameter dictionary
+    :param input_shape: Tuple, shape of individual input tensor (without batch dimension)
+    :param metrics: List of metrics for model compilation
+    :param class_counts: 2-element list - number of each class in training set
+
+    :return: Compiled tensorflow model
+    '''
+
+    lr = model_config['LR']
+    optimizer = Adam(learning_rate=lr)
+
+    dropout = model_config['DROPOUT']
+    l2_reg = model_config['L2_REG']
+
+    output_bias = None
+    if cfg['TRAIN']['OUTPUT_BIAS']:
+        count0 = class_counts[0]
+        count1 = class_counts[1]
+        output_bias = math.log(count1 / count0)
+        output_bias = tf.keras.initializers.Constant(output_bias)
+
+    kernel_init = model_config['WEIGHT_INITIALIZER']
+
+    # Calculate resize and patches
+    orig_size = [input_shape[0], input_shape[1]]
+    resize_height = None
+    resize_width = None
+    if orig_size[0] > orig_size[1]:
+        resize_height = int(math.ceil(orig_size[0] / orig_size[1]) * orig_size[1])
+    else:
+        resize_width = int(math.ceil(orig_size[1] / orig_size[0]) * orig_size[0])
+    resize_shape = [resize_height, orig_size[1]] if resize_height else [orig_size[0], resize_width]
+    patch_size = 10  # Size of the patches to be extract from the input images
+    num_patches = (resize_shape[0] // patch_size) * (resize_shape[1] // patch_size)
+
+    # Other ViT-related params
+    projection_dim = model_config['PROJECTION_DIM']
+    num_heads = model_config['NUM_HEADS']
+    transformer_units = [
+        projection_dim * 2,
+        projection_dim,
+    ]  # Size of the transformer layers
+    transformer_layers = model_config['TRANSFORMER_LAYERS']
+    layer_norm_epsilon = model_config['LAYER_NORM_EPSILON']
+
+    class Patches(tf.keras.layers.Layer):
+        '''
+        Creates image patches from input image batch
+        '''
+
+        def __init__(self, patch_size):
+            super(Patches, self).__init__()
+            self.patch_size = patch_size
+
+        def call(self, images):
+            batch_size = tf.shape(images)[0]
+            patches = tf.image.extract_patches(
+                images=images,
+                sizes=[1, self.patch_size, self.patch_size, 1],
+                strides=[1, self.patch_size, self.patch_size, 1],
+                rates=[1, 1, 1, 1],
+                padding="VALID",
+            )
+            patch_dims = patches.shape[-1]
+            patches = tf.reshape(patches, [batch_size, -1, patch_dims])
+            return patches
+
+        def compute_output_shape(input_shape):
+            return [1, 1, 1, 1]
+
+    def mlp(x, hidden_units, dropout_rate, l2_reg):
+        '''
+        Applies a specified number of MLP units (where each unit is an FC layer with a GELU activation) to a tensor
+
+        :param x: Input tensor
+        :param hidden_units: Number of MLP units to apply
+        :param dropout_rate: Dropout rate from GELU to FC
+        :param l2_reg: L2 regularization penalty
+
+        :return: Output tensor from final MLP unit
+        '''
+
+        for units in hidden_units:
+            x = Dense(units, activation=tf.nn.gelu, kernel_regularizer=L2(l2_reg), bias_regularizer=L2(l2_reg))(x)
+            x = Dropout(dropout_rate)(x)
+        return x
+
+    class PatchEncoder(tf.keras.layers.Layer):
+        '''
+        Embeds image patches and adds positional embeddings
+        '''
+
+        def __init__(self, num_patches, projection_dim):
+            super(PatchEncoder, self).__init__()
+            self.num_patches = num_patches
+            self.projection = Dense(units=projection_dim)
+            self.position_embedding = Embedding(
+                input_dim=num_patches, output_dim=projection_dim
+            )
+
+        def call(self, patch):
+            positions = tf.range(start=0, limit=self.num_patches, delta=1)
+            encoded = self.projection(patch) + self.position_embedding(positions)
+            return encoded
+
+    # Resize images and get patch embeddings
+    inputs = tf.keras.Input(shape=input_shape)
+    resized = Resizing(resize_shape[0], resize_shape[1])(inputs)
+    patches = Patches(patch_size)(resized)
+    encoded_patches = PatchEncoder(num_patches, projection_dim)(patches)
+
+    # Apply transformer architecture to embeddings
+    for _ in range(transformer_layers):
+        x1 = LayerNormalization(epsilon=layer_norm_epsilon)(encoded_patches)
+        attention_output = MultiHeadAttention(num_heads=num_heads, key_dim=projection_dim, dropout=dropout)(x1, x1)
+        x2 = Add()([attention_output, encoded_patches])
+        x3 = LayerNormalization(epsilon=layer_norm_epsilon)(x2)
+        x3 = mlp(x3, hidden_units=transformer_units, dropout_rate=dropout, l2_reg=l2_reg)
+        encoded_patches = Add()([x3, x2])
+
+    # Output head
+    x = LayerNormalization(epsilon=layer_norm_epsilon)(encoded_patches)
+    x = GlobalAveragePooling1D()(x)
+    x = Dropout(dropout)(x)
+    outputs = Dense(1, activation='sigmoid', kernel_initializer=kernel_init, bias_initializer=output_bias,
+                    dtype='float32')(x)
+
+    model = tf.keras.Model(inputs=inputs, outputs=outputs)
+    model.summary()
+
+    model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=metrics)
+
+    return model
+
+
+def variance_mmode_net(model_config, input_shape, metrics, class_counts):
+
+    '''
+    :param model_config: Hyperparameter dictionary
+    :param input_shape: Tuple, shape of individual input tensor (without batch dimension)
+    :param metrics: List of metrics for model compilation
+    :param class_counts: 2-element list - number of each class in training set
+    :return: Compiled tensorflow model
+    '''
+
+    lr = model_config['LR']
+    optimizer = Adam(learning_rate=lr)
+
+    model = Sequential([Input((224, 90, 3))])
+    model.add(Lambda(lambda x: tf.image.rgb_to_grayscale(x)))
+    model.add(Reshape((224, 90)))
+    model.add(Lambda(lambda x: tf.math.reduce_variance(x, axis=2)))
+    model.add(Dense(64, activation='relu'))
+    model.add(Dropout(0.4))
+    model.add(Dense(32, activation='relu'))
+    model.add(Dropout(0.2))
+    model.add(Dense(16, activation='relu'))
+    model.add(Dropout(0.2))
+    model.add(Dense(8, activation='relu'))
+    model.add(Dropout(0.2))
+    model.add(Dense(4, activation='relu'))
+    model.add(Dense(1, activation='sigmoid'))
+
+    model.summary()
+
+    model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=metrics)
+
+    return model
+
+
+def one_d_conv(model_config, input_shape, metrics, class_counts):
+
+    '''
+    :param model_config: Hyperparameter dictionary
+    :param input_shape: Tuple, shape of individual input tensor (without batch dimension)
+    :param metrics: List of metrics for model compilation
+    :param class_counts: 2-element list - number of each class in training set
+    :return: Compiled tensorflow model
+    '''
+
+    lr = model_config['LR']
+    optimizer = Adam(learning_rate=lr)
+
+    model = Sequential([Input((224, 90, 3))])
+    model.add(Lambda(lambda x: tf.image.rgb_to_grayscale(x)))
+    model.summary()
+    model.add(Conv1D(64,  kernel_size=3, activation='relu', strides=2))
+    model.add(Conv1D(128, kernel_size=3, activation='relu', strides=2))
+    model.add(Conv1D(128, kernel_size=3, activation='relu', strides=2))
+    model.add(Conv1D(128, kernel_size=3, activation='relu', strides=2))
+    model.add(Conv1D(128, kernel_size=3, activation='relu', strides=2))
+    model.add(GlobalAveragePooling2D())
+    model.add(Dense(32, activation='relu'))
+    model.add(Dropout(0.4))
+    model.add(Dense(1, activation='sigmoid', dtype='float32'))
+
+    model.summary()
+
+    model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=metrics)
+
+    return model
+
+
+def mobile_net_v3_small(model_config, input_shape, metrics, class_counts):
+    '''
+    :param model_config: Hyperparameter dictionary
+    :param input_shape: Tuple, shape of individual input tensor (without batch dimension)
+    :param metrics: List of metrics for model compilation
+    :param class_counts: 2-element list - number of each class in training set
+    :return: Compiled tensorflow model
+    '''
+
+    lr = model_config['LR']
+    optimizer = Adam(learning_rate=lr)
+    model = Sequential([])
+    base_model = MobileNetV3Small(input_shape=input_shape,
+                                                        include_top=False,
+                                                        weights='imagenet',
+                                                        include_preprocessing=False)
+
+
+    model = Sequential([base_model, GlobalAveragePooling2D(), Dense(1, activation='sigmoid')])
+    model.summary()
 
     model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=metrics)
 

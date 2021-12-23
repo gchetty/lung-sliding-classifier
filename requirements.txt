@@ -1,1 +1,9 @@
-#add all python package requirements here
+PyYAML==6.0
+opencv-python==4.5.4.60
+pandas==1.3.5
+scikit-image==0.19.1
+mysql-connector-python==8.0.27
+tensorflow==2.7.0
+matplotlib==3.5.1
+scikit-learn==1.0.1
+tensorflow-addons==0.15.0

@@ -42,11 +42,7 @@ def median_filter(path_in, path_out, kernel_size):
     out.release()
 
 
-crop = cfg['PARAMS']['CROP']
-if crop:
-    input_folder = cfg['PATHS']['CROPPED_VIDEOS']
-else:
-    input_folder = cfg['PATHS']['MASKED_VIDEOS']
+input_folder = cfg['PATHS']['MASKED_VIDEOS']
 
 input_sliding = os.path.join(input_folder, 'sliding/')
 input_no_sliding = os.path.join(input_folder, 'no_sliding/')

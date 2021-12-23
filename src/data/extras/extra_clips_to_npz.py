@@ -3,24 +3,27 @@ import numpy as np
 import pandas as pd
 import os
 import yaml
+import argparse
 from utils import refresh_folder
 
-cfg = yaml.full_load(open(os.path.join(os.getcwd(),"../../config.yml"), 'r'))['PREPROCESS']
+cfg = yaml.full_load(open(os.path.join(os.getcwd(), "../../config.yml"), 'r'))['PREPROCESS']
 
 
 def video_to_frames_downsampled(orig_id, patient_id, df_rows, cap, fr, seq_length=cfg['PARAMS']['WINDOW'],
-                                resize=cfg['PARAMS']['IMG_SIZE'], write_path='', base_fr=cfg['PARAMS']['BASE_FR']):
+                                resize=cfg['PARAMS']['IMG_SIZE'], write_path='', box=None,
+                                base_fr=cfg['PARAMS']['BASE_FR']):
     '''
-    Converts a LUS video file to mini-clips downsampled to specified FPS with specified sequence length
+    Converts a LUS video file to mini-clips downsampled to a specified frame rate with specified sequence length
 
     :param orig_id: ID of the video file to be converted
     :param patient_id: Patient ID corresponding to the video file
     :param df_rows: list of (mini-clip_ID, patient_ID), updated in this function, and later downloaded
     :param cap: Captured video of full clip, returned by cv2.VideoCapture()
-    :param fr: Frame rate (integer) of original clip - MUST be divisible by base frame rate
+    :param fr: Frame rate (integer) of original clip - MUST be divisible by downsampled frame rate
     :param seq_length: Length of each mini-clip
     :param resize: [width, height], dimensions to resize frames to before saving
     :param write_path: Path to directory where output mini-clips are saved
+    :param box: Tuple of (ymin, xmin, ymax, xmax) of pleural line ROI
     :param base_fr: Base frame rate to downsample to
     '''
 
@@ -39,33 +42,16 @@ def video_to_frames_downsampled(orig_id, patient_id, df_rows, cap, fr, seq_lengt
     if cap_width == 0 or cap_height == 0:
         return
 
-    new_width = None
-    new_height = None
-
-    if cap_width > cap_height:
-        new_width = tuple(resize)[0]
-        height_resize = int((cap_height / cap_width) * new_width)
-        pad_top = int((tuple(resize)[1] - height_resize) / 2)
-        pad_bottom = tuple(resize)[1] - height_resize - pad_top
-        pad_left, pad_right = 0, 0
-    else:
-        new_height = tuple(resize)[1]
-        width_resize = int((cap_width / cap_height) * new_height)
-        pad_left = int((tuple(resize)[0] - width_resize) / 2)
-        pad_right = tuple(resize)[0] - width_resize - pad_left
-        pad_top, pad_bottom = 0, 0
-
     try:
         while True:
             ret, frame = cap.read()
             if not ret:
                 break
             if index == 0:  # Add every nth frame only
-                if new_width:
-                    frame = cv2.resize(frame, (new_width, height_resize))
-                else:
-                    frame = cv2.resize(frame, (width_resize, new_height))
-                frame = cv2.copyMakeBorder(frame, pad_top, pad_bottom, pad_left, pad_right, cv2.BORDER_CONSTANT, value=[0, 0, 0])
+                frame = cv2.resize(frame, tuple(resize))
+                weights = [0.2989, 0.5870, 0.1140]  # In accordance with tfa rgb to grayscale
+                frame = np.dot(frame, weights).astype(np.uint8)
+                frame = np.expand_dims(frame, axis=-1)
                 frames.append(frame)
             index = (index + 1) % stride
 
@@ -77,14 +63,15 @@ def video_to_frames_downsampled(orig_id, patient_id, df_rows, cap, fr, seq_lengt
     num_mini_clips = len(frames) // seq_length
     for i in range(num_mini_clips):
         df_rows.append([orig_id + '_' + str(counter), patient_id])
-        np.savez(write_path + '_' + str(counter), frames=frames[i * seq_length:i * seq_length + seq_length])
+        np.savez_compressed(write_path + '_' + str(counter), frames=frames[i * seq_length:i * seq_length + seq_length],
+                            bounding_box=box, height_width=(cap_height, cap_width))
         counter += 1
 
     return
 
 
 def video_to_frames_contig(orig_id, patient_id, df_rows, cap, seq_length=cfg['PARAMS']['WINDOW'],
-                           resize=cfg['PARAMS']['IMG_SIZE'], write_path=''):
+                           resize=cfg['PARAMS']['IMG_SIZE'], write_path='', box=None):
     '''
     Converts a LUS video file to contiguous-frame mini-clips with specified sequence length
 
@@ -95,6 +82,7 @@ def video_to_frames_contig(orig_id, patient_id, df_rows, cap, seq_length=cfg['PA
     :param seq_length: Length of each mini-clip
     :param resize: [width, height], dimensions to resize frames to before saving
     :param write_path: Path to directory where output mini-clips are saved
+    :param box: Tuple of (ymin, xmin, ymax, xmax) of pleural line ROI
     '''
 
     counter = seq_length
@@ -107,22 +95,6 @@ def video_to_frames_contig(orig_id, patient_id, df_rows, cap, seq_length=cfg['PA
     if cap_width == 0 or cap_height == 0:
         return
 
-    new_width = None
-    new_height = None
-
-    if cap_width > cap_height:
-        new_width = tuple(resize)[0]
-        height_resize = int((cap_height / cap_width) * new_width)
-        pad_top = int((tuple(resize)[1] - height_resize) / 2)
-        pad_bottom = tuple(resize)[1] - height_resize - pad_top
-        pad_left, pad_right = 0, 0
-    else:
-        new_height = tuple(resize)[1]
-        width_resize = int((cap_width / cap_height) * new_height)
-        pad_left = int((tuple(resize)[0] - width_resize) / 2)
-        pad_right = tuple(resize)[0] - width_resize - pad_left
-        pad_top, pad_bottom = 0, 0
-
     try:
         while True:
 
@@ -131,7 +103,8 @@ def video_to_frames_contig(orig_id, patient_id, df_rows, cap, seq_length=cfg['PA
             if counter == 0:
                 df_rows.append(
                     [orig_id + '_' + str(mini_clip_num), patient_id])  # append to what will make output dataframes
-                np.savez(write_path + '_' + str(mini_clip_num), frames=frames)  # output
+                np.savez_compressed(write_path + '_' + str(mini_clip_num), frames=frames,
+                                    bounding_box=box, height_width=(cap_height, cap_width))  # output
                 counter = seq_length
                 mini_clip_num += 1
                 frames = []
@@ -140,12 +113,12 @@ def video_to_frames_contig(orig_id, patient_id, df_rows, cap, seq_length=cfg['PA
             if not ret:
                 break
 
-            if new_width:
-                frame = cv2.resize(frame, (new_width, height_resize))
-            else:
-                frame = cv2.resize(frame, (width_resize, new_height))
-            frame = cv2.copyMakeBorder(frame, pad_top, pad_bottom, pad_left, pad_right, cv2.BORDER_CONSTANT,
-                                       value=[0, 0, 0])
+            frame = cv2.resize(frame, tuple(resize))
+
+            weights = [0.2989, 0.5870, 0.1140]  # In accordance with tfa rgb to grayscale
+            frame = np.dot(frame, weights).astype(np.uint8)
+            frame = np.expand_dims(frame, axis=-1)
+
             frames.append(frame)
 
             counter -= 1
@@ -179,26 +152,17 @@ def flow_frames_to_npz_downsampled(path, orig_id, patient_id, df_rows, fr, seq_l
 
     # Read all flow frames
     for file in os.listdir(path):
+
         frame = cv2.imread(os.path.join(path, file), 0)
-        orig_width = frame.shape[1]  # height dimension should be first
-        orig_height = frame.shape[0]
-        if orig_width > orig_height:
-            new_width = tuple(resize)[0]
-            height_resize = int((orig_height / orig_width) * new_width)
-            pad_top = int((tuple(resize)[1] - height_resize) / 2)
-            pad_bottom = tuple(resize)[1] - height_resize - pad_top
-            pad_left, pad_right = 0, 0
-            frame = cv2.resize(frame, (new_width, height_resize))
-        else:
-            new_height = tuple(resize)[1]
-            width_resize = int((orig_width / orig_height) * new_height)
-            pad_left = int((tuple(resize)[0] - width_resize) / 2)
-            pad_right = tuple(resize)[0] - width_resize - pad_left
-            pad_top, pad_bottom = 0, 0
-            frame = cv2.resize(frame, (width_resize, new_height))
-        frame = cv2.copyMakeBorder(frame, pad_top, pad_bottom, pad_left, pad_right, cv2.BORDER_CONSTANT,
-                                   value=[0, 0, 0])
+        frame = cv2.resize(frame, tuple(resize))
+
+        # NOT TESTED
+        weights = [0.2989, 0.5870, 0.1140]  # In accordance with tfa rgb to grayscale
+        frame = np.dot(frame, weights).astype(np.uint8)
+        frame = np.expand_dims(frame, axis=-1)
+
         ind = int(file[7:12])  # flow frame number
+
         if (ind - 1) % stride == 0:  # take every nth flow frame only
             if '_x_' in file:
                 frames_x.append(frame)
@@ -213,7 +177,7 @@ def flow_frames_to_npz_downsampled(path, orig_id, patient_id, df_rows, fr, seq_l
         df_rows.append([orig_id + '_' + str(counter), patient_id])
         x_seq = np.array(frames_x[i * seq_length:i * seq_length + seq_length])
         y_seq = np.array(frames_y[i * seq_length:i * seq_length + seq_length])
-        np.savez(write_path + '_' + str(counter), frames=np.stack((x_seq, y_seq), axis=-1))
+        np.savez_compressed(write_path + '_' + str(counter), frames=np.stack((x_seq, y_seq), axis=-1))
         counter += 1
 
     return
@@ -238,25 +202,15 @@ def flow_frames_to_npz_contig(path, orig_id, patient_id, df_rows, seq_length=cfg
 
     # Read all flow frames
     for file in os.listdir(path):
+
         frame = cv2.imread(os.path.join(path, file), 0)
-        orig_width = frame.shape[1]  # height dimension should be first
-        orig_height = frame.shape[0]
-        if orig_width > orig_height:
-            new_width = tuple(resize)[0]
-            height_resize = int((orig_height / orig_width) * new_width)
-            pad_top = int((tuple(resize)[1] - height_resize) / 2)
-            pad_bottom = tuple(resize)[1] - height_resize - pad_top
-            pad_left, pad_right = 0, 0
-            frame = cv2.resize(frame, (new_width, height_resize))
-        else:
-            new_height = tuple(resize)[1]
-            width_resize = int((orig_width / orig_height) * new_height)
-            pad_left = int((tuple(resize)[0] - width_resize) / 2)
-            pad_right = tuple(resize)[0] - width_resize - pad_left
-            pad_top, pad_bottom = 0, 0
-            frame = cv2.resize(frame, (width_resize, new_height))
-        frame = cv2.copyMakeBorder(frame, pad_top, pad_bottom, pad_left, pad_right, cv2.BORDER_CONSTANT,
-                                   value=[0, 0, 0])
+        frame = cv2.resize(frame, tuple(resize))
+
+        # NOT TESTED
+        weights = [0.2989, 0.5870, 0.1140]  # In accordance with tfa rgb to grayscale
+        frame = np.dot(frame, weights).astype(np.uint8)
+        frame = np.expand_dims(frame, axis=-1)
+
         if '_x_' in file:
             frames_x.append(frame)
         else:
@@ -270,13 +224,13 @@ def flow_frames_to_npz_contig(path, orig_id, patient_id, df_rows, seq_length=cfg
         df_rows.append([orig_id + '_' + str(counter), patient_id])
         x_seq = np.array(frames_x[i * seq_length:i * seq_length + seq_length])
         y_seq = np.array(frames_y[i * seq_length:i * seq_length + seq_length])
-        np.savez(write_path + '_' + str(counter), frames=np.stack((x_seq, y_seq), axis=-1))
+        np.savez_compressed(write_path + '_' + str(counter), frames=np.stack((x_seq, y_seq), axis=-1))
         counter += 1
 
     return
 
 
-def video_to_npz(path, orig_id, patient_id, df_rows, write_path='', method=cfg['PARAMS']['METHOD'], fr=None,
+def video_to_npz(path, orig_id, patient_id, df_rows, write_path='', fr=None, box=None,
                  base_fr=cfg['PARAMS']['BASE_FR']):
     '''
     Converts a LUS video file to mini-clips
@@ -286,83 +240,115 @@ def video_to_npz(path, orig_id, patient_id, df_rows, write_path='', method=cfg['
     :param patient_id: Patient ID corresponding to the video file
     :param df_rows: list of (mini-clip_ID, patient_ID), updated in this function, and later downloaded
     :param write_path: Path to directory where output mini-clips are saved
-    :param method: Method of frame extraction for mini-clips, either 'Contiguous' or ' Stride'
+    :param fr: Frame rate of input
+    :param box: Tuple of (ymin, xmin, ymax, xmax) of pleural line ROI
     :param base_fr: Base frame rate to downsample to
     '''
 
     cap = cv2.VideoCapture(path)
 
-    if fr is None:
-        fr = round(cap.get(cv2.CAP_PROP_FPS)) \
-            # Disregard clips with undesired frame rate, only if frame rate not passed in (passed in = override checking)
+    if not fr:
+        fr = round(cap.get(cv2.CAP_PROP_FPS))
+        # Disregard clips with undesired frame rate, only if frame rate not passed in (passed in = override checking)
         if not (fr % base_fr == 0):
             return
+    else:  # If frame rate is passed, cast frame rate to closest multiple of base frame rate
+        fr = round(fr / base_fr) * base_fr
 
-    if method == 'Contiguous':
-        if fr == base_fr:
-            video_to_frames_contig(orig_id, patient_id, df_rows, cap, write_path=write_path)
-        else:
-            video_to_frames_downsampled(orig_id, patient_id, df_rows, cap, fr, write_path=write_path)
+    if fr == base_fr:
+        video_to_frames_contig(orig_id, patient_id, df_rows, cap, write_path=write_path, box=box)
     else:
-        raise Exception('Stride method not yet implemented!')
+        video_to_frames_downsampled(orig_id, patient_id, df_rows, cap, fr, write_path=write_path, box=box)
 
 
-flow = cfg['PARAMS']['FLOW']
+def parse_args():
+    parser = argparse.ArgumentParser(description="Extract mini-clips as npzs")
+    parser.add_argument('--flow', default='False', type=str)
+    parser.add_argument('--smooth', default='False', type=str)
+    args = parser.parse_args()
+    return args
 
-if not (flow == 'Yes'):
-    input_folder = cfg['PATHS']['EXTRA_CROPPED_VIDEOS']
-    npz_folder = cfg['PATHS']['EXTRA_NPZ']
+
+if __name__ == '__main__':
+
+    args = parse_args()
+
+    flow = True if (args.flow == 'True') else False
+    smooth = True if (args.smooth == 'True') else False
+
+    # Paths for video or frame input
+    input_folder = ''
+    if flow:
+        input_folder = cfg['PATHS']['EXTRA_FLOW_VIDEOS']
+    elif smooth:
+        input_folder = cfg['PATHS']['EXTRA_SMOOTHED_VIDEOS']
+    else:
+        input_folder = cfg['PATHS']['EXTRA_MASKED_VIDEOS']
+
+    # Paths for npz output
+    npz_folder = ''
+
+    if not flow:
+        npz_folder = cfg['PATHS']['EXTRA_NPZ']
+    else:
+        npz_folder = cfg['PATHS']['EXTRA_FLOW_NPZ']
+
     refresh_folder(npz_folder)
 
-if not (flow == 'No'):
-    flow_input_folder = cfg['PATHS']['EXTRA_FLOW_VIDEOS']
-    flow_npz_folder = cfg['PATHS']['EXTRA_FLOW_NPZ']
-    refresh_folder(flow_npz_folder)
+    # Each element is (mini-clip_id, patient_id) for download as csv
+    df_rows = []
 
-csv_out_folder = cfg['PATHS']['CSVS_OUTPUT']
+    # Load original csvs for patient ids and frame rate csvs
+    csv_out_folder = cfg['PATHS']['CSVS_OUTPUT']
 
-# Read frame rate csv
-fr_path = os.path.join(csv_out_folder, 'extra_clip_frame_rates.csv')
-fr_df = pd.read_csv(fr_path)
+    fps_df = pd.read_csv(os.path.join(csv_out_folder, 'extra_clip_frame_rates.csv'))
 
-# Each element is (mini-clip_id) for download as csv
-df_rows = []
-df_rows_flow = []
+    # Load object detection csv for m-mode
+    box_df = pd.read_csv(os.path.join(csv_out_folder, 'extra_boxes.csv'))
 
-base_fr = cfg['PARAMS']['BASE_FR']
+    base_fr = cfg['PARAMS']['BASE_FR']
 
-if not (flow == 'No'):
+    # Iterate through clips and extract & download mini-clips
 
-    for id in os.listdir(flow_input_folder):
-        path = os.path.join(flow_input_folder, id)
-        fr = ((fr_df[fr_df['id'] == id])['frame_rate']).values[0]
-        fr = int(round(fr / base_fr) * base_fr)  # Cast to nearest multiple of base frame rate
-        if fr == 0:
-            fr = base_fr
-        if fr == base_fr:
-            flow_frames_to_npz_contig(path, orig_id=id, patient_id='N/A', df_rows=df_rows_flow,
-                                      write_path=(flow_npz_folder + id))
-        else:
-            flow_frames_to_npz_downsampled(path, orig_id=id, patient_id='N/A', df_rows=df_rows_flow, fr=fr,
-                                           write_path=(flow_npz_folder + id))
+    if flow:
 
-if not (flow == 'Yes'):
+        for id in os.listdir(input_folder):
+            path = os.path.join(input_folder, id)
+            fr = ((fps_df[fps_df['id'] == id])['frame_rate']).values[0]
+            fr = int(round(fr / base_fr) * base_fr)  # Cast to nearest multiple of base frame rate
+            if fr == base_fr:
+                flow_frames_to_npz_contig(path, orig_id=id, patient_id='N/A', df_rows=df_rows,
+                                          write_path=(npz_folder + id))
+            else:
+                flow_frames_to_npz_downsampled(path, orig_id=id, patient_id='N/A', df_rows=df_rows, fr=fr,
+                                               write_path=(npz_folder + id))
 
-    for file in os.listdir(input_folder):
-        f = os.path.join(input_folder, file)
-        fr = ((fr_df[fr_df['id'] == file[:-4]])['frame_rate']).values[0]
-        fr = int(round(fr / base_fr) * base_fr)  # Cast to nearest multiple of base frame rate
-        if fr == 0:
-            fr = base_fr
-        video_to_npz(f, orig_id=file[:-4], patient_id='N/A', df_rows=df_rows, write_path=(npz_folder + file[:-4]),
-                     fr=fr)
+    else:
 
-# Download dataframes linking mini-clip ids and patient ids as csv files
-if df_rows:
-    csv_out_path = os.path.join(csv_out_folder, 'extra_mini_clips.csv')
+        for file in os.listdir(input_folder):
+
+            f = os.path.join(input_folder, file)
+
+            fr = ((fps_df[fps_df['id'] == file[:-4]])['frame_rate']).values[0]
+            fr = int(round(fr / base_fr) * base_fr)  # Cast to nearest multiple of base frame rate
+
+            query = box_df[box_df['id'] == file[:-4]]
+
+            if not query.empty:
+                box_info = query.iloc[0]
+                box = (box_info['ymin'], box_info['xmin'], box_info['ymax'], box_info['xmax'])
+
+                video_to_npz(f, orig_id=file[:-4], patient_id='N/A', df_rows=df_rows,
+                             write_path=(npz_folder + file[:-4]), fr=fr, box=box)
+
+    # Download dataframes linking mini-clip ids and patient ids as csv files
     out_df = pd.DataFrame(df_rows, columns=['id', 'patient_id'])
+
+    csv_out_path = ''
+
+    if flow:
+        csv_out_path = os.path.join(csv_out_folder, 'extra_flow_mini_clips.csv')
+    else:
+        csv_out_path = os.path.join(csv_out_folder, 'extra_mini_clips.csv')
+
     out_df.to_csv(csv_out_path, index=False)
-if df_rows_flow:
-    csv_out_path_flow = os.path.join(csv_out_folder, 'extra_flow_mini_clips.csv')
-    out_df_flow = pd.DataFrame(df_rows_flow, columns=['id', 'patient_id'])
-    out_df_flow.to_csv(csv_out_path_flow, index=False)

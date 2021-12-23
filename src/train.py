@@ -15,7 +15,7 @@ from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
 from preprocessor import Preprocessor, FlowPreprocessor, TwoStreamPreprocessor, MModePreprocessor
 from visualization.visualization import log_confusion_matrix
 from models.models import *
-from custom.metrics import Specificity
+from custom.metrics import Specificity, PhiCoefficient
 from data.utils import refresh_folder
 
 
@@ -135,7 +135,7 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
     # Defining Binary Classification Metrics
     metrics = ['accuracy', AUC(name='auc'), FBetaScore(num_classes=2, average='micro', threshold=0.5)]
     metrics += [Precision(), Recall()]
-    metrics += [TrueNegatives(), TruePositives(), FalseNegatives(), FalsePositives(), Specificity()]
+    metrics += [TrueNegatives(), TruePositives(), FalseNegatives(), FalsePositives(), Specificity(), PhiCoefficient()]
 
     # Get the model
     if m_mode:
