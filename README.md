@@ -25,7 +25,7 @@ of predicting the presence (positive class) or absence (negative class) of lung 
    ```
    > Python -m venv .env
    > .env\Scripts\activate 
-   > pip install -r requirements.txt
+   (.env) > pip install -r requirements.txt
    ```
    
 [comment]: <> (TODO: Update the data type used for the project.)
