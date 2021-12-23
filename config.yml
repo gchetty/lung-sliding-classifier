@@ -2,140 +2,185 @@
 # The following list is of configuration parameters is simply an example list of common parameters.
 # Be sure to update the readme as you add and remove parameters to this file
 
+# PREPROCESS encompasses all pieces that download, mask (remove artifacts) and perform transformations to convert the videos
+# into "miniclips", which are stored locally as .npz (compressed numpy arrays) files. These will later be fed into the model
+# (after performing other possible transformations, such as M Mode, which is currently the most effective).
 PREPROCESS:
-  PARAMS:
-    AMOUNT_ONLY: False  # If set to True, the tool exits after querying the database and returning counts
-    FLOW: 'No'  # Yes for flow only, No for no flow, and Mixed for videos and flow
-    FLOW_CROP_WIDTH: 90  # Width to resize to for flow if cropping used
-    CROP: False  # Whether clips are to be cropped to the pleural line or not
-    SMOOTHING: False
-    SMOOTHING_KERNEL_SIZE: 5  # Integer, kernel size of square smoothing kernel filter - MUST be odd
-    M_MODE: True  # Whether to extract M-mode like reconstructions
-    SHUFFLE: True # If you want to randomize the videos downloaded
-    RANDOM_SEED: 1 # If SHUFFLE=False, this does nothing. Otherwise, this is the seed for shuffling
-    SLIDING_PROPORTION: 1
-    NO_SLIDING_PROPORTION: 1
-    WINDOW: 90 # Mini-clip length
-    STRIDE: 1  # 1 = contiguous (METHOD='Contiguous' param overrides this)
-    IMG_SIZE: [224, 224]  # (Height, width)
-    BASE_FR: 30  # Base frame rate - videos are downsampled to this
 
+  # The parameters to adjust based off of the desired transformations to apply in preprocessing
+  PARAMS:
+    AMOUNT_ONLY: False  # If set to True, the tool exits after querying the database and returning counts.
+    FLOW: 'No'  # Yes for flow only, No for no flow, and Mixed for videos and flow.
+    FLOW_CROP_WIDTH: 90  # Width to resize to for flow if cropping used.
+    SMOOTHING: False  # Optional Median filter applied.
+    SMOOTHING_KERNEL_SIZE: 5  # Integer, kernel size of square smoothing kernel filter - MUST be odd.
+    SHUFFLE: True # If you want to randomize the videos downloaded.
+    RANDOM_SEED: 1 # If SHUFFLE=False, this does nothing. Otherwise, this is the seed for shuffling.
+    SLIDING_PROPORTION: 1  # Proportion of sliding clips from database to obtain.
+    NO_SLIDING_PROPORTION: 1  # Proportion of absent sliding clips from database to obtain.
+    WINDOW: 90 # Mini-clip length measured in number of frames. Varying frame rates are sampled using BASE_FR.
+    IMG_SIZE: [224, 224]  # (Height, Width) of final miniclips.
+    BASE_FR: 30  # Base frame rate - videos are downsampled to this.
+
+  # The paths to save files. After running the preprocess pipeline, the npzs and csvs are usually all that are needed to train.
+  # You shouldn't *have* to edit these, as they are stored as relative and not absolute paths.
   PATHS:
-    UNMASKED_VIDEOS: 'raw_videos/'
-    MASKED_VIDEOS: 'masked_videos/'
-    CROPPED_VIDEOS: 'cropped_videos/'
-    SMOOTHED_VIDEOS: 'smoothed_videos/'
-    FLOW_VIDEOS: 'flow_videos/'
-    CSVS_OUTPUT: 'csvs/'
-    NPZ: 'npzs/'
-    FLOW_NPZ: 'flow_npzs/'
-    M_MODE_NPZ: 'm_mode_npzs'
-    MASKING_TOOL: 'auto_masking_deeper.h5'
-    EXTRA_UNMASKED_VIDEOS: 'extra_unmasked_videos/'  # assumed to be negative class only
-    EXTRA_MASKED_VIDEOS: 'extra_masked_videos/'
-    EXTRA_CROPPED_VIDEOS: 'extra_cropped_videos/'  # assumed to be negative class only
-    EXTRA_FLOW_VIDEOS: 'extra_flow_videos/'  # assumed to be negative class only
-    EXTRA_SMOOTHED_VIDEOS: 'extra_smoothed_videos/'
-    EXTRA_NPZ: 'extra_npzs/'  # assumed to be negative class only
-    EXTRA_FLOW_NPZ: 'extra_flow_npzs/'  # assumed to be negative class only
+    UNMASKED_VIDEOS: 'raw_videos/'  # Path to the videos that are downloaded from the dataset and stored without transformation.
+    MASKED_VIDEOS: 'masked_videos/'  # Path to the videos that result from running the masking tool on UNMASKED_VIDEOS.
+    SMOOTHED_VIDEOS: 'smoothed_videos/'  # Path to the videos that result from applying a median filter to MASKED_VIDEOS (optional).
+    FLOW_VIDEOS: 'flow_videos/'   # Path to the optical flow video frames (optional).
+    CSVS_OUTPUT: 'csvs/'  # Path to any CSVs that are generated / taken from the database.
+    NPZ: 'npzs/'  # Path to the mini-clip videos.
+    FLOW_NPZ: 'flow_npzs/'  # Path to the .npzs containing optical flow mini-clips.
+    MASKING_TOOL: 'auto_masking_deeper.h5'  # Path to the masking tool. Currently only works with the older version!!!
 
+    # EXTRA refers to the first infusion of negative additions, which at the time of writing is kept separate
+    # from the main resources from the dataset - this could change at any time. We only sometimes use them.
+    EXTRA_UNMASKED_VIDEOS: 'extra_unmasked_videos/'  # Path to extra downloaded videos.
+    EXTRA_MASKED_VIDEOS: 'extra_masked_videos/'  # Path to extra masked videos.
+    EXTRA_FLOW_VIDEOS: 'extra_flow_videos/'  # Path to extra optical flow video frames.
+    EXTRA_SMOOTHED_VIDEOS: 'extra_smoothed_videos/'  # Path to extra filtered (with median filter) videos. Currently not implemented.
+    EXTRA_NPZ: 'extra_npzs/'  # Path to resultant extra mini-clips.
+    EXTRA_FLOW_NPZ: 'extra_flow_npzs/' # Path to resultant extra flow mini-clips.
+
+# TRAIN encompasses all of the parameters to adjust for training models, which all assume that miniclips are stored and preprocessed
+# as desired above. This could use a refactor in the future.
 TRAIN:
-  M_MODE: True
-  M_MODE_SLICE_METHOD: 'brightest_vertical_sum'  # brightest_vertical_sum, brightest, or box_middle
+  M_MODE: True  # Choose whether or not to perform the M Mode transformation.
+  M_MODE_SLICE_METHOD: 'brightest_vertical_sum'  # 'brightest_vertical_sum', 'brightest' (for brightest pixel),  'box_middle' (needs bounding box) or 'random'.
   MIXED_PRECISION: False
-  OUTPUT_BIAS: False
-  PATIENCE: 20
-  MODEL_DEF: 'vit'  # xception_raw, lrcn, threeDCNN, vgg16, inflated_resnet50, i3d, xception, vit
-  SAVE_BEST_ONLY: True
+  OUTPUT_BIAS: False  # A class imbalance technique - whether or not to bias the model (output head) prior to training.
+  PATIENCE: 20  # The number of consecutive epochs with val_loss not improving, after which the model halts training.
+  MODEL_DEF: 'vit'  # Check models.py for the current list of possible values (which is also where you would create a custom one).
+  SAVE_BEST_ONLY: True  # Whether or not to only save the 'best' model, according to validation loss.
 
+  # Parameters used to determine the train, test and validation splits. TRAIN, VAL and TEST have to sum to 1.
+  # Only TEST can have a value of 0.
   SPLITS:
-    RANDOM_SEED: 12  # -1 for unseeded
-    TRAIN: 0.8
-    VAL: 0.2
-    TEST: 0
+    RANDOM_SEED: 12  # The random seed (integer) used for generating splits. -1 for unseeded.
+    TRAIN: 0.8  # Proportion of examples to include in the training set.
+    VAL: 0.2  # Proportion of examples to include in the validation set.
+    TEST: 0  # Proportion of examples to include in the test set.
 
+  # Parameters for augmentation and model-training specifics.
   PARAMS:
-    EPOCHS: 50
-    BATCH_SIZE: 32  # MAKE SURE THIS IS SET TO 1 FOR GRADCAM
-    SHUFFLE: True
-    AUGMENTATION_CHANCE: 0.8
+    EPOCHS: 50  # Maximum number of epochs to train the model for.
+    BATCH_SIZE: 32  # Integer to set the batch size. If you're running into memory errors, you'll have to lower this. Set this to 1 for GRADCAM.
+    SHUFFLE: True  # Boolean, whether to shuffle the training set or not.
+    INCREASE: False  # Boolean, whether to oversample the minority class (assumed to be the negative class) or not.
+    AUGMENTATION_CHANCE: 0.8  # Probability to augment an incoming batch.
+
+    # Parameters for applying data augmentation
     AUGMENTATION:
-      BRIGHTNESS_DELTA: 0.1
-      HUE_DELTA: 0.2
-      CONTRAST_BOUNDS: [ 0.7, 1.0 ]
+      BRIGHTNESS_DELTA: 0.1  # Check https://www.tensorflow.org/api_docs/python/tf/image/random_brightness for this parameter.
+      HUE_DELTA: 0.2  # Check https://www.tensorflow.org/api_docs/python/tf/image/random_hue for this parameter.
+      CONTRAST_BOUNDS: [ 0.7, 1.0 ]  # Check https://www.tensorflow.org/api_docs/python/tf/image/random_contrast for this parameter.
       SHIFT_LEFTRIGHT_BOUNDS: [ -0.25, 0.25 ]  # Proportion of width to shift by - originally -0.25 to 0.25
       SHIFT_UPDOWN_BOUNDS: [ -0.0, 0.2 ]  # Proportion of height to shift by - No upwards shift since many areas of interest are near the top - originally 0.0 to 0.2
       ROTATE_RANGE: [ -0.1, 0.1 ]  # Range of possible rotation angles (radians)
-      SHEAR_RANGE: [ 0.0, 0.1 ]
-      ZOOM_RANGE: [ 1.0, 1.5 ]  # DO NOT use lower bound < 1 --> otherwise might cut out parts of pleural line
-      RANDOM_NOISE: [ 0.0, 5.0 ]  # Mean, std of sampling distribution, for pixel values in range [0, 255]
-      MEDIAN_FILTER_SIZE: 5
+      SHEAR_RANGE: [ 0.0, 0.1 ]  # Check https://www.tensorflow.org/api_docs/python/tf/keras/preprocessing/image/random_shear for this parameter.
+      ZOOM_RANGE: [ 1.0, 1.5 ]  # Zoom range - DO NOT use lower bound < 1, otherwise might cut out parts of pleural line
+      RANDOM_NOISE: [ 0.0, 5.0 ]  # (Mean, std) of the noise sampling distribution, for pixel values in range [0, 255]
+      MEDIAN_FILTER_SIZE: 5  # Size of median filter to apply
+
+    # The following are model-specific parameters. To understand exactly what each is doing, please consult models.py.
+
+    # 2D Xception net, used for M-mode reconstructions - Best performing model thus far
+    XCEPTION:
+      LR: 0.00001  # Learning rate
+      LR_DECAY_VAL: 0.1  # Learning rate decay
+      DROPOUT: 0.5  # Dropout probability
+      BLOCKS: 12  # Number of blocks to use - Integer, in the range [1, 14]
+      BLOCKS_FROZEN: 4  # Number of blocks to freeze - MUST be 0 or positive, and less than or equal to the previous ('BLOCKS')
+      L2_REG: 0.01  # L2 regularization penalty
+      TRANSFER: True  # Whether to use imagenet weights during initialization
+      WEIGHT_INITIALIZER: 'he_normal'  # Method to initialize weights for convolutional and FC layers - see https://www.tensorflow.org/api_docs/python/tf/keras/initializers
+
+    # (Deprecated) test model
     TEST1:
-      LR: 0.000001
-      L2_LAMBDA: 0.001
+      LR: 0.000001  # Learning rate
+      L2_LAMBDA: 0.001  # L2 regularization penalty
+
+    # (Deprecated) Time distributed Xception feature extractor with LSTM, intended for clip input. Untested, currently too large for practical use.
     XCEPTION_RAW:
-      LR: 0.0001
-      DROPOUT: 0.5
+      LR: 0.0001  # Learning rate
+      DROPOUT: 0.5  # Dropout probability
+
+    # Time distributed VGG feature extractor with LSTM, intended for clip input. Not promising, but untested with pleural line crops.
     VGG16:
-      LR: 0.0001
-      LR_DECAY_VAL: 0.1
-      DROPOUT: 0.5
-      BLOCKS: 3
-      L2_REG: 0.01  # Not currently used
-      TRANSFER: False  # Whether to use transfer learning (inflated weights from imagenet training) or not
-      LAST_FROZEN: 4  # Only if transfer learning is used - for blocks 1 through 5, use 4, 7, 11, 15, 19
-      WEIGHT_INITIALIZER: 'he_normal'  # Only currently used for output head
+      LR: 0.0001  # Learning rate
+      LR_DECAY_VAL: 0.1  # Learning rate decay
+      DROPOUT: 0.5  # Dropout probability
+      BLOCKS: 3  # Number of VGG16 blocks to use - Integer, in the range [1, 5]
+      L2_REG: 0.01  # L2 regularization penalty - Not currently implemented for this model
+      TRANSFER: False  # Whether to use imagenet weights during initialization
+      LAST_FROZEN: 4  # Last layer to freeze (NOT 0-indexed), only if TRANSFER = True - for blocks 1 through 5, use 4, 7, 11, 15, 19
+      WEIGHT_INITIALIZER: 'he_normal'  # Method to initialize weights for convolutional and FC layers - see https://www.tensorflow.org/api_docs/python/tf/keras/initializers
+
+    # 3D CNN based on ResNet-12 block structure, intended for clip input, trained from scratch. Not promising.
     RES3D:
       LR: 0.0001
       DROPOUT: 0.5
+
+    # ResNet50 inflated to 3 dimensions, intended for clip input. Pretty mediocre, not always terrible but not that good.
     INFLATED_RESNET50:
-      LR: 0.00001  # Initial learning rate
-      LR_DECAY_VAL: 0.1  # Set equal to initial learning rate for no LR decay
-      DROPOUT: 0.5
-      L2_REG: 0.01  # Regularizer penalty
-      TRANSFER: True  # Whether to use transfer learning (inflated weights from imagenet training) or not
-      LAST_FROZEN: 63  # Last layer (number) to freeze (NOT 0-indexed) if using transfer learning - 40 for end of stage 1, 63 for middle of stage 2, 86 for end of stage 2
-      WEIGHT_INITIALIZER: 'he_normal'  # Weight initialization method for layers (if no transfer learning)
+      LR: 0.00001  # Learning rate
+      LR_DECAY_VAL: 0.1  # Learning rate decay
+      DROPOUT: 0.5  # Dropout probability
+      L2_REG: 0.01  # L2 regularization penalty
+      TRANSFER: True  # Whether to use imagenet weights during initialization
+      LAST_FROZEN: 63  # Last layer to freeze (NOT 0-indexed), only if TRANSFER = True - 40 for end of stage 1, 63 for middle of stage 2, 86 for end of stage 2
+      WEIGHT_INITIALIZER: 'he_normal'  # Method to initialize weights for convolutional and FC layers - see https://www.tensorflow.org/api_docs/python/tf/keras/initializers
+
+    # Two-stream 3D Inception net, intended for clip and optical flow clip input. Little testing done.
     I3D:
-      LR: 0.000005  # Initial learning rate
-      LR_DECAY_VAL: 0.1  # Set equal to initial learning rate for no LR decay
-      DROPOUT: 0.5
-      LAST_FROZEN: 74  # Last layer (number) to freeze (NOT 0-indexed)
-      L2_REG: 0.01  # Regularizer penalty
-      WEIGHT_INITIALIZER: 'he_normal'  # Weight initialization method for layers (if no transfer learning)
-    XCEPTION:  # 2D Xception
-      LR: 0.00001
-      LR_DECAY_VAL: 0.1
-      DROPOUT: 0.5
-      BLOCKS: 12  # Integer, in the range [1, 14]
-      BLOCKS_FROZEN: 4  # Number of blocks to freeze - MUST be less than or equal to the previous ('BLOCKS')
-      L2_REG: 0.01
-      TRANSFER: True
-      WEIGHT_INITIALIZER: 'he_normal'
+      LR: 0.000005  # Learning rate
+      LR_DECAY_VAL: 0.1  # Learning rate decay
+      DROPOUT: 0.5  # Dropout probability
+      L2_REG: 0.01  # L2 regularization penalty
+      WEIGHT_INITIALIZER: 'he_normal'  # Method to initialize weights for convolutional and FC layers - see https://www.tensorflow.org/api_docs/python/tf/keras/initializers
+
+    # Basic vision transformer, trained from scratch, intended for M-mode reconstructions (image inputs). Better than clip-input models, but worse than Xception runs.
+    # Transfer learning with pre-trained weights has not been tested, but has a good chance of improving performance.
     VIT:
-      LR: 0.0005
-      LR_DECAY_VAL: 0.1
-      DROPOUT: 0.5
-      L2_REG: 0.01
-      WEIGHT_INITIALIZER: 'he_normal'
+      LR: 0.0005  # Learning rate
+      LR_DECAY_VAL: 0.1  # Learning rate decay
+      DROPOUT: 0.5  # Dropout probability
+      L2_REG: 0.01  # L2 regularization penalty
+      WEIGHT_INITIALIZER: 'he_normal'  # Method to initialize weights for convolutional and FC layers - see https://www.tensorflow.org/api_docs/python/tf/keras/initializers
       PROJECTION_DIM: 64  # Dimensionality of patch embeddings
       NUM_HEADS: 8  # Number of attention heads per multi-head attention layer
-      TRANSFORMER_LAYERS: 8
-      LAYER_NORM_EPSILON: 0.000001
-    INCREASE: False
+      TRANSFORMER_LAYERS: 8  # Number of transformer layers
+      LAYER_NORM_EPSILON: 0.000001  # Epsilon for layer normalization layers
 
+    # A dense model which uses the variance across time of the M Mode image. Shows little promise.
+    VARIANCE_MMODE_NET: # 2D Xception
+      LR: 0.0000001 # Learning Rate
+
+    # A custom 1D CNN which assumes M Mode. Shows little promise.
+    ONE_D_CONV:
+      LR: 0.000001 # Learning Rate
+
+    # MobileNetV3Small from https://www.tensorflow.org/api_docs/python/tf/keras/applications/MobileNetV3Small, assuming M Mode
+    MOBILENET_V3_SMALL:
+      LR: 0.00001 # Learning Rate
+
+  # Path variables involving the training process
   PATHS:
-    CSVS: 'csvs_split/'
-    MODEL_OUT: 'results/models/vit/'
-    TENSORBOARD: 'results/logs/fit/'
+    CSVS: 'csvs_split/'  # Path for CSVs describing the splits of the dataset
+    MODEL_OUT: 'results/models/vit/'  # Path where the trained model is saved
+    TENSORBOARD: 'results/logs/fit/'  # Path where the tensorboard logs are stored
 
+# EXPLAINABILITY encompasses the parameters needed to produce heatmaps, currently only for convolution-based networks.
+# Currently implemented only for 3D convolutional networks.
 EXPLAINABILITY:
-  OUTPUT_FPS: 30
+  OUTPUT_FPS: 30  # Output frame rate of heatmap videos
   PROPORTION: 0.02  # Proportion of dataset (random), specified by path NPZ_DF, to generate heatmaps for
 
+  # Path variables required for heatmap generation
   PATHS:
-    NPZ: 'data/npzs/'
-    FR_CSVS: 'data/csvs/'
-    NPZ_DF: 'csvs_split/train.csv'
-    MODEL: 'results/models/inflated_resnet50/'
-    FEATURE_HEATMAPS: 'feature_heatmaps/'
+    NPZ: 'data/npzs/'  # Directory holding NPZs that heatmaps can be generated for.
+    FR_CSVS: 'data/csvs/'  # Directory with tables produced in preprocessing pipeline.
+    NPZ_DF: 'csvs_split/train.csv'  # Table of mini-clips that heatmaps can be generated for.
+    MODEL: 'results/models/inflated_resnet50/'  # Trained model used to generate heatmaps.
+    FEATURE_HEATMAPS: 'feature_heatmaps/'  # Output directory for heatmap videos.

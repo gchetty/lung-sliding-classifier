@@ -424,9 +424,11 @@ def parse_fn_m_mode(filename, label, augment=False):
     num_frames, new_height, new_width = clip.shape[0], clip.shape[1], clip.shape[2]
     method = cfg['TRAIN']['M_MODE_SLICE_METHOD']
     middle_pixel = get_middle_pixel_index(clip[0], bounding_box, height_width, method=method)
+
     # Fix bad bounding box
     if middle_pixel == 0:
         middle_pixel = new_width // 2
+
     three_slice = clip[:, :, middle_pixel - 1:middle_pixel + 1, 0]
     mmode = np.median(three_slice, axis=2).T
     mmode_image = mmode.reshape((new_height, num_frames, 1))
@@ -445,6 +447,9 @@ def get_middle_pixel_index(image, bounding_box, original_height_width, method='b
         image = tfa.image.median_filter2d(image, filter_shape=(3, 3))
 
     middle_pixel_index = None
+
+    if method == 'random':
+        method = np.random.choice(['brightest', 'box_middle', 'brightest_vertical_sum'])
 
     if method == 'brightest':
         middle_pixel_index = get_middle_pixel_index_brightest(image, bounding_box, original_height_width)

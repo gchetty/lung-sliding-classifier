@@ -10,7 +10,7 @@ import tensorflow as tf
 import numpy as np
 import math
 
-from tensorflow.keras.layers import Dense, Flatten
+from tensorflow.keras.layers import Dense, Flatten, Lambda, Reshape, Conv1D
 from tensorflow.keras.layers import LSTM
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import TimeDistributed, Conv3D, AveragePooling3D, Dropout, Input, Add, InputLayer, MaxPooling3D,\
@@ -20,6 +20,8 @@ from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.regularizers import L2
 from tensorflow.keras.applications.xception import Xception
 from tensorflow.keras.applications.xception import preprocess_input as xception_preprocess
+from tensorflow.keras.applications import MobileNetV3Small
+from tensorflow.keras.applications.mobilenet_v3 import preprocess_input as mobilenet_v3_preprocess
 from tensorflow.keras.applications.vgg16 import VGG16
 from tensorflow.keras.applications.vgg16 import preprocess_input as vgg16_preprocess
 from tensorflow.keras.applications.resnet_v2 import ResNet50V2
@@ -32,7 +34,7 @@ def get_model(model_name):
     '''
     Gets the function that returns the desired model function and its associated preprocessing function.
 
-    :param model_name: A string in {'test1', ...} specifying the model
+    :param model_name: A string in the list below specifying the model
 
     :return: A Tuple (Function returning compiled model, Required preprocessing function)
     '''
@@ -66,6 +68,15 @@ def get_model(model_name):
     elif model_name == 'vit':
         model_def_fn = vit
         preprocessing_fn = normalize
+    elif model_name == 'variance_mmode_net':
+        model_def_fn = variance_mmode_net
+        preprocessing_fn = normalize
+    elif model_name == 'one_d_conv':
+        model_def_fn = one_d_conv
+        preprocessing_fn = normalize
+    elif model_name == 'mobilenet_v3_small':
+        model_def_fn = mobile_net_v3_small
+        preprocessing_fn = mobilenet_v3_preprocess
 
     if flow:
         preprocessing_fn = normalize
@@ -737,7 +748,7 @@ def i3d(model_config, input_shapes, metrics, class_counts):
 def xception(model_config, input_shape, metrics, class_counts):
 
     '''
-    Creates 2-dimensional Xception as specified by parameters in config file
+    Creates 2-dimensional Xception as specified by parameters in config file. Assumes an M-mode reconstruction.
 
     :param model_config: Hyperparameter dictionary
     :param input_shape: Tuple, shape of individual input tensor (without batch dimension)
@@ -966,6 +977,100 @@ def vit(model_config, input_shape, metrics, class_counts):
                     dtype='float32')(x)
 
     model = tf.keras.Model(inputs=inputs, outputs=outputs)
+    model.summary()
+
+    model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=metrics)
+
+    return model
+
+
+def variance_mmode_net(model_config, input_shape, metrics, class_counts):
+
+    '''
+    :param model_config: Hyperparameter dictionary
+    :param input_shape: Tuple, shape of individual input tensor (without batch dimension)
+    :param metrics: List of metrics for model compilation
+    :param class_counts: 2-element list - number of each class in training set
+    :return: Compiled tensorflow model
+    '''
+
+    lr = model_config['LR']
+    optimizer = Adam(learning_rate=lr)
+
+    model = Sequential([Input((224, 90, 3))])
+    model.add(Lambda(lambda x: tf.image.rgb_to_grayscale(x)))
+    model.add(Reshape((224, 90)))
+    model.add(Lambda(lambda x: tf.math.reduce_variance(x, axis=2)))
+    model.add(Dense(64, activation='relu'))
+    model.add(Dropout(0.4))
+    model.add(Dense(32, activation='relu'))
+    model.add(Dropout(0.2))
+    model.add(Dense(16, activation='relu'))
+    model.add(Dropout(0.2))
+    model.add(Dense(8, activation='relu'))
+    model.add(Dropout(0.2))
+    model.add(Dense(4, activation='relu'))
+    model.add(Dense(1, activation='sigmoid'))
+
+    model.summary()
+
+    model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=metrics)
+
+    return model
+
+
+def one_d_conv(model_config, input_shape, metrics, class_counts):
+
+    '''
+    :param model_config: Hyperparameter dictionary
+    :param input_shape: Tuple, shape of individual input tensor (without batch dimension)
+    :param metrics: List of metrics for model compilation
+    :param class_counts: 2-element list - number of each class in training set
+    :return: Compiled tensorflow model
+    '''
+
+    lr = model_config['LR']
+    optimizer = Adam(learning_rate=lr)
+
+    model = Sequential([Input((224, 90, 3))])
+    model.add(Lambda(lambda x: tf.image.rgb_to_grayscale(x)))
+    model.summary()
+    model.add(Conv1D(64,  kernel_size=3, activation='relu', strides=2))
+    model.add(Conv1D(128, kernel_size=3, activation='relu', strides=2))
+    model.add(Conv1D(128, kernel_size=3, activation='relu', strides=2))
+    model.add(Conv1D(128, kernel_size=3, activation='relu', strides=2))
+    model.add(Conv1D(128, kernel_size=3, activation='relu', strides=2))
+    model.add(GlobalAveragePooling2D())
+    model.add(Dense(32, activation='relu'))
+    model.add(Dropout(0.4))
+    model.add(Dense(1, activation='sigmoid', dtype='float32'))
+
+    model.summary()
+
+    model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=metrics)
+
+    return model
+
+
+def mobile_net_v3_small(model_config, input_shape, metrics, class_counts):
+    '''
+    :param model_config: Hyperparameter dictionary
+    :param input_shape: Tuple, shape of individual input tensor (without batch dimension)
+    :param metrics: List of metrics for model compilation
+    :param class_counts: 2-element list - number of each class in training set
+    :return: Compiled tensorflow model
+    '''
+
+    lr = model_config['LR']
+    optimizer = Adam(learning_rate=lr)
+    model = Sequential([])
+    base_model = MobileNetV3Small(input_shape=input_shape,
+                                                        include_top=False,
+                                                        weights='imagenet',
+                                                        include_preprocessing=False)
+
+
+    model = Sequential([base_model, GlobalAveragePooling2D(), Dense(1, activation='sigmoid')])
     model.summary()
 
     model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=metrics)

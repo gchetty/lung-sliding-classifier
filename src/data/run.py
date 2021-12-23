@@ -9,16 +9,10 @@ cfg = yaml.full_load(open(os.path.join(os.getcwd(), "../../config.yml"), 'r'))['
 
 # TO PREPARE FOR M-MODE:
 #    Ensure FLOW = 'No'
-#    Ensure M_MODE = True
 
 flow = cfg['FLOW']
 smooth = cfg['SMOOTHING']
-m_mode = cfg['M_MODE']
 amount_only = cfg['AMOUNT_ONLY']
-
-if m_mode:
-    if not (flow == 'No'):
-        raise AssertionError('Please set flow to \'No\' in the config file!')
 
 os.system('python download_videos.py')
 
