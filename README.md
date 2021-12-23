@@ -28,7 +28,6 @@ of predicting the presence (positive class) or absence (negative class) of lung 
    ```  
 3. Obtain lung ultrasound data and preprocess it accordingly. See
    [building a dataset](#building-a-dataset) for more details, but a simple terminal call of `Python run.py` in src/data/ _should_ be enough.
-[comment]: <> (TODO: Update any specific steps, configuration, or directories.)
 4. Update the _TRAIN >> MODEL_DEF_ field of [_config.yml_](config.yml) with
    the appropriate string representing the model type you wish to
    train, along with any other desired parameters (Note: Anywhere the style of _X >> Y_ etc. is used, we are referring to the corresponding path in this config file) See [model training](#model-training) for details on this section.
