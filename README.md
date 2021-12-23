@@ -44,10 +44,10 @@ will generate mini-clips in NPZ (serialized NumPy array) form, as required for t
 file, ensure that the parameters under _PREPROCESS >> PARAMS_ in [_config.yml_](config.yml) are 
 set as desired. Additionally, CSVs containing pleural region ROIs are needed, and can be 
 downloaded from the appropriate source (Deep Breathe -> lung_sliding_classifier -> data -> 
-new_csvs -> Boxes). [run.py](src/data/run/py) will first call [_download_videos.py_](src/data/download_videos.py) to download appropriate videos from the database, and [_mask.py_](src/data/mask.py) is 
+new_csvs -> Boxes). [run.py](src/data/run/py) will first call [_download_videos.py_](src/data/download_videos.py) to download appropriate videos from the database, then [_mask.py_](src/data/mask.py) is 
 called to apply the masking tool for artifact removal. There is then an optional smoothing step, 
 [_smoothing_filter.py_](src/data/smoothing_filter.py), which applies a median filter to masked
-clips. Finally, [_to_npz.py_](src/data/to_npz.py) converts masked (and optionally smoothed) 
+clips. Finally, [_to_npz.py_](src/data/to_npz.py) will be called to convert masked (and optionally smoothed) 
 clips to mini-clips with fixed length, saved in the NPZ format. 
 
 ### Extraneous data
