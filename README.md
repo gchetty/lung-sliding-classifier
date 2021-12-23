@@ -74,7 +74,7 @@ To train a model that is already defined in this repository, first run [make_spl
 
 To train a custom model, please follow the style laid out in [models.py](src/models/models.py) and place the code in that file. Furthermore, please add to the config file by following the style in _TRAIN >> PARAMS_ to add configurable options, such as the learning rate. Although you don't _have_ to make use of these parameters, please at least create this section in [config.yml](config.yml) with the same name in capitals as you decided in [models.py](src/models/models.py).
 
-To observe the training results of the model in TensorBoard, run @Brian (haven't done the tensorboard stuff in months sorry). The saved model will be located in [models/model_name](src/results/model/). 
+To observe the training results of the model in TensorBoard, run `tensorboard --logdir path` where the path is specified by _TRAIN >> PATHS >> TENSORBOARD_. The saved model will be located in [models/model_name](src/results/model/). 
 
 ## Contacts
 
