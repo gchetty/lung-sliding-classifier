@@ -30,7 +30,7 @@ of predicting the presence (positive class) or absence (negative class) of lung 
    [building a dataset](#building-a-dataset) for more details, but a simple terminal call of `Python run.py` in src/data/ _should_ be enough.
 4. Update the _TRAIN >> MODEL_DEF_ field of [_config.yml_](config.yml) with
    the appropriate string representing the model type you wish to
-   train, along with any other desired parameters (Note: Anywhere the style of _X >> Y_ etc. is used, we are referring to the corresponding path in this config file) See [model training](#model-training) for details on this section.
+   train, along with any other desired parameters (Note: Anywhere the style of _X >> Y_ etc. is used, we are referring to the corresponding parameter in the config.yml file) See [model training](#model-training) for details on this section.
 5. Execute [make_splits.py](src/make_splits.py), then [_train.py_](src/train.py) to train your chosen model on your
    preprocessed data. The trained model will be saved in the path specified by _TRAIN >> PATHS >> MODEL_OUT_.
 6. Navigate to _TRAIN >> PATHS >> TENSORBOARD_ to see the tensorboard log files, which can be used to create a [tensorboard](https://www.tensorflow.org/tensorboard)
