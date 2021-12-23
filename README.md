@@ -30,18 +30,18 @@ of predicting the presence (positive class) or absence (negative class) of lung 
    
 [comment]: <> (TODO: Update the data type used for the project.)
 3. Obtain lung ultrasound data and preprocess it accordingly. See
-   [building a dataset](#building-a-dataset) for more details.
+   [building a dataset](#building-a-dataset) for more details, but a simple terminal call of `Python run.py` _should_ be enough.
    
 [comment]: <> (TODO: Update any specific steps, configuration, or directories.)
 4. Update the _TRAIN >> MODEL_DEF_ field of [_config.yml_](config.yml) with
    the appropriate string representing the model type you wish to
-   train, along with any other desired parameters. See [model training](#model-training) for details.
+   train, along with any other desired parameters (Note: Anywhere the style of _X >> Y_ etc. is used, we are referring to the corresponding path in this config file) See [model training](#model-training) for details on this section.
    
-5. Execute [_train.py_](src/train.py) to train your chosen model on your
+5. Execute [make_splits.py](src/make_splits.py), then [_train.py_](src/train.py) to train your chosen model on your
    preprocessed data. The trained model will be saved in the path specified by _TRAIN >> PATHS >> MODEL_OUT_.
    
-6. Navigate to _TRAIN >> PATHS >> TENSORBOARD_ to see the tensorboard log files. These logs can be used to create a [tensorboard](https://www.tensorflow.org/tensorboard)
-   visualization of the training results.
+6. Navigate to _TRAIN >> PATHS >> TENSORBOARD_ to see the tensorboard log files, which can be used to create a [tensorboard](https://www.tensorflow.org/tensorboard)
+   visualization of the training results. See the resultant saved model in _TRAIN >> PATHS >> MODEL_OUT_. 
    
 ## Building a Dataset
 
