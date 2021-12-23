@@ -41,7 +41,7 @@ of predicting the presence (positive class) or absence (negative class) of lung 
 
 For all clips contained in our internal database, a single call to [_run.py_](src/data/run.py)
 will generate mini-clips in NPZ (serialized NumPy array) form, as required for the training pipeline. Before running this
-file, ensure that the parameters under _PREPROCESS >> PARAMS in [_config.yml_](config.yml) are 
+file, ensure that the parameters under _PREPROCESS >> PARAMS_ in [_config.yml_](config.yml) are 
 set as desired. Additionally, CSVs containing pleural region ROIs are needed, and can be 
 downloaded from the appropriate source (Deep Breathe -> lung_sliding_classifier -> data -> 
 new_csvs -> Boxes). [run.py](src/data/run/py) will first call [_download_videos.py_](src/data/download_videos.py) to download appropriate videos from the database, and [_mask.py_](src/data/mask.py) is 
