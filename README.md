@@ -11,7 +11,7 @@ of predicting the presence (positive class) or absence (negative class) of lung 
 1. [**_Getting Started_**](#getting-started)
 2. [**_Building a Dataset_**](#building-a-dataset)
    i)[**_Extraneous data_**](#extraneous-data)
-3. [** _Model Training_ **](#model-training)
+3. [**_Model Training_**](#model-training)
 4. [**_Contacts_**](#contacts)
 
 [comment]: <> (TODO: Update the getting started section to reflect the project's specific setup.)
@@ -74,25 +74,22 @@ masks extraneous videos. Finally, [_extra_clips_to_npz.py_](src/data/extras/extr
 should be called to produce mini-clips (with associated metadata) as NPZs. Note that smoothing 
 (median filtering) as a preprocessing step is not currently implemented for extraneous data. 
 
-[comment]: <> (TODO: Add steps to create a data set for model trinaing.)
-[comment]: <> (TODO: Include links to scripts used for generating datasets.)
 
 ## Model Training
-To train a model that is already defined in this repository, simply update the _TRAIN >> MODEL_DEF_ field of [_config.yml_](config.yml) with the appropriate string representing the model type you wish to train, where the list of current options is in [models.py](src/models/models.py), then run [train.py](src/train.py). However, there are many optional parameters in [config.yml](config.yml) - please consult that file to understand the full list of options. Likely the most notable option is whether or not to apply an M Mode transformation, which when paired with conventional CNNs such as Xception, shows the most promise at the time of writing.
+To train a model that is already defined in this repository, first run [make_splits.py](src\make_splits.py) to generate proper train / validation / test splits, where the proportions can be adjusted in the _TRAIN >> SPLITS_ section of [config.yml](config.yml). Afterwards, update the _TRAIN >> MODEL_DEF_ field of [_config.yml_](config.yml) with the appropriate string representing the model type you wish to train, where the list of current options is in [models.py](src/models/models.py). To train the model on those splits, simply run [train.py](src/train.py). However, there are _many_ optional parameters in [config.yml](config.yml) - please consult that file to understand the full list of options. In particular, one notable option is whether or not to apply an M Mode transformation, which when paired with conventional CNNs such as Xception, shows the most promise at the time of writing.
 
-To train a custom model, please follow the style laid out in [models.py](src/models/models.py) and place the code there. Furthermore, follow the style in _TRAIN >> PARAMS_ to add configurable options, such as the learning rate. Although you don't _have_ to use any extra parameters, please at least create this section in [config.yml](config.yml) with the same name in capitals as in [models.py](src/models/models.py).
+To train a custom model, please follow the style laid out in [models.py](src/models/models.py) and place the code in that file. Furthermore, please add to the config file by following the style in _TRAIN >> PARAMS_ in the config file to add configurable options, such as the learning rate. Although you don't _have_ to make use of these parameters, please at least create this section in [config.yml](config.yml) with the same name in capitals as you decided in [models.py](src/models/models.py).
 
 To observe the training results of the model in TensorBoard, run @Brian (haven't done the tensorboard stuff in months sorry). The saved model will be located in [models/model_name](src/results/model/). 
 
 ## Contacts
 
-**Contact Name**  
-Title
+**Robert Arntfield**  
+Project Lead  
 Deep Breathe  
-Email
+robert.arntfield@gmail.com
 
-**Contact Name**  
-Title
+**Blake VanBerlo**  
+Deep Learning Project Lead   
 Deep Breathe  
-Email
-
+bvanberlo@uwaterloo.ca
