@@ -8,7 +8,8 @@ import datetime
 import pandas as pd
 import tensorflow as tf
 
-from tensorflow.keras.metrics import Precision, Recall, AUC, TrueNegatives, TruePositives, FalseNegatives, FalsePositives, Accuracy
+from tensorflow.keras.metrics import Precision, Recall, AUC, TrueNegatives, TruePositives, FalseNegatives, \
+    FalsePositives, Accuracy
 from tensorflow_addons.metrics import F1Score, FBetaScore
 from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
 
@@ -18,14 +19,48 @@ from models.models import *
 from custom.metrics import Specificity, PhiCoefficient
 from data.utils import refresh_folder
 
-
 cfg = yaml.full_load(open(os.path.join(os.getcwd(), '../config.yml'), 'r'))
 
 
-def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'], 
+def log_params(log_dir, writer):
+    """
+    Log hyperparameters and early stopping information to tensorboard
+    :param log_dir: Path to write TensorBoard logs
+    :param writer: file writer object for tensorboard
+    """
+
+    # Create training parameters table
+    train_summary_str = [['**Train Parameter**', '**Value**']]
+    for key in cfg['TRAIN']:
+        if key == 'PARAMS':
+            for param in cfg['TRAIN']['PARAMS']:
+                if param == 'AUGMENTATION':
+                    break
+                train_summary_str.append([param, str(cfg['TRAIN']['PARAMS'][param])])
+            break
+        train_summary_str.append([key, str(cfg['TRAIN'][key])])
+
+    # Create augmentation parameters table
+    aug_summary_str = [['**Augmentation Parameter**', '**Value**']]
+    for key in cfg['TRAIN']['PARAMS']['AUGMENTATION']:
+        aug_summary_str.append([key, str(cfg['TRAIN']['PARAMS']['AUGMENTATION'][key])])
+
+    # Create hyperparameter table
+    hparam_summary_str = [['**Hyperparameter**', '**Value**']]
+    for key in cfg['TRAIN']['PARAMS'][cfg['TRAIN']['MODEL_DEF'].upper()]:
+        hparam_summary_str.append([key, str(cfg['TRAIN']['PARAMS'][cfg['TRAIN']['MODEL_DEF'].upper()][key])])
+
+    # Write to TensorBoard logs
+    with writer.as_default():
+        tf.summary.text(name='Run Train Params', data=tf.convert_to_tensor(train_summary_str), step=0)
+        tf.summary.text(name='Run Augmentation Params', data=tf.convert_to_tensor(aug_summary_str), step=0)
+        tf.summary.text(name='Run hyperparameters', data=tf.convert_to_tensor(hparam_summary_str), step=0)
+    return
+
+
+def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
                 hparams=cfg['TRAIN']['PARAMS']['XCEPTION'],
                 model_out_dir=cfg['TRAIN']['PATHS']['MODEL_OUT']):
-
     '''
     Trains and saves a model given specific hyperparameters
 
@@ -44,7 +79,7 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
 
     flow = cfg['PREPROCESS']['PARAMS']['FLOW']
     m_mode = cfg['TRAIN']['M_MODE']
-    
+
     # Get the model function and preprocessing function 
     model_def_fn, preprocessing_fn = get_model(model_def_str)
 
@@ -122,8 +157,8 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
     # Taken from https://www.tensorflow.org/tutorials/structured_data/imbalanced_data
     # Scaling by total/2 helps keep the loss to a similar magnitude.
     # The sum of the weights of all examples stays the same.
-    num_no_sliding = len(train_df[train_df['label']==0])
-    num_sliding = len(train_df[train_df['label']==1])
+    num_no_sliding = len(train_df[train_df['label'] == 0])
+    num_sliding = len(train_df[train_df['label'] == 1])
     total = num_no_sliding + num_sliding
     weight_for_0 = (1 / num_no_sliding) * (total / 2.0)
     weight_for_1 = (1 / num_sliding) * (total / 2.0)
@@ -152,7 +187,8 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
 
     # Refresh the TensorBoard directory
     tensorboard_path = cfg['TRAIN']['PATHS']['TENSORBOARD']
-    refresh_folder(tensorboard_path)
+    if not os.path.exists(tensorboard_path):
+        os.makedirs(tensorboard_path)
 
     time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 
@@ -164,7 +200,7 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
 
     # Log metrics
     log_dir = cfg['TRAIN']['PATHS']['TENSORBOARD'] + time
-    basic_call = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
+    basic_call = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1, profile_batch=1)
 
     # Learning rate scheduler & logging LR
     writer1 = tf.summary.create_file_writer(log_dir + '/train')
@@ -189,16 +225,27 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
     lr_callback = tf.keras.callbacks.LearningRateScheduler(scheduler)
 
     # Creating a ModelCheckpoint for saving the model
+    model_out_dir += time
     save_cp = ModelCheckpoint(model_out_dir, save_best_only=cfg['TRAIN']['SAVE_BEST_ONLY'])
 
     # Early stopping
     early_stopping = EarlyStopping(monitor='val_loss', verbose=1, patience=cfg['TRAIN']['PATIENCE'], mode='min',
                                    restore_best_weights=True)
 
+    # Log model params to tensorboard
+    if log_dir is not None:
+        log_params(log_dir, writer1)
+
     # Train and save the model
     epochs = cfg['TRAIN']['PARAMS']['EPOCHS']
-    model.fit(train_set, epochs=epochs, validation_data=val_set, class_weight=class_weight,
-              callbacks=[save_cp, cm_callback, basic_call, early_stopping, lr_callback], verbose=2)
+    history = model.fit(train_set, epochs=epochs, validation_data=val_set, class_weight=class_weight,
+                        callbacks=[save_cp, cm_callback, basic_call, early_stopping, lr_callback], verbose=2)
+
+    # Log early stopping to tensorboard
+    if len(history.epoch) < epochs:
+        with writer1.as_default():
+            tf.summary.text(name='Early Stopping', data=tf.convert_to_tensor('Training stopped early'), step=0)
+            # tf.summary.text("Early Stopping:", 'Training stopped early', step=0)
 
 
 # Train and save the model

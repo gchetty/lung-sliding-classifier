@@ -7,10 +7,11 @@ import cv2
 
 # Load dictionary of constants stored in config.yml & db credentials in database_config.yml
 cfg = yaml.full_load(open(os.path.join(os.getcwd(), "../../config.yml"), 'r'))['PREPROCESS']
+database_cfg = yaml.full_load(open(os.path.join(os.getcwd(), "../../database_config.yml"), 'r'))
 
 
-def download(df, sliding, fr_rows, video_out_root_folder=cfg['PATHS']['UNMASKED_VIDEOS'],
-             csv_out_folder=cfg['PATHS']['CSVS_OUTPUT'], base_fr=cfg['PARAMS']['BASE_FR']):
+def download(df, sliding, fr_rows, video_out_root_folder= cfg['PATHS']['UNMASKED_VIDEOS'],
+             csv_out_folder= cfg['PATHS']['CSVS_OUTPUT'], base_fr=cfg['PARAMS']['BASE_FR']):
     '''
     Downloads ultrasound videos from the database in .mp4 format, and saves .csvs for tracing their metadata.
 
@@ -74,7 +75,24 @@ def download(df, sliding, fr_rows, video_out_root_folder=cfg['PATHS']['UNMASKED_
             fr_rows.append([row['id'], fr])
 
 
-df = pd.read_csv('no_lung_sliding_new_sprints_2021-12-09.csv')
+# Get database configs
+USERNAME = database_cfg['USERNAME']
+PASSWORD = database_cfg['PASSWORD']
+HOST = database_cfg['HOST']
+DATABASE = database_cfg['DATABASE']
+
+# Establish connection to database
+cnx = mysql.connector.connect(user=USERNAME, password=PASSWORD,
+                              host=HOST,
+                              database=DATABASE)
+
+# df = pd.read_csv('no_lung_sliding_new_sprints_2021-12-09.csv')
+df = pd.read_sql('''SELECT * FROM clips WHERE (pleural_line_findings='absent_lung_sliding'
+                                      OR pleural_line_findings='thickened|absent_lung_sliding') AND
+                               (quality NOT LIKE '%significant_probe_movement%' OR quality is null)
+                      AND labelbox_project_number LIKE 'Lung sliding sprint%';''', cnx)
+
+print('In total, there are ' + str(len(df)) + ' available extra videos with absent sliding')
 
 # Store rows for frame rate csv
 fr_no_sliding_rows = []
@@ -84,7 +102,6 @@ download(df, sliding=False, fr_rows=fr_no_sliding_rows)
 
 # Append to existing frame rate CSV
 csv_out_folder = cfg['PATHS']['CSVS_OUTPUT']
-
 out_df_no_sliding = pd.DataFrame(fr_no_sliding_rows, columns=['id', 'frame_rate'])
 csv_out_path_no_sliding = os.path.join(csv_out_folder, 'no_sliding_frame_rates.csv')
 orig_df = pd.read_csv(csv_out_path_no_sliding)

@@ -89,24 +89,32 @@ cnx = mysql.connector.connect(user=USERNAME, password=PASSWORD,
                               database=DATABASE)
 
 # Query database for sliding and no_sliding labeled data
-sliding_df = pd.read_sql('''SELECT * FROM clips WHERE (pleural_line_findings is 
-                            null OR pleural_line_findings='thickened') and labelled = 1 and view = 'parenchymal';''',
-                            cnx)
+# sliding_df = pd.read_sql('''SELECT * FROM clips WHERE (pleural_line_findings is
+#                             null OR pleural_line_findings='thickened') and labelled = 1 and view = 'parenchymal';''',
+#                             cnx)
+# no_sliding_df = pd.read_sql('''SELECT * FROM clips WHERE (pleural_line_findings='absent_lung_sliding' OR
+#                                pleural_line_findings='thickened|absent_lung_sliding') and labelled = 1 and
+#                                view = 'parenchymal';''',
+#                                cnx)
 
-no_sliding_df = pd.read_sql('''SELECT * FROM clips WHERE (pleural_line_findings='absent_lung_sliding' OR 
-                               pleural_line_findings='thickened|absent_lung_sliding') and labelled = 1 and 
-                               view = 'parenchymal';''',
-                               cnx)
+# Query Database for sliding and no_sliding labeled data but excluding significant probe movement tag
+sliding_df = pd.read_sql('''SELECT * FROM clips WHERE (pleural_line_findings is null OR
+                            pleural_line_findings='thickened') AND (quality NOT LIKE '%significant_probe_movement%' OR
+                            quality is null) and labelled = 1 and view = 'parenchymal';''', cnx)
+no_sliding_df = pd.read_sql('''SELECT * FROM clips WHERE (pleural_line_findings='absent_lung_sliding' OR
+                               pleural_line_findings='thickened|absent_lung_sliding') AND
+                               (quality NOT LIKE '%significant_probe_movement%' OR quality is null) and
+                               labelled = 1 and view = 'parenchymal';''', cnx)
 
 # If we're just asking the amount of videos available, the program will terminate after logging this information
 AMOUNT_ONLY = cfg['PARAMS']['AMOUNT_ONLY']
 if AMOUNT_ONLY:
     print('AMOUNT_ONLY is set to True in the config file; set this to False if you wanted to download the videos.' )
-    print('In total, there are ' + str(len(sliding_df)) + ' available videos with sliding,' + 
+    print('In total, there are ' + str(len(sliding_df)) + ' available videos with sliding,' +
       ' and ' + str(len(no_sliding_df)) + ' without.')
     exit()
 
-print('In total, there are ' + str(len(sliding_df)) + ' available videos with sliding,' + 
+print('In total, there are ' + str(len(sliding_df)) + ' available videos with sliding,' +
       ' and ' + str(len(no_sliding_df)) + ' without.')
 
 # Store rows for frame rate csv
