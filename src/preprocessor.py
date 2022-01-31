@@ -6,6 +6,7 @@ import tensorflow as tf
 import tensorflow_addons as tfa
 from tensorflow.python.ops import random_ops
 from copy import deepcopy
+import cv2
 
 cfg = yaml.full_load(open(os.getcwd() + '/../config.yml', 'r'))
 
@@ -444,7 +445,8 @@ def get_middle_pixel_index(image, bounding_box, original_height_width, method='b
     image = deepcopy(image)
 
     if apply_median_filter:
-        image = tfa.image.median_filter2d(image, filter_shape=(3, 3))
+        # image = tfa.image.median_filter2d(image, filter_shape=(3, 3))
+        image = cv2.medianBlur(np.array(image), 3)
 
     middle_pixel_index = None
 
