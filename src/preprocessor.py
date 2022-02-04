@@ -434,6 +434,10 @@ def parse_fn_m_mode(filename, label, augment=False):
     three_slice = clip[:, :, middle_pixel - 1:middle_pixel + 1, 0]
     mmode = np.median(three_slice, axis=2).T
     mmode_image = mmode.reshape((new_height, num_frames, 1))
+    # file = os.path.basename(filename)
+    # # print(str(file))
+    # path = os.path.join(r'C:\Users\marwa\Desktop\DeepBreathe\data\experiments\const_crop\preprocess', str(file))
+    # cv2.imwrite(path + '.jpg', mmode_image)
     as_tensor = tf.convert_to_tensor(mmode_image)
     converted = tf.image.grayscale_to_rgb(as_tensor)
     final_pic = tf.cast(converted, tf.float32)

@@ -12,6 +12,7 @@ PREPROCESS:
     AMOUNT_ONLY: False  # If set to True, the tool exits after querying the database and returning counts.
     FLOW: 'No'  # Yes for flow only, No for no flow, and Mixed for videos and flow.
     FLOW_CROP_WIDTH: 90  # Width to resize to for flow if cropping used.
+    USE_BOUNDING_BOX: False # Whether to include bounding boxes in npz files
     SMOOTHING: False  # Optional Median filter applied.
     SMOOTHING_KERNEL_SIZE: 5  # Integer, kernel size of square smoothing kernel filter - MUST be odd.
     SHUFFLE: True # If you want to randomize the videos downloaded.
@@ -76,7 +77,7 @@ TRAIN:
       HUE_DELTA: 0.2  # Check https://www.tensorflow.org/api_docs/python/tf/image/random_hue for this parameter.
       CONTRAST_BOUNDS: [ 0.7, 1.0 ]  # Check https://www.tensorflow.org/api_docs/python/tf/image/random_contrast for this parameter.
       SHIFT_LEFTRIGHT_BOUNDS: [ -0.25, 0.25 ]  # Proportion of width to shift by - originally -0.25 to 0.25
-      SHIFT_UPDOWN_BOUNDS: [ -0.0, 0.2 ]  # Proportion of height to shift by - No upwards shift since many areas of interest are near the top - originally 0.0 to 0.2
+      SHIFT_UPDOWN_BOUNDS: [ -0.0, 0.0 ]  # Proportion of height to shift by - No upwards shift since many areas of interest are near the top - originally 0.0 to 0.2
       ROTATE_RANGE: [ -0.1, 0.1 ]  # Range of possible rotation angles (radians)
       SHEAR_RANGE: [ 0.0, 0.1 ]  # Check https://www.tensorflow.org/api_docs/python/tf/keras/preprocessing/image/random_shear for this parameter.
       ZOOM_RANGE: [ 1.0, 1.5 ]  # Zoom range - DO NOT use lower bound < 1, otherwise might cut out parts of pleural line
@@ -89,7 +90,7 @@ TRAIN:
     XCEPTION:
       LR: 0.00001  # Learning rate
       LR_DECAY_VAL: 0.1  # Learning rate decay
-      DROPOUT: 0.5  # Dropout probability
+      DROPOUT: 0.4  # Dropout probability
       BLOCKS: 12  # Number of blocks to use - Integer, in the range [1, 14]
       BLOCKS_FROZEN: 4  # Number of blocks to freeze - MUST be 0 or positive, and less than or equal to the previous ('BLOCKS')
       L2_REG: 0.01  # L2 regularization penalty

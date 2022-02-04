@@ -200,7 +200,8 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
 
     # Log metrics
     log_dir = cfg['TRAIN']['PATHS']['TENSORBOARD'] + time
-    basic_call = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1, profile_batch=1)
+    # basic_call = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1, profile_batch=1)
+    basic_call = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
 
     # Learning rate scheduler & logging LR
     writer1 = tf.summary.create_file_writer(log_dir + '/train')

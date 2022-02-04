@@ -26,6 +26,7 @@ from tensorflow.keras.applications.vgg16 import VGG16
 from tensorflow.keras.applications.vgg16 import preprocess_input as vgg16_preprocess
 from tensorflow.keras.applications.resnet_v2 import ResNet50V2
 from tensorflow.keras.applications.resnet50 import preprocess_input as resnet_preprocess
+import tensorflow_addons as tfa
 
 cfg = yaml.full_load(open(os.path.join(os.getcwd(), '../config.yml'), 'r'))
 
@@ -838,7 +839,8 @@ def xception(model_config, input_shape, metrics, class_counts):
             elif ('batch' in model.layers[i].name) or ('bn' in model.layers[i].name):
                 model.layers[i].trainable = False
 
-    model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=metrics)
+    # model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=metrics)
+    model.compile(loss=tfa.losses.SigmoidFocalCrossEntropy(reduction=tf.keras.losses.Reduction.AUTO), optimizer=optimizer, metrics=metrics)
 
     return model
 
