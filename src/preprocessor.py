@@ -430,7 +430,6 @@ def parse_fn_m_mode(filename, label, augment=False):
     # Fix bad bounding box
     if middle_pixel == 0:
         middle_pixel = new_width // 2
-
     three_slice = clip[:, :, middle_pixel - 1:middle_pixel + 1, 0]
     mmode = np.median(three_slice, axis=2).T
     mmode_image = mmode.reshape((new_height, num_frames, 1))
@@ -466,6 +465,9 @@ def get_middle_pixel_index(image, bounding_box, original_height_width, method='b
     elif method == 'brightest_vertical_sum':
         middle_pixel_index = get_middle_pixel_index_brightest_vertical_sum(image, bounding_box, original_height_width)
 
+    elif method == 'brightest_vertical_sum_box':
+        middle_pixel_index = get_middle_pixel_index_brightest_vertical_sum_box(image, bounding_box, original_height_width)
+
     return middle_pixel_index
 
 
@@ -488,6 +490,17 @@ def get_middle_pixel_index_brightest_vertical_sum(image, bounding_box, original_
     sum_horizontal_slice = np.sum(image, axis=0)
     middle_pixel_index = np.argmax(sum_horizontal_slice)
     return middle_pixel_index
+
+def get_middle_pixel_index_brightest_vertical_sum_box(image, bounding_box, original_height_width):
+    ymin, xmin, ymax, xmax = bounding_box
+    resized_width = cfg['PREPROCESS']['PARAMS']['IMG_SIZE'][1]
+    o_height, o_width = original_height_width
+    new_xmin = int(xmin * resized_width / o_width)
+    new_xmax = int(xmax * resized_width / o_width)
+    cropped = image[:, new_xmin:new_xmax]
+    sum_horizontal_slice = np.sum(cropped, axis=0)
+    middle_pixel_index = np.argmax(sum_horizontal_slice)
+    return middle_pixel_index + new_xmin
 
 # PREPROCESSOR CLASS THAT HANDLES NO LABELS - FOR HOLDOUTS???
 

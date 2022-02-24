@@ -12,7 +12,7 @@ PREPROCESS:
     AMOUNT_ONLY: False  # If set to True, the tool exits after querying the database and returning counts.
     FLOW: 'No'  # Yes for flow only, No for no flow, and Mixed for videos and flow.
     FLOW_CROP_WIDTH: 90  # Width to resize to for flow if cropping used.
-    USE_BOUNDING_BOX: False # Whether to include bounding boxes in npz files
+    USE_BOUNDING_BOX: True # Whether to include bounding boxes in npz files
     SMOOTHING: False  # Optional Median filter applied.
     SMOOTHING_KERNEL_SIZE: 5  # Integer, kernel size of square smoothing kernel filter - MUST be odd.
     SHUFFLE: True # If you want to randomize the videos downloaded.
@@ -48,20 +48,24 @@ PREPROCESS:
 # as desired above. This could use a refactor in the future.
 TRAIN:
   M_MODE: True  # Choose whether or not to perform the M Mode transformation.
-  M_MODE_SLICE_METHOD: 'brightest_vertical_sum'  # 'brightest_vertical_sum', 'brightest' (for brightest pixel),  'box_middle' (needs bounding box) or 'random'.
+  M_MODE_SLICE_METHOD: 'brightest_vertical_sum_box'  # 'brightest_vertical_sum_box' (needs bounding box), 'brightest_vertical_sum', 'brightest' (for brightest pixel),  'box_middle' (needs bounding box) or 'random'.
   MIXED_PRECISION: False
   OUTPUT_BIAS: False  # A class imbalance technique - whether or not to bias the model (output head) prior to training.
-  PATIENCE: 20  # The number of consecutive epochs with val_loss not improving, after which the model halts training.
-  MODEL_DEF: 'vit'  # Check models.py for the current list of possible values (which is also where you would create a custom one).
-  SAVE_BEST_ONLY: True  # Whether or not to only save the 'best' model, according to validation loss.
+  PATIENCE: 15  # The number of consecutive epochs with val_loss not improving, after which the model halts training.
+  MODEL_DEF: 'efficientnet'  # Check models.py for the current list of possible values (which is also where you would create a custom one).
+  SAVE_BEST_ONLY: False  # Whether or not to only save the 'best' model, according to validation loss.
 
   # Parameters used to determine the train, test and validation splits. TRAIN, VAL and TEST have to sum to 1.
   # Only TEST can have a value of 0.
   SPLITS:
     RANDOM_SEED: 12  # The random seed (integer) used for generating splits. -1 for unseeded.
     TRAIN: 0.8  # Proportion of examples to include in the training set.
-    VAL: 0.2  # Proportion of examples to include in the validation set.
-    TEST: 0  # Proportion of examples to include in the test set.
+    VAL: 0.1  # Proportion of examples to include in the validation set.
+    TEST: 0.1  # Proportion of examples to include in the test set.
+
+  HPARAM_SEARCH:
+    N_EVALS: 15
+    OBJECTIVE: 'specificity'
 
   # Parameters for augmentation and model-training specifics.
   PARAMS:
@@ -86,6 +90,18 @@ TRAIN:
 
     # The following are model-specific parameters. To understand exactly what each is doing, please consult models.py.
 
+    # EfficentNet, used for M-mode recon
+    EFFICIENTNET:
+      LR: 0.0000487
+      LR_DECAY_VAL: 0.1  # Learning rate decay
+      DROPOUT: 0.485779027 # Dropout probability
+      BLOCKS_FROZEN: 30   # Number of blocks to freeze - MUST be 0 or positive, and less than or equal to the previous ('BLOCKS')
+      L2_REG: 0.00000000179  # L2 regularization penalty
+      WEIGHT_INITIALIZER: 'he_normal'  # Method to initialize weights for convolutional and FC layers - see https://www.tensorflow.org/api_docs/python/tf/keras/initializers
+      ALPHA: 0.25 # focal loss parameter
+      GAMMA: 2.0 # focal loss parameter
+      FC0_NODES: 64
+
     # 2D Xception net, used for M-mode reconstructions - Best performing model thus far
     XCEPTION:
       LR: 0.00001  # Learning rate
@@ -96,6 +112,8 @@ TRAIN:
       L2_REG: 0.01  # L2 regularization penalty
       TRANSFER: True  # Whether to use imagenet weights during initialization
       WEIGHT_INITIALIZER: 'he_normal'  # Method to initialize weights for convolutional and FC layers - see https://www.tensorflow.org/api_docs/python/tf/keras/initializers
+      ALPHA: 0.25 # focal loss parameter
+      GAMMA: 2.0 # focal loss parameter
 
     # (Deprecated) test model
     TEST1:
@@ -169,19 +187,64 @@ TRAIN:
   # Path variables involving the training process
   PATHS:
     CSVS: 'csvs_split/'  # Path for CSVs describing the splits of the dataset
-    MODEL_OUT: 'results/models/vit/'  # Path where the trained model is saved
-    TENSORBOARD: 'results/logs/fit/'  # Path where the tensorboard logs are stored
+    MODEL_OUT: '../results/models/efficientnet/'  # Path where the trained model is saved
+    TENSORBOARD: '../results/logs/fit/'  # Path where the tensorboard logs are stored
+
+
+# Hyperparameter search model parameters to tune
+HPARAM_SEARCH:
+  PATH: '../results/experiments/'
+  XCEPTION:
+    LR:
+      TYPE: 'float_log'
+      RANGE: [0.00001, 0.001]
+    DROPOUT:
+      TYPE: 'float_uniform'
+      RANGE: [0.0, 0.5]
+    GAMMA: # focal loss parameter
+      TYPE: 'float_uniform'
+      RANGE: [0, 5]
+    ALPHA: # focal loss parameter
+      TYPE: 'float_uniform'
+      RANGE: [0.01, 1]
+  EFFICIENTNET:
+    LR:
+      TYPE: 'float_log'
+      RANGE: [ 0.00001, 0.001 ]
+    DROPOUT:
+      TYPE: 'float_uniform'
+      RANGE: [ 0.0, 0.5 ]
+#    GAMMA: # focal loss parameter
+#      TYPE: 'float_uniform'
+#      RANGE: [0, 5]
+#    ALPHA: # focal loss parameter
+#      TYPE: 'float_uniform'
+#      RANGE: [0.01, 1]
+    L2_REG:
+      TYPE: 'float_log'
+      RANGE: [0.000000001, 0.00001]
+    FC0_NODES:
+      TYPE: 'set'
+      RANGE: [16, 32, 64, 128]
+#    BLOCKS_FROZEN:
+#      TYPE: 'set'
+#      RANGE: [0, 50, 100, 150]
+
+PREDICT:
+  MODEL: 'results/models/efficientnet/20220218-133645'  # Trained model used to generate predictions
+  TEST_DF: 'csvs_split/test.csv' # table of mini-clips to generate predictions for
+  PREDICTIONS_OUT: '../results/predictions'
 
 # EXPLAINABILITY encompasses the parameters needed to produce heatmaps, currently only for convolution-based networks.
 # Currently implemented only for 3D convolutional networks.
 EXPLAINABILITY:
   OUTPUT_FPS: 30  # Output frame rate of heatmap videos
-  PROPORTION: 0.02  # Proportion of dataset (random), specified by path NPZ_DF, to generate heatmaps for
+  PROPORTION: 0.002  # Proportion of dataset (random), specified by path NPZ_DF, to generate heatmaps for
 
   # Path variables required for heatmap generation
   PATHS:
     NPZ: 'data/npzs/'  # Directory holding NPZs that heatmaps can be generated for.
     FR_CSVS: 'data/csvs/'  # Directory with tables produced in preprocessing pipeline.
-    NPZ_DF: 'csvs_split/train.csv'  # Table of mini-clips that heatmaps can be generated for.
-    MODEL: 'results/models/inflated_resnet50/'  # Trained model used to generate heatmaps.
+    NPZ_DF: 'csvs_split/test.csv'  # Table of mini-clips that heatmaps can be generated for.
+    MODEL: 'results/models/efficientnet/20220218-133645'  # Trained model used to generate heatmaps.
     FEATURE_HEATMAPS: 'feature_heatmaps/'  # Output directory for heatmap videos.

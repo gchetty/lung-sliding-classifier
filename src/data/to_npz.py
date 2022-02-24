@@ -5,6 +5,7 @@ import os
 import yaml
 import argparse
 from utils import refresh_folder
+from tqdm import tqdm
 
 cfg = yaml.full_load(open(os.path.join(os.getcwd(),"../../config.yml"), 'r'))['PREPROCESS']
 
@@ -358,7 +359,7 @@ if __name__ == '__main__':
 
     else:
 
-        for file in os.listdir(sliding_input):
+        for file in tqdm(os.listdir(sliding_input)):
 
             f = os.path.join(sliding_input, file)
             patient_id = ((sliding_df[sliding_df['id'] == file[:-4]])['patient_id']).values[0]
@@ -376,7 +377,7 @@ if __name__ == '__main__':
                 video_to_npz(f, orig_id=file[:-4], patient_id=patient_id, df_rows=df_rows_sliding,
                              write_path=(sliding_npz_folder + file[:-4]))
 
-        for file in os.listdir(no_sliding_input):
+        for file in tqdm(os.listdir(no_sliding_input)):
 
             f = os.path.join(no_sliding_input, file)
             patient_id = ((no_sliding_df[no_sliding_df['id'] == file[:-4]])['patient_id']).values[0]
