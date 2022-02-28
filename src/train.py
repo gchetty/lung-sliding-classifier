@@ -32,6 +32,7 @@ def log_test_results(model, test_set, test_df, test_metrics, writer):
     Visualize performance of a trained model on the test set. Optionally save the model.
     :param model: A trained TensorFlow model
     :param test_set: A TensorFlow image generator for the test set
+    :param test_df: Dataframe containing npz files and labels for test set
     :param test_metrics: Dict of test set performance metrics
     :param writer: file writer object for tensorboard
     '''
@@ -62,6 +63,7 @@ def log_train_params(writer, hparams):
     """
     Log hyperparameters and early stopping information to tensorboard
     :param writer: file writer object for tensorboard
+    :param hparams: list of hyperparameters used for the model
     """
 
     # Create training parameters table
@@ -226,12 +228,6 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
         os.makedirs(tensorboard_path)
 
     time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-
-    # # Create the Confusion Matrix Callback
-    # def log_confusion_matrix_wrapper(epoch, logs, model=model, val_df=val_df, val_dataset=val_set):
-    #     return log_confusion_matrix(epoch, logs, model, val_df, val_dataset)
-    #
-    # cm_callback = tf.keras.callbacks.LambdaCallback(on_epoch_end=log_confusion_matrix_wrapper)
 
     # Log metrics
     log_dir = cfg['TRAIN']['PATHS']['TENSORBOARD'] + time
