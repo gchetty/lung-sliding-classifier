@@ -88,45 +88,12 @@ cnx = mysql.connector.connect(user=USERNAME, password=PASSWORD,
                               host=HOST,
                               database=DATABASE)
 
-# Query database for sliding and no_sliding labeled data
-# sliding_df = pd.read_sql('''SELECT * FROM clips WHERE (pleural_line_findings is
-#                             null OR pleural_line_findings='thickened') and labelled = 1 and view = 'parenchymal';''',
-#                             cnx)
-# no_sliding_df = pd.read_sql('''SELECT * FROM clips WHERE (pleural_line_findings='absent_lung_sliding' OR
-#                                pleural_line_findings='thickened|absent_lung_sliding') and labelled = 1 and
-#                                view = 'parenchymal';''',
-#                                cnx)
-
-# # Query Database for sliding and no_sliding labeled data but excluding significant probe movement tag
-# sliding_df = pd.read_sql('''SELECT * FROM clips WHERE (pleural_line_findings is null OR
-#                             pleural_line_findings='thickened') AND (quality NOT LIKE '%significant_probe_movement%' OR
-#                             quality is null) and labelled = 1 and view = 'parenchymal';''', cnx)
-# no_sliding_df = pd.read_sql('''SELECT * FROM clips WHERE (pleural_line_findings='absent_lung_sliding' OR
-#                                pleural_line_findings='thickened|absent_lung_sliding') AND
-#                                (quality NOT LIKE '%significant_probe_movement%' OR quality is null) and
-#                                labelled = 1 and view = 'parenchymal';''', cnx)
-
-# Query Database for sliding and no_sliding labeled data but excluding significant probe movement and only A lines for
-# sliding class
-# sliding_df = pd.read_sql('''SELECT * FROM clips WHERE (pleural_line_findings is null OR
-#                             pleural_line_findings='thickened') AND (quality NOT LIKE '%significant_probe_movement%' OR
-#                             quality is null) AND (a_or_b_lines='a_lines') and labelled = 1 and
-#                             view = 'parenchymal';''', cnx)
-# no_sliding_df = pd.read_sql('''SELECT * FROM clips WHERE (pleural_line_findings='absent_lung_sliding' OR
-#                                pleural_line_findings='thickened|absent_lung_sliding') AND
-#                                (quality NOT LIKE '%significant_probe_movement%' OR quality is null) and
-#                                labelled = 1 and view = 'parenchymal';''', cnx)
-
 # Query Database for sliding and no_sliding labeled data but excluding significant probe movement and B lines
 # and pleural effusion or consolidation
 sliding_df = pd.read_sql('''SELECT * FROM clips WHERE (pleural_line_findings is null OR
                             pleural_line_findings='thickened') AND (quality NOT LIKE '%significant_probe_movement%' OR
                             quality is null) AND (a_or_b_lines='a_lines') AND (pleural_effusion is null) 
                             AND (consolidation is null) and labelled = 1 and view = 'parenchymal';''', cnx)
-# cnx = mysql.connector.connect(user=USERNAME, password=PASSWORD,
-#                               host=database_cfg['EXTERNAL_HOST'],
-#                               database=DATABASE)
-# chile_sliding_df = pd.read_sql('''SELECT * FROM clips_chile WHERE view = 'parenchymal';''', cnx)
 no_sliding_df = pd.read_sql('''SELECT * FROM clips WHERE (pleural_line_findings='absent_lung_sliding' OR
                                pleural_line_findings='thickened|absent_lung_sliding') AND
                                (quality NOT LIKE '%significant_probe_movement%' OR quality is null) AND 
