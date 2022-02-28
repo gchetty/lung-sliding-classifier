@@ -86,7 +86,6 @@ cnx = mysql.connector.connect(user=USERNAME, password=PASSWORD,
                               host=HOST,
                               database=DATABASE)
 
-# df = pd.read_csv('no_lung_sliding_new_sprints_2021-12-09.csv')
 df = pd.read_sql('''SELECT * FROM clips WHERE (pleural_line_findings='absent_lung_sliding'
                                       OR pleural_line_findings='thickened|absent_lung_sliding') AND
                                (quality NOT LIKE '%significant_probe_movement%' OR quality is null)

@@ -4,8 +4,6 @@ import yaml
 import cv2
 import numpy as np
 import pandas as pd
-import shutil
-from tqdm import tqdm
 import tensorflow as tf
 from tkinter import filedialog as fd
 from tensorflow.keras.models import load_model
@@ -50,7 +48,7 @@ class GradCAMExplainer:
         '''
         For each image in the dataset provided, make a prediction and overlay a heatmap depicting the gradient of the
         predicted class with respect to the feature maps of the final convolutional layer of the model.
-        :param frame_df: Pandas Dataframe of LUS frames, linking image filenames to labels
+        :param npz_df: Pandas Dataframe of npz files, linking npz filenames to labels
         '''
 
         # get dataset and apply preprocessor
@@ -62,13 +60,12 @@ class GradCAMExplainer:
         idx = 0
         for x, y in preprocessed_set:
             filename = npz_df['filename'].iloc[idx]
-            # x, y = next(iter(preprocessed_set))
             # Obtain gradient of output with respect to last convolutional layer weights
             with tf.GradientTape() as tape:
                 last_conv_layer = self.model.get_layer(self.last_conv_layer)
                 iterate = Model([self.model.inputs], [self.model.output, last_conv_layer.output])
                 model_out, last_conv_layer = iterate(x)
-                class_out = model_out[:, np.argmax(model_out[0])]
+                class_out = tf.math.maximum(1 - model_out[:, np.argmax(model_out[0])], model_out[:, np.argmax(model_out[0])])
                 grads = tape.gradient(class_out, last_conv_layer)
                 pooled_grads = tf.keras.backend.mean(grads, axis=(0, 1, 2))
 
@@ -110,6 +107,11 @@ class GradCAMExplainer:
         return heatmap
 
     def get_mmode(self, filename):
+        '''
+        Get M-mode image from the specified npz file
+        :param filename: file name of npz file to use for M-mode reconstruction
+        :return: The M-mode image produced
+        '''
         loaded = np.load(filename)
         bounding_box = None
         if cfg['PREPROCESS']['PARAMS']['USE_BOUNDING_BOX']:
@@ -125,11 +127,11 @@ class GradCAMExplainer:
         # Fix bad bounding box
         if middle_pixel == 0:
             middle_pixel = new_width // 2
-        three_slice = clip[:, :, middle_pixel - 1:middle_pixel + 1, 0]
+        three_slice = clip[:, :, middle_pixel - 1:middle_pixel + 2, 0]
         mmode = np.median(three_slice, axis=2).T
         mmode_image = mmode.reshape((new_height, num_frames, 1))
 
-        return cv2.convertScaleAbs(cv2.cvtColor(np.float32(mmode_image), cv2.COLOR_GRAY2RGB))
+        return cv2.convertScaleAbs(cv2.cvtColor(mmode_image, cv2.COLOR_GRAY2RGB))
 
 
 if __name__ == '__main__':

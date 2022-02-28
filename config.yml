@@ -51,21 +51,21 @@ TRAIN:
   M_MODE_SLICE_METHOD: 'brightest_vertical_sum_box'  # 'brightest_vertical_sum_box' (needs bounding box), 'brightest_vertical_sum', 'brightest' (for brightest pixel),  'box_middle' (needs bounding box) or 'random'.
   MIXED_PRECISION: False
   OUTPUT_BIAS: False  # A class imbalance technique - whether or not to bias the model (output head) prior to training.
-  PATIENCE: 15  # The number of consecutive epochs with val_loss not improving, after which the model halts training.
+  PATIENCE: 20  # The number of consecutive epochs with val_loss not improving, after which the model halts training.
   MODEL_DEF: 'efficientnet'  # Check models.py for the current list of possible values (which is also where you would create a custom one).
-  SAVE_BEST_ONLY: False  # Whether or not to only save the 'best' model, according to validation loss.
+  SAVE_BEST_ONLY: True  # Whether or not to only save the 'best' model, according to validation loss.
 
   # Parameters used to determine the train, test and validation splits. TRAIN, VAL and TEST have to sum to 1.
   # Only TEST can have a value of 0.
   SPLITS:
     RANDOM_SEED: 12  # The random seed (integer) used for generating splits. -1 for unseeded.
     TRAIN: 0.8  # Proportion of examples to include in the training set.
-    VAL: 0.1  # Proportion of examples to include in the validation set.
-    TEST: 0.1  # Proportion of examples to include in the test set.
+    VAL: 0.2  # Proportion of examples to include in the validation set.
+    TEST: 0  # Proportion of examples to include in the test set.
 
   HPARAM_SEARCH:
     N_EVALS: 15
-    OBJECTIVE: 'specificity'
+    OBJECTIVE: 'auc'
 
   # Parameters for augmentation and model-training specifics.
   PARAMS:
@@ -214,21 +214,21 @@ HPARAM_SEARCH:
     DROPOUT:
       TYPE: 'float_uniform'
       RANGE: [ 0.0, 0.5 ]
-#    GAMMA: # focal loss parameter
-#      TYPE: 'float_uniform'
-#      RANGE: [0, 5]
-#    ALPHA: # focal loss parameter
-#      TYPE: 'float_uniform'
-#      RANGE: [0.01, 1]
+    GAMMA: # focal loss parameter
+      TYPE: 'float_uniform'
+      RANGE: [0, 5]
+    ALPHA: # focal loss parameter
+      TYPE: 'float_uniform'
+      RANGE: [0.01, 1]
     L2_REG:
       TYPE: 'float_log'
       RANGE: [0.000000001, 0.00001]
     FC0_NODES:
       TYPE: 'set'
       RANGE: [16, 32, 64, 128]
-#    BLOCKS_FROZEN:
-#      TYPE: 'set'
-#      RANGE: [0, 50, 100, 150]
+    BLOCKS_FROZEN:
+      TYPE: 'set'
+      RANGE: [0, 50, 100, 150]
 
 PREDICT:
   MODEL: 'results/models/efficientnet/20220218-133645'  # Trained model used to generate predictions
@@ -239,12 +239,12 @@ PREDICT:
 # Currently implemented only for 3D convolutional networks.
 EXPLAINABILITY:
   OUTPUT_FPS: 30  # Output frame rate of heatmap videos
-  PROPORTION: 0.002  # Proportion of dataset (random), specified by path NPZ_DF, to generate heatmaps for
+  PROPORTION: 0.02  # Proportion of dataset (random), specified by path NPZ_DF, to generate heatmaps for
 
   # Path variables required for heatmap generation
   PATHS:
     NPZ: 'data/npzs/'  # Directory holding NPZs that heatmaps can be generated for.
     FR_CSVS: 'data/csvs/'  # Directory with tables produced in preprocessing pipeline.
-    NPZ_DF: 'csvs_split/test.csv'  # Table of mini-clips that heatmaps can be generated for.
+    NPZ_DF: 'csvs_split/val.csv'  # Table of mini-clips that heatmaps can be generated for.
     MODEL: 'results/models/efficientnet/20220218-133645'  # Trained model used to generate heatmaps.
     FEATURE_HEATMAPS: 'feature_heatmaps/'  # Output directory for heatmap videos.

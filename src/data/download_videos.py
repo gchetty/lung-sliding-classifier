@@ -117,8 +117,8 @@ cnx = mysql.connector.connect(user=USERNAME, password=PASSWORD,
 #                                (quality NOT LIKE '%significant_probe_movement%' OR quality is null) and
 #                                labelled = 1 and view = 'parenchymal';''', cnx)
 
-# Query Database for sliding and no_sliding labeled data but excluding significant probe movement and only A lines for
-# sliding class and exluding pleural effusion or consolidation
+# Query Database for sliding and no_sliding labeled data but excluding significant probe movement and B lines
+# and pleural effusion or consolidation
 sliding_df = pd.read_sql('''SELECT * FROM clips WHERE (pleural_line_findings is null OR
                             pleural_line_findings='thickened') AND (quality NOT LIKE '%significant_probe_movement%' OR
                             quality is null) AND (a_or_b_lines='a_lines') AND (pleural_effusion is null) 
@@ -129,28 +129,22 @@ sliding_df = pd.read_sql('''SELECT * FROM clips WHERE (pleural_line_findings is 
 # chile_sliding_df = pd.read_sql('''SELECT * FROM clips_chile WHERE view = 'parenchymal';''', cnx)
 no_sliding_df = pd.read_sql('''SELECT * FROM clips WHERE (pleural_line_findings='absent_lung_sliding' OR
                                pleural_line_findings='thickened|absent_lung_sliding') AND
-                               (quality NOT LIKE '%significant_probe_movement%' OR quality is null) and
-                               labelled = 1 and view = 'parenchymal';''', cnx)
+                               (quality NOT LIKE '%significant_probe_movement%' OR quality is null) AND 
+                               (a_or_b_lines='a_lines') AND (pleural_effusion is null) AND (consolidation is null)
+                               and labelled = 1 and view = 'parenchymal';''', cnx)
 
 # Query database for extra negative examples from sprints
 no_sliding_extra_df = pd.read_sql('''SELECT * FROM clips WHERE (pleural_line_findings='absent_lung_sliding'
                                       OR pleural_line_findings='thickened|absent_lung_sliding') AND
-                               (quality NOT LIKE '%significant_probe_movement%' OR quality is null)
-                      AND labelbox_project_number LIKE 'Lung sliding sprint%';''', cnx)
+                               (quality NOT LIKE '%significant_probe_movement%' OR quality is null) AND 
+                               (a_or_b_lines='a_lines') AND (pleural_effusion is null) AND (consolidation is null) 
+                               AND labelbox_project_number LIKE 'Lung sliding sprint%';''', cnx)
 
 # Load examples that must be excluded from negative class (bad clips)
 bad_no_sliding_df = pd.read_csv(os.path.join(cfg['PATHS']['CSVS_OUTPUT'], 'bad_ids.csv'))
 
 no_sliding_df = pd.concat([no_sliding_df, no_sliding_extra_df])
 no_sliding_df = no_sliding_df[~no_sliding_df['id'].isin(bad_no_sliding_df['id'])]
-
-# path = r'C:\Users\marwa\Desktop\DeepBreathe\data\pruning\data_yellow\csvs\no_sliding.csv'
-# no_sliding_df = pd.read_csv(path)
-# probe_path = r'C:\Users\marwa\Desktop\DeepBreathe\data\probe_csv'
-# sliding_probes = pd.read_csv(os.path.join(probe_path, 'sliding_out.csv'))
-# no_sliding_probes = pd.read_csv(os.path.join(probe_path, 'no_sliding_out.csv'))
-# sliding_df = filter_probe_type(sliding_df, sliding_probes)
-# no_sliding_df = filter_probe_type(no_sliding_df, no_sliding_probes)
 
 # If we're just asking the amount of videos available, the program will terminate after logging this information
 AMOUNT_ONLY = cfg['PARAMS']['AMOUNT_ONLY']

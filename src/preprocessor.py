@@ -430,13 +430,9 @@ def parse_fn_m_mode(filename, label, augment=False):
     # Fix bad bounding box
     if middle_pixel == 0:
         middle_pixel = new_width // 2
-    three_slice = clip[:, :, middle_pixel - 1:middle_pixel + 1, 0]
+    three_slice = clip[:, :, middle_pixel - 1:middle_pixel + 2, 0]
     mmode = np.median(three_slice, axis=2).T
     mmode_image = mmode.reshape((new_height, num_frames, 1))
-    # file = os.path.basename(filename)
-    # # print(str(file))
-    # path = os.path.join(r'C:\Users\marwa\Desktop\DeepBreathe\data\experiments\const_crop\preprocess', str(file))
-    # cv2.imwrite(path + '.jpg', mmode_image)
     as_tensor = tf.convert_to_tensor(mmode_image)
     converted = tf.image.grayscale_to_rgb(as_tensor)
     final_pic = tf.cast(converted, tf.float32)
@@ -448,7 +444,6 @@ def get_middle_pixel_index(image, bounding_box, original_height_width, method='b
     image = deepcopy(image)
 
     if apply_median_filter:
-        # image = tfa.image.median_filter2d(image, filter_shape=(3, 3))
         image = cv2.medianBlur(np.array(image), 3)
 
     middle_pixel_index = None

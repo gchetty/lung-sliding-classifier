@@ -20,10 +20,12 @@ from custom.metrics import Specificity, PhiCoefficient
 from skopt.space import Real, Categorical, Integer
 from skopt import gp_minimize
 from skopt.callbacks import CheckpointSaver
+from skopt import load
 from data.utils import refresh_folder
 import gc
 
 cfg = yaml.full_load(open(os.path.join(os.getcwd(), '../config.yml'), 'r'))
+
 
 def log_test_results(model, test_set, test_df, test_metrics, writer):
     '''
@@ -37,13 +39,13 @@ def log_test_results(model, test_set, test_df, test_metrics, writer):
     # Visualization of test results
     test_predictions = model.predict(test_set, verbose=0)
     labels = test_df['label'].to_numpy()
-    # plt = plot_roc(labels, test_predictions, [0, 1])
-    # roc_img = plot_to_tensor()
-    # plt = plot_confusion_matrix(labels, test_predictions, [0, 1])
-    # cm_img = plot_to_tensor()
+    plt = plot_roc(labels, test_predictions, [0, 1])
+    roc_img = plot_to_tensor()
+    plt = plot_confusion_matrix(labels, test_predictions, [0, 1])
+    cm_img = plot_to_tensor()
 
     # Create table of test set metrics
-    test_summary_str = [['**Metric**','**Value**']]
+    test_summary_str = [['**Metric**', '**Value**']]
     for metric in test_metrics:
         metric_values = test_metrics[metric]
         test_summary_str.append([metric, str(metric_values)])
@@ -51,9 +53,10 @@ def log_test_results(model, test_set, test_df, test_metrics, writer):
     # Write to TensorBoard logs
     with writer.as_default():
         tf.summary.text(name='Test set metrics', data=tf.convert_to_tensor(test_summary_str), step=0)
-        # tf.summary.image(name='ROC Curve (Test Set)', data=roc_img, step=0)
-        # tf.summary.image(name='Confusion Matrix (Test Set)', data=cm_img, step=0)
+        tf.summary.image(name='ROC Curve (Test Set)', data=roc_img, step=0)
+        tf.summary.image(name='Confusion Matrix (Test Set)', data=cm_img, step=0)
     return
+
 
 def log_train_params(writer, hparams):
     """
@@ -232,6 +235,8 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
 
     # Log metrics
     log_dir = cfg['TRAIN']['PATHS']['TENSORBOARD'] + time
+
+    # uncomment line below to include tensorboard profiler in callbacks
     # basic_call = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1, profile_batch=1)
     basic_call = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
 
@@ -280,15 +285,16 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
         with writer2.as_default():
             tf.summary.text(name='Early Stopping', data=tf.convert_to_tensor('Training stopped early'), step=0)
 
-    # Run the model on the test set and print the resulting performance metrics.
-    test_results = model.evaluate(test_set, verbose=1)
     test_metrics = {}
-    test_summary_str = [['**Metric**', '**Value**']]
-    for metric, value in zip(model.metrics_names, test_results):
-        test_metrics[metric] = value
-        test_summary_str.append([metric, str(value)])
-    if log_dir is not None:
-        log_test_results(model, test_set, test_df, test_metrics, writer2)
+    if cfg['TRAIN']['SPLITS']['TEST'] > 0:
+        # Run the model on the test set and print the resulting performance metrics.
+        test_results = model.evaluate(test_set, verbose=1)
+        test_summary_str = [['**Metric**', '**Value**']]
+        for metric, value in zip(model.metrics_names, test_results):
+            test_metrics[metric] = value
+            test_summary_str.append([metric, str(value)])
+        if log_dir is not None:
+            log_test_results(model, test_set, test_df, test_metrics, writer2)
 
     return model, test_metrics, test_set
 
@@ -299,6 +305,7 @@ def save_hparam_search_results(init_dict, score, objective_metric, hparam_names,
     :param init_dict: Initial results dictionary (hyperparameter names for keys and empty lists as values)
     :param score: Objective score for current iteration
     :param objective_metric: Name of the objective metric
+    :param hparam_names: list of hyperparameter names
     :param hparams: Hyperparameter value dictionary
     :param model_name: Name of model
     :param cur_datetime: String representation of current date and time
@@ -322,9 +329,11 @@ def save_hparam_search_results(init_dict, score, objective_metric, hparam_names,
     results_df.to_csv(results_path, index_label=False, index=False)
     return results
 
-def bayesian_hparam_optimization():
+
+def bayesian_hparam_optimization(checkpoint=None):
     '''
     Conducts a Bayesian hyperparameter optimization, given the parameter ranges and selected model
+    :param checkpoint: string containing filename of checkpoint to load from previous search (.pkl file)
     :return: Dict of hyperparameters deemed optimal
     '''
     model_name = cfg['TRAIN']['MODEL_DEF'].upper()
@@ -372,16 +381,28 @@ def bayesian_hparam_optimization():
         return score  # We aim to minimize error
 
     result_path = cfg['HPARAM_SEARCH']['PATH'] + 'hparam_search_' + model_name + \
-                   cur_datetime + '.pkl'
+                  cur_datetime + '.pkl'
     checkpoint_saver = CheckpointSaver(result_path)
-    search_results = gp_minimize(func=objective, dimensions=dimensions, acq_func='EI',
-                                 n_calls=cfg['TRAIN']['HPARAM_SEARCH']['N_EVALS'], callback=[checkpoint_saver],
-                                 verbose=True)
+
+    # whether to load from checkpoint
+    if checkpoint:
+        print('here')
+        checkpoint_res = load(os.path.join(cfg['HPARAM_SEARCH']['PATH'], checkpoint))
+        x0 = checkpoint_res.x_iters
+        y0 = checkpoint_res.func_vals
+        search_results = gp_minimize(func=objective, dimensions=dimensions, x0=x0, y0=y0, acq_func='EI',
+                                     n_calls=cfg['TRAIN']['HPARAM_SEARCH']['N_EVALS'], callback=[checkpoint_saver],
+                                     verbose=True)
+    else:
+        search_results = gp_minimize(func=objective, dimensions=dimensions, acq_func='EI',
+                                     n_calls=cfg['TRAIN']['HPARAM_SEARCH']['N_EVALS'], callback=[checkpoint_saver],
+                                     verbose=True)
     print("Results of hyperparameter search: {}".format(search_results))
     plot_bayesian_hparam_opt(model_name, hparam_names, search_results, save_fig=True)
     return search_results
 
-# Train and save the model
-model_def_str = cfg['TRAIN']['MODEL_DEF']
-train_model(hparams=cfg['TRAIN']['PARAMS'][model_def_str.upper()])
-# bayesian_hparam_optimization()
+
+if __name__ == '__main__':
+    # Train and save the model
+    model_def_str = cfg['TRAIN']['MODEL_DEF']
+    train_model(hparams=cfg['TRAIN']['PARAMS'][model_def_str.upper()])

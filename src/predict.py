@@ -16,11 +16,10 @@ def predict_set(model, test_df, threshold=0.5, model_def_str=cfg['TRAIN']['MODEL
     '''
     Given a dataset, make predictions for each constituent example.
     :param model: A trained TensorFlow model
-    :param preprocessing_func: Preprocessing function to apply before sending image to model
-    :param predict_df: Pandas Dataframe of LUS frames, linking image filenames to labels
+    :param test_df: DataFrame containing npz files to predict
     :param threshold: Classification threshold
     :param model_def_str: Model name
-    :return: List of predicted classes, array of classwise prediction probabilities
+    :return: List of predicted classes, array of prediction probabilities
     '''
 
     # Get the model function and preprocessing function
@@ -39,8 +38,15 @@ def predict_set(model, test_df, threshold=0.5, model_def_str=cfg['TRAIN']['MODEL
 
     return pred_classes, np.squeeze(p, axis=1)
 
+
 def export_predictions(df, pred_classes, probs):
-    ids = df['id'].to_list()
+    '''
+    Export prediction outputs to csv
+    :param df: DataFrame of npz files
+    :param pred_classes: List of predicted classes
+    :param probs: List of probabilities
+    '''
+
     pred_df = pd.DataFrame(columns=['id', 'Predicted Class', 'Probability'])
     pred_df['id'] = df['id']
     pred_df['Ground Truth'] = df['label']
@@ -51,8 +57,8 @@ def export_predictions(df, pred_classes, probs):
                                 + '_predictions.csv'), index=False)
 
 
-if __name__=='__main__':
+if __name__ == '__main__':
     test_df = pd.read_csv(cfg['PREDICT']['TEST_DF'])
     model = load_model(os.path.join('..', cfg['PREDICT']['MODEL']), compile=False)
-    pred_classes, probs = predict_set(model, test_df)
-    export_predictions(test_df, pred_classes, probs)
+    pred_labels, probs = predict_set(model, test_df)
+    export_predictions(test_df, pred_labels, probs)

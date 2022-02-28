@@ -6,13 +6,10 @@ import tensorflow as tf
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
-import itertools
 import yaml
 import io
 import os
 import datetime
-
-from sklearn.metrics import confusion_matrix
 from sklearn.metrics import confusion_matrix, roc_curve
 from skopt.plots import plot_objective
 
@@ -27,10 +24,6 @@ def plot_roc(labels, predictions, class_name_list, dir_path=None, title=None):
     :param dir_path: Directory in which to save image
     '''
     plt.clf()
-    # for class_id in range(len(class_name_list)):
-    #     class_name = class_name_list[class_id]
-    #     single_class_preds = predictions[:, class_id]    # Only care about one class
-    #     single_class_labels = (np.array(labels) == class_id) * 1.0
     fp, tp, _ = roc_curve(labels, predictions)  # Get values for true positive and true negative
     plt.plot(100*fp, 100*tp, linewidth=2)   # Plot the ROC curve
 
@@ -107,39 +100,6 @@ def plot_bayesian_hparam_opt(model_name, hparam_names, search_results, save_fig=
                     datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + '.png'))
 
 
-# def plot_confusion_matrix(cm, class_names):
-#     """
-#     Returns a matplotlib figure containing the plotted confusion matrix.
-#
-#     :param cm: (array, shape = [n, n]): a confusion matrix of integer classes
-#     :param class_names: (array, shape = [n]): String names of the integer classes
-#
-#     Returns: The Matplotlib figure
-#     """
-#     plt.clf()
-#     figure = plt.figure(figsize=(16, 16))
-#     plt.imshow(cm, interpolation='nearest', cmap=plt.cm.Blues)
-#     plt.title("Confusion matrix")
-#     plt.colorbar()
-#     tick_marks = np.arange(len(class_names))
-#     plt.xticks(tick_marks, class_names, rotation=45)
-#     plt.yticks(tick_marks, class_names)
-#
-#     # Normalize the confusion matrix.
-#     #cm = np.around(cm.astype('float') / cm.sum(axis=1)[:, np.newaxis], decimals=2)
-#
-#     # Use white text if squares are dark; otherwise black.
-#     threshold = cm.max() / 2.
-#
-#     for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
-#         color = "white" if cm[i, j] > threshold else "black"
-#         plt.text(j, i, cm[i, j], horizontalalignment="center", color=color)
-#
-#     plt.tight_layout()
-#     plt.ylabel('True label')
-#     plt.xlabel('Predicted label')
-#     return figure
-
 def plot_confusion_matrix(labels, predictions, class_name_list, dir_path=None, title=None):
     '''
     Plot a confusion matrix for the ground truth labels and corresponding model predictions for a particular class.
@@ -147,9 +107,9 @@ def plot_confusion_matrix(labels, predictions, class_name_list, dir_path=None, t
     :param predictions: Model predictions
     :param class_name_list: Ordered list of class names
     :param dir_path: Directory in which to save image
+    :param title: Title of plot
     '''
     plt.clf()
-    #predictions = list(np.argmax(predictions, axis=1))
     predictions = np.round(predictions)
     ax = plt.subplot()
     cm = confusion_matrix(list(labels), predictions)  # Determine confusion matrix
