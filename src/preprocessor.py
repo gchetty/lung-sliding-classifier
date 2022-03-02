@@ -6,7 +6,7 @@ import tensorflow as tf
 import tensorflow_addons as tfa
 from tensorflow.python.ops import random_ops
 from copy import deepcopy
-
+import cv2
 
 cfg = yaml.full_load(open(os.getcwd() + '/../config.yml', 'r'))
 
@@ -369,7 +369,6 @@ def augment_clip_m_mode_video(x):
 
     :return: Augmented LUS clip
     '''
-
     x = tf.convert_to_tensor(x, dtype=tf.float32)
     x = tf.image.random_brightness(x, max_delta=cfg['TRAIN']['PARAMS']['AUGMENTATION']['BRIGHTNESS_DELTA'])
     x = tf.image.random_contrast(x, cfg['TRAIN']['PARAMS']['AUGMENTATION']['CONTRAST_BOUNDS'][0],
@@ -411,9 +410,12 @@ def parse_fn_m_mode(filename, label, augment=False):
 
     :return: Tuple of (M-mode reconstruction, label), both as tensors
     '''
-
     loaded = np.load(filename)
-    clip, bounding_box, height_width = loaded['frames'], loaded['bounding_box'], loaded['height_width']
+    bounding_box = None
+    if cfg['PREPROCESS']['PARAMS']['USE_BOUNDING_BOX']:
+        clip, bounding_box, height_width = loaded['frames'], loaded['bounding_box'], loaded['height_width']
+    else:
+        clip, height_width = loaded['frames'], loaded['height_width']
 
     # Augment clip before extracting m-mode
     if augment:
@@ -428,14 +430,12 @@ def parse_fn_m_mode(filename, label, augment=False):
     # Fix bad bounding box
     if middle_pixel == 0:
         middle_pixel = new_width // 2
-
-    three_slice = clip[:, :, middle_pixel - 1:middle_pixel + 1, 0]
+    three_slice = clip[:, :, middle_pixel - 1:middle_pixel + 2, 0]
     mmode = np.median(three_slice, axis=2).T
     mmode_image = mmode.reshape((new_height, num_frames, 1))
     as_tensor = tf.convert_to_tensor(mmode_image)
     converted = tf.image.grayscale_to_rgb(as_tensor)
     final_pic = tf.cast(converted, tf.float32)
-
     return final_pic, (1 - tf.one_hot(label, 1))
 
 
@@ -444,7 +444,7 @@ def get_middle_pixel_index(image, bounding_box, original_height_width, method='b
     image = deepcopy(image)
 
     if apply_median_filter:
-        image = tfa.image.median_filter2d(image, filter_shape=(3, 3))
+        image = cv2.medianBlur(np.array(image), 3)
 
     middle_pixel_index = None
 
@@ -459,6 +459,9 @@ def get_middle_pixel_index(image, bounding_box, original_height_width, method='b
 
     elif method == 'brightest_vertical_sum':
         middle_pixel_index = get_middle_pixel_index_brightest_vertical_sum(image, bounding_box, original_height_width)
+
+    elif method == 'brightest_vertical_sum_box':
+        middle_pixel_index = get_middle_pixel_index_brightest_vertical_sum_box(image, bounding_box, original_height_width)
 
     return middle_pixel_index
 
@@ -482,6 +485,17 @@ def get_middle_pixel_index_brightest_vertical_sum(image, bounding_box, original_
     sum_horizontal_slice = np.sum(image, axis=0)
     middle_pixel_index = np.argmax(sum_horizontal_slice)
     return middle_pixel_index
+
+def get_middle_pixel_index_brightest_vertical_sum_box(image, bounding_box, original_height_width):
+    ymin, xmin, ymax, xmax = bounding_box
+    resized_width = cfg['PREPROCESS']['PARAMS']['IMG_SIZE'][1]
+    o_height, o_width = original_height_width
+    new_xmin = int(xmin * resized_width / o_width)
+    new_xmax = int(xmax * resized_width / o_width)
+    cropped = image[:, new_xmin:new_xmax]
+    sum_horizontal_slice = np.sum(cropped, axis=0)
+    middle_pixel_index = np.argmax(sum_horizontal_slice)
+    return middle_pixel_index + new_xmin
 
 # PREPROCESSOR CLASS THAT HANDLES NO LABELS - FOR HOLDOUTS???
 

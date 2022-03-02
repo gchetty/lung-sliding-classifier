@@ -26,6 +26,9 @@ from tensorflow.keras.applications.vgg16 import VGG16
 from tensorflow.keras.applications.vgg16 import preprocess_input as vgg16_preprocess
 from tensorflow.keras.applications.resnet_v2 import ResNet50V2
 from tensorflow.keras.applications.resnet50 import preprocess_input as resnet_preprocess
+from tensorflow.keras.applications.efficientnet import EfficientNetB0 as EfficientNet
+from tensorflow.keras.applications.efficientnet import preprocess_input as efficientnet_preprocess
+import tensorflow_addons as tfa
 
 cfg = yaml.full_load(open(os.path.join(os.getcwd(), '../config.yml'), 'r'))
 
@@ -77,6 +80,9 @@ def get_model(model_name):
     elif model_name == 'mobilenet_v3_small':
         model_def_fn = mobile_net_v3_small
         preprocessing_fn = mobilenet_v3_preprocess
+    elif model_name == 'efficientnet':
+        model_def_fn = efficientnet
+        preprocessing_fn = efficientnet_preprocess
 
     if flow:
         preprocessing_fn = normalize
@@ -744,6 +750,55 @@ def i3d(model_config, input_shapes, metrics, class_counts):
 
     return model
 
+def efficientnet(model_config, input_shape, metrics, class_counts):
+
+    '''
+    Defines a model based on pretrained EfficientNet. Assumes an M-mode reconstruction.
+
+    :param model_config: Hyperparameter dictionary
+    :param input_shape: Tuple, shape of individual input tensor (without batch dimension)
+    :param metrics: List of metrics for model compilation
+    :param class_counts: 2-element list - number of each class in training set
+
+    :return: Compiled tensorflow model
+    '''
+
+    lr = model_config['LR']
+    optimizer = Adam(learning_rate=lr)
+
+    dropout = model_config['DROPOUT']
+    l2_reg = model_config['L2_REG']
+    fc0_nodes = model_config['FC0_NODES']
+
+    freeze_cutoff = -1 if model_config['BLOCKS_FROZEN'] == 0 else model_config['BLOCKS_FROZEN']
+
+    X_input = Input(input_shape, name='input')
+    base_model = EfficientNet(include_top=False, weights='imagenet', input_shape=input_shape, input_tensor=X_input)
+
+    # Freeze layers
+    for i in range(len(base_model.layers)):
+        if i <= freeze_cutoff:
+            base_model.layers[i].trainable = False
+        # Freeze all batch norm layers
+        elif ('batch' in base_model.layers[i].name) or ('bn' in base_model.layers[i].name):
+            base_model.layers[i].trainable = False
+
+    x = base_model.output
+
+    # Add custom top layers
+    x = GlobalAveragePooling2D()(x)
+    x = Dropout(dropout)(x)
+    x = Dense(fc0_nodes, activation='relu', kernel_regularizer=L2(l2_reg), name='fc0')(x)
+    x = Dense(1, name='logits')(x)
+    outputs = Activation('sigmoid', dtype='float32', name='output')(x)
+
+    model = tf.keras.Model(inputs=X_input, outputs=outputs)
+    model.summary()
+    model.compile(loss=tfa.losses.SigmoidFocalCrossEntropy(reduction=tf.keras.losses.Reduction.AUTO,
+                                                           alpha=model_config['ALPHA'], gamma=model_config['GAMMA']),
+                  optimizer=optimizer, metrics=metrics)
+
+    return model
 
 def xception(model_config, input_shape, metrics, class_counts):
 
@@ -838,7 +893,10 @@ def xception(model_config, input_shape, metrics, class_counts):
             elif ('batch' in model.layers[i].name) or ('bn' in model.layers[i].name):
                 model.layers[i].trainable = False
 
-    model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=metrics)
+    # model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=metrics)
+    model.compile(loss=tfa.losses.SigmoidFocalCrossEntropy(reduction=tf.keras.losses.Reduction.AUTO,
+                                                           alpha=model_config['ALPHA'], gamma=model_config['GAMMA']),
+                  optimizer=optimizer, metrics=metrics)
 
     return model
 
