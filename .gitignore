@@ -4,6 +4,8 @@ src/data/masked_videos/
 src/data/npzs/
 src/data/raw_videos/
 src/data/flow_videos/
+src/data/smoothed_videos/
+src/feature_heatmaps/
 src/data/auto_masking_deeper.h5
 proto/
 *.h5

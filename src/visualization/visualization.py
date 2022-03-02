@@ -171,7 +171,7 @@ def log_confusion_matrix(epoch, logs, model, val_df, val_dataset):
     '''
     paths, labels = val_df['filename'], val_df['label']
     test_pred_raw = model.predict(val_dataset).flatten()
-    test_pred = (test_pred_raw > 0.5).astype(np.int)
+    test_pred = (test_pred_raw >= 0.5).astype(np.int)
     cm = confusion_matrix(labels, test_pred)
     figure = plot_confusion_matrix(cm, class_names=['No Sliding', 'Sliding'])
     cm_image = plot_to_image(figure)
