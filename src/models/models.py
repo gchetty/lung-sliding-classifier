@@ -1,7 +1,8 @@
 '''
 Script for defining TensorFlow neural network models
 '''
-
+import keras.legacy_tf_layers.variable_scope_shim
+from tensorflow.keras import backend as K
 import yaml
 import os
 import math
@@ -13,11 +14,12 @@ import math
 from tensorflow.keras.layers import Dense, Flatten, Lambda, Reshape, Conv1D
 from tensorflow.keras.layers import LSTM
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import TimeDistributed, Conv3D, AveragePooling3D, Dropout, Input, Add, InputLayer, MaxPooling3D,\
+from tensorflow.keras.layers import TimeDistributed, Conv3D, AveragePooling3D, Dropout, Input, Add, InputLayer, \
+    MaxPooling3D, \
     Conv2D, MaxPooling2D, BatchNormalization, Activation, GlobalAveragePooling3D, ZeroPadding3D, Concatenate, \
     GlobalAveragePooling2D, LayerNormalization, MultiHeadAttention, GlobalAveragePooling1D, Embedding, Resizing
 from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.regularizers import L2
+from tensorflow.keras.regularizers import L2, L1
 from tensorflow.keras.applications.xception import Xception
 from tensorflow.keras.applications.xception import preprocess_input as xception_preprocess
 from tensorflow.keras.applications import MobileNetV3Small
@@ -101,7 +103,6 @@ def normalize(x):
 
 
 def xception_raw(model_config, input_shape, metrics, class_counts):
-
     '''
     Time-distributed raw (not pre-trained) Xception feature extractor with LSTM and output head on top
 
@@ -187,7 +188,6 @@ def xception_raw(model_config, input_shape, metrics, class_counts):
 
 
 def vgg16(model_config, input_shape, metrics, class_counts):
-
     '''
     Time-distributed raw (not pre-trained) VGG16 feature extractor with LSTM and output head on top
 
@@ -261,6 +261,7 @@ def lrcn(model_config, input_shape, metrics, class_counts):
     Also known as an LRCN:
         https://arxiv.org/pdf/1411.4389.pdf
     """
+
     def add_default_block(model, kernel_filters, init, reg_lambda):
         # conv
         model.add(TimeDistributed(Conv2D(kernel_filters, (3, 3), padding='same',
@@ -288,13 +289,13 @@ def lrcn(model_config, input_shape, metrics, class_counts):
                               input_shape=input_shape))
     model.add(TimeDistributed(BatchNormalization()))
     model.add(TimeDistributed(Activation('relu')))
-    model.add(TimeDistributed(Conv2D(32, (3,3), kernel_initializer=initialiser)))
+    model.add(TimeDistributed(Conv2D(32, (3, 3), kernel_initializer=initialiser)))
     model.add(TimeDistributed(BatchNormalization()))
     model.add(TimeDistributed(Activation('relu')))
     model.add(TimeDistributed(MaxPooling2D((2, 2), strides=(2, 2))))
 
     # 2nd-5th (default) blocks
-    model = add_default_block(model, 64,  init=initialiser, reg_lambda=reg_lambda)
+    model = add_default_block(model, 64, init=initialiser, reg_lambda=reg_lambda)
     model = add_default_block(model, 128, init=initialiser, reg_lambda=reg_lambda)
     model = add_default_block(model, 256, init=initialiser, reg_lambda=reg_lambda)
     model = add_default_block(model, 512, init=initialiser, reg_lambda=reg_lambda)
@@ -312,7 +313,6 @@ def lrcn(model_config, input_shape, metrics, class_counts):
 
 
 def threeDCNN(model_config, input_shape, metrics, class_counts):
-
     '''
     Custom 3D CNN with 4 convolutional layers and output head
 
@@ -329,7 +329,7 @@ def threeDCNN(model_config, input_shape, metrics, class_counts):
     model.add(Conv3D(filters=32, kernel_size=(2, 3, 3), strides=1, activation='relu', input_shape=input_shape))
     model.add(MaxPooling3D(pool_size=(2, 3, 3)))
     model.add(BatchNormalization())
-    
+
     model.add(Conv3D(filters=64, kernel_size=(2, 3, 3), strides=1, activation='relu'))
     model.add(MaxPooling3D(pool_size=(2, 3, 3)))
     model.add(BatchNormalization())
@@ -345,7 +345,7 @@ def threeDCNN(model_config, input_shape, metrics, class_counts):
     model.add(GlobalAveragePooling3D())
     model.add(Dropout(0.2))
     model.add(Dense(32, activation='relu'))
-    #model.add(Dropout(0.2))
+    # model.add(Dropout(0.2))
 
     model.add(Dense(1, activation='sigmoid'))
 
@@ -356,7 +356,6 @@ def threeDCNN(model_config, input_shape, metrics, class_counts):
 
 
 def res3d(model_config, input_shape, metrics, class_counts):
-
     '''
     Creates raw (not pre-trained) 3D CNN, based on ResNet-12 block structure,
     with 4 convolutional blocks and output head
@@ -377,7 +376,7 @@ def res3d(model_config, input_shape, metrics, class_counts):
     if cfg['TRAIN']['OUTPUT_BIAS']:
         count0 = class_counts[0]
         count1 = class_counts[1]
-        output_bias = math.log(count1/count0)
+        output_bias = math.log(count1 / count0)
         output_bias = tf.keras.initializers.Constant(output_bias)
 
     inputs = Input(shape=input_shape)
@@ -432,7 +431,6 @@ def res3d(model_config, input_shape, metrics, class_counts):
 
 
 def inflated_resnet50(model_config, input_shape, metrics, class_counts):
-
     '''
     Creates ResNet50 model inflated to 3 dimensions (as per Quo Vadis)
     Inflated Imagenet weights are used if inputs have 3 channels
@@ -464,7 +462,7 @@ def inflated_resnet50(model_config, input_shape, metrics, class_counts):
 
     # Download 2D ResNet50
     if flow:
-        base = ResNet50V2(include_top=False, input_tensor=None, input_shape=(input_shape[1:3]+[3]), pooling='avg')
+        base = ResNet50V2(include_top=False, input_tensor=None, input_shape=(input_shape[1:3] + [3]), pooling='avg')
     else:
         base = ResNet50V2(include_top=False, weights='imagenet', input_tensor=None, input_shape=input_shape[1:],
                           pooling='avg')
@@ -573,7 +571,7 @@ def inflated_resnet50(model_config, input_shape, metrics, class_counts):
     x, index = stage(x, x, 3, 64, index, False, l2_reg, kernel_init)  # stage 1
     x, index = stage(x, x, 4, 128, index, False, l2_reg, kernel_init)  # stage 2
     x, index = stage(x, x, 6, 256, index, False, l2_reg, kernel_init)  # stage 3
-    #x, index = stage(x, x, 3, 512, index, True, l2_reg, kernel_init)  # stage 4
+    # x, index = stage(x, x, 3, 512, index, True, l2_reg, kernel_init)  # stage 4
 
     # Output head
     x = BatchNormalization(name=base.layers[-3].name)(x)
@@ -618,7 +616,6 @@ def inflated_resnet50(model_config, input_shape, metrics, class_counts):
 
 
 def i3d(model_config, input_shapes, metrics, class_counts):
-
     '''
     Creates two-stream inflated inception, without transfer learning
 
@@ -703,7 +700,7 @@ def i3d(model_config, input_shapes, metrics, class_counts):
         x = Activation('relu')(x)
 
         x = MaxPooling3D(pool_size=(1, 3, 3), strides=(1, 2, 2))(x)
-        
+
         for i in range(2):
             x = inception_block(x, 256, l2)
 
@@ -750,8 +747,8 @@ def i3d(model_config, input_shapes, metrics, class_counts):
 
     return model
 
-def efficientnet(model_config, input_shape, metrics, class_counts):
 
+def efficientnet(model_config, input_shape, metrics, class_counts):
     '''
     Defines a model based on pretrained EfficientNet. Assumes an M-mode reconstruction.
 
@@ -775,6 +772,30 @@ def efficientnet(model_config, input_shape, metrics, class_counts):
     X_input = Input(input_shape, name='input')
     base_model = EfficientNet(include_top=False, weights='imagenet', input_shape=input_shape, input_tensor=X_input)
 
+    # # ----- Set regularization -------
+    # # Setting l2 regularization only sets it in the model config, and not in the layers
+    # # But reloading with the model config removes pre-trained weights
+    # # We have to save pre-trained weights, load by config (to get L2), and then load in weights
+    # # As per https://sthalles.github.io/keras-regularizer/
+    #
+    # for layer in base_model.layers:
+    #     for attr in ['kernel_regularizer']:
+    #         if hasattr(layer, attr):
+    #             setattr(layer, attr, L2(l2_reg))
+    #
+    # # This json will contain added L2 regularization
+    # json = base_model.to_json()
+    #
+    # # Save weights
+    # weights_path = os.path.join(tempfile.gettempdir(), 'temp_weights.h5')
+    # base_model.save_weights(weights_path)
+    #
+    # # Load L2 regularization into layers (pre-trained weights will be lost here)
+    # base_model = tf.keras.models.model_from_json(json)
+    #
+    # # Load weights
+    # base_model.load_weights(weights_path, by_name=True)
+
     # Freeze layers
     for i in range(len(base_model.layers)):
         if i <= freeze_cutoff:
@@ -794,14 +815,15 @@ def efficientnet(model_config, input_shape, metrics, class_counts):
 
     model = tf.keras.Model(inputs=X_input, outputs=outputs)
     model.summary()
+    alpha = class_counts[0]/(class_counts[0] + class_counts[1])
     model.compile(loss=tfa.losses.SigmoidFocalCrossEntropy(reduction=tf.keras.losses.Reduction.AUTO,
-                                                           alpha=model_config['ALPHA'], gamma=model_config['GAMMA']),
+                                                           alpha=alpha, gamma=model_config['GAMMA']),
                   optimizer=optimizer, metrics=metrics)
 
     return model
 
-def xception(model_config, input_shape, metrics, class_counts):
 
+def xception(model_config, input_shape, metrics, class_counts):
     '''
     Creates 2-dimensional Xception as specified by parameters in config file. Assumes an M-mode reconstruction.
 
@@ -902,7 +924,6 @@ def xception(model_config, input_shape, metrics, class_counts):
 
 
 def vit(model_config, input_shape, metrics, class_counts):
-
     '''
     Creates 2-dimensional from-scratch vision transformer as specified by parameters in config file
     Reference: https://keras.io/examples/vision/image_classification_with_vision_transformer/
@@ -1043,7 +1064,6 @@ def vit(model_config, input_shape, metrics, class_counts):
 
 
 def variance_mmode_net(model_config, input_shape, metrics, class_counts):
-
     '''
     :param model_config: Hyperparameter dictionary
     :param input_shape: Tuple, shape of individual input tensor (without batch dimension)
@@ -1078,7 +1098,6 @@ def variance_mmode_net(model_config, input_shape, metrics, class_counts):
 
 
 def one_d_conv(model_config, input_shape, metrics, class_counts):
-
     '''
     :param model_config: Hyperparameter dictionary
     :param input_shape: Tuple, shape of individual input tensor (without batch dimension)
@@ -1093,7 +1112,7 @@ def one_d_conv(model_config, input_shape, metrics, class_counts):
     model = Sequential([Input((224, 90, 3))])
     model.add(Lambda(lambda x: tf.image.rgb_to_grayscale(x)))
     model.summary()
-    model.add(Conv1D(64,  kernel_size=3, activation='relu', strides=2))
+    model.add(Conv1D(64, kernel_size=3, activation='relu', strides=2))
     model.add(Conv1D(128, kernel_size=3, activation='relu', strides=2))
     model.add(Conv1D(128, kernel_size=3, activation='relu', strides=2))
     model.add(Conv1D(128, kernel_size=3, activation='relu', strides=2))
@@ -1123,10 +1142,9 @@ def mobile_net_v3_small(model_config, input_shape, metrics, class_counts):
     optimizer = Adam(learning_rate=lr)
     model = Sequential([])
     base_model = MobileNetV3Small(input_shape=input_shape,
-                                                        include_top=False,
-                                                        weights='imagenet',
-                                                        include_preprocessing=False)
-
+                                  include_top=False,
+                                  weights='imagenet',
+                                  include_preprocessing=False)
 
     model = Sequential([base_model, GlobalAveragePooling2D(), Dense(1, activation='sigmoid')])
     model.summary()

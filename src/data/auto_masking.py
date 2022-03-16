@@ -7,6 +7,7 @@ from keras.preprocessing.image import img_to_array
 import glob
 import argparse
 import matplotlib.pyplot as plt
+from tqdm import tqdm
 
 class UnetSegmentation:
 
@@ -22,7 +23,7 @@ class UnetSegmentation:
         if not os.path.exists(os.path.join(output_path, 'bad_clips')):
             os.mkdir(os.path.join(output_path, 'bad_clips'))
         num_clips = len(video_files)
-        for clip_index, file in enumerate(video_files):
+        for clip_index, file in tqdm(enumerate(video_files)):
             head, tail = os.path.split(file)
             # Creates new folder to store data to output_path
             try:

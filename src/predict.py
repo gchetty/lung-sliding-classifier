@@ -8,6 +8,9 @@ from src.visualization.visualization import *
 from src.models.models import get_model
 from preprocessor import MModePreprocessor
 from tensorflow.keras.models import load_model
+from tensorflow.keras.metrics import Precision, Recall, AUC, TrueNegatives, TruePositives, FalseNegatives, \
+    FalsePositives, Accuracy
+from custom.metrics import Specificity
 
 cfg = yaml.full_load(open(os.path.join(os.getcwd(), '../config.yml'), 'r'))
 
@@ -56,9 +59,23 @@ def export_predictions(df, pred_classes, probs):
                                 cfg['PREDICT']['PREDICTIONS_OUT'], datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
                                 + '_predictions.csv'), index=False)
 
+def export_metrics(df, pred_classes):
+    metrics = [Accuracy, AUC, Recall, Specificity, Precision, TrueNegatives, TruePositives, FalseNegatives, FalsePositives]
+    results = []
+    metric_names = []
+    for metric in metrics:
+        m = metric()
+        m.update_state(df['label'], pred_classes)
+        results += [m.result().numpy()]
+        metric_names += [m.name]
+    res_df = pd.DataFrame([results], columns=metric_names)
+    res_df.to_csv(os.path.join(os.getcwd(),
+                                cfg['PREDICT']['PREDICTIONS_OUT'], datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+                                + '_metrics.csv'), index=False)
 
 if __name__ == '__main__':
     test_df = pd.read_csv(cfg['PREDICT']['TEST_DF'])
     model = load_model(os.path.join('..', cfg['PREDICT']['MODEL']), compile=False)
     pred_labels, probs = predict_set(model, test_df)
     export_predictions(test_df, pred_labels, probs)
+    export_metrics(test_df, pred_labels)

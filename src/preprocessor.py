@@ -74,7 +74,7 @@ def random_shift_clip(x):
                                        cfg['TRAIN']['PARAMS']['AUGMENTATION']['SHIFT_LEFTRIGHT_BOUNDS'][1]) * h
         dy = random_ops.random_uniform([], cfg['TRAIN']['PARAMS']['AUGMENTATION']['SHIFT_UPDOWN_BOUNDS'][0],
                                        cfg['TRAIN']['PARAMS']['AUGMENTATION']['SHIFT_UPDOWN_BOUNDS'][1]) * w
-        translations = [[dx, dy]] * cfg['PREPROCESS']['PARAMS']['WINDOW']
+        translations = [[dx, dy]] * x.shape[0]
         x = tfa.image.translate(x, translations)
     return x
 
@@ -432,7 +432,9 @@ def parse_fn_m_mode(filename, label, augment=False):
         middle_pixel = new_width // 2
     three_slice = clip[:, :, middle_pixel - 1:middle_pixel + 2, 0]
     mmode = np.median(three_slice, axis=2).T
-    mmode_image = mmode.reshape((new_height, num_frames, 1))
+    mmode_image = cv2.resize(mmode, (cfg['PREPROCESS']['PARAMS']['WINDOW'], new_height), interpolation=cv2.INTER_CUBIC)
+    mmode_image = mmode_image.reshape((new_height, cfg['PREPROCESS']['PARAMS']['WINDOW'], 1))
+
     as_tensor = tf.convert_to_tensor(mmode_image)
     converted = tf.image.grayscale_to_rgb(as_tensor)
     final_pic = tf.cast(converted, tf.float32)
@@ -461,7 +463,12 @@ def get_middle_pixel_index(image, bounding_box, original_height_width, method='b
         middle_pixel_index = get_middle_pixel_index_brightest_vertical_sum(image, bounding_box, original_height_width)
 
     elif method == 'brightest_vertical_sum_box':
-        middle_pixel_index = get_middle_pixel_index_brightest_vertical_sum_box(image, bounding_box, original_height_width)
+        middle_pixel_index = get_middle_pixel_index_brightest_vertical_sum_box(image, bounding_box,
+                                                                               original_height_width)
+
+    elif method == 'brightest_vertical_sum_sampled':
+        middle_pixel_index = get_middle_pixel_index_brightest_vertical_sum_sampled(image, bounding_box,
+                                                                                   original_height_width)
 
     return middle_pixel_index
 
@@ -495,6 +502,20 @@ def get_middle_pixel_index_brightest_vertical_sum_box(image, bounding_box, origi
     cropped = image[:, new_xmin:new_xmax]
     sum_horizontal_slice = np.sum(cropped, axis=0)
     middle_pixel_index = np.argmax(sum_horizontal_slice)
+    return middle_pixel_index + new_xmin
+
+def get_middle_pixel_index_brightest_vertical_sum_sampled(image, bounding_box, original_height_width):
+    ymin, xmin, ymax, xmax = bounding_box
+    resized_width = cfg['PREPROCESS']['PARAMS']['IMG_SIZE'][1]
+    o_height, o_width = original_height_width
+    new_xmin = int(xmin * resized_width / o_width)
+    new_xmax = int(xmax * resized_width / o_width)
+    cropped = image[:, new_xmin:new_xmax]
+    sum_horizontal_slice = np.sum(cropped, axis=0)
+    # get a random slice from the top k brightest sums
+    sample = cfg['TRAIN']['M_MODE_SLICE_SAMPLE']
+    n_slices = len(sum_horizontal_slice)
+    middle_pixel_index = np.argsort(sum_horizontal_slice)[np.random.randint(n_slices - sample, n_slices)]
     return middle_pixel_index + new_xmin
 
 # PREPROCESSOR CLASS THAT HANDLES NO LABELS - FOR HOLDOUTS???

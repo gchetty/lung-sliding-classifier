@@ -74,7 +74,7 @@ def video_to_frames_downsampled(orig_id, patient_id, df_rows, cap, fr, seq_lengt
     return
 
 
-def video_to_frames_contig(orig_id, patient_id, df_rows, cap, seq_length=cfg['PARAMS']['WINDOW'],
+def video_to_frames_contig(orig_id, patient_id, df_rows, cap, seq_length=cfg['PARAMS']['WINDOW_SECONDS'],
                            resize=cfg['PARAMS']['IMG_SIZE'], write_path='', box=None):
 
     '''
@@ -90,12 +90,15 @@ def video_to_frames_contig(orig_id, patient_id, df_rows, cap, seq_length=cfg['PA
     :param box: Tuple of (ymin, xmin, ymax, xmax) of pleural line ROI
     '''
 
+    fr = round(cap.get(cv2.CAP_PROP_FPS))
+    seq_length *= fr
     counter = seq_length
     mini_clip_num = 1  # nth mini-clip being made from the main clip
     frames = []
 
     cap_width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
     cap_height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+
 
     if cap_width == 0 or cap_height == 0:
         return
@@ -129,7 +132,6 @@ def video_to_frames_contig(orig_id, patient_id, df_rows, cap, seq_length=cfg['PA
 
     finally:
         cap.release()
-
     return
 
 
@@ -256,16 +258,8 @@ def video_to_npz(path, orig_id, patient_id, df_rows, write_path='', fr=None, box
 
     if not fr:
         fr = round(cap.get(cv2.CAP_PROP_FPS))
-        # Disregard clips with undesired frame rate, only if frame rate not passed in (passed in = override checking)
-        if not (fr % base_fr == 0):
-            return
-    else:  # If frame rate is passed, cast frame rate to closest multiple of base frame rate
-        fr = round(fr / base_fr) * base_fr
 
-    if fr == base_fr:
-        video_to_frames_contig(orig_id, patient_id, df_rows, cap, write_path=write_path, box=box)
-    else:
-        video_to_frames_downsampled(orig_id, patient_id, df_rows, cap, fr, write_path=write_path, box=box)
+    video_to_frames_contig(orig_id, patient_id, df_rows, cap, write_path=write_path, box=box)
 
 
 def parse_args():

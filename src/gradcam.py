@@ -131,7 +131,7 @@ class GradCAMExplainer:
         mmode = np.median(three_slice, axis=2).T
         mmode_image = mmode.reshape((new_height, num_frames, 1))
 
-        return cv2.convertScaleAbs(cv2.cvtColor(mmode_image, cv2.COLOR_GRAY2RGB))
+        return cv2.convertScaleAbs(cv2.cvtColor(np.float32(mmode_image), cv2.COLOR_GRAY2RGB))
 
 
 if __name__ == '__main__':

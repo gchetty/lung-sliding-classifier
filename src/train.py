@@ -1,7 +1,9 @@
 '''
 Script for training experiments, including model training, hyperparameter search, cross validation, etc
 '''
-
+import keras.callbacks
+import numpy as np
+import tensorflow.keras.backend
 import yaml
 import os
 import datetime
@@ -9,10 +11,13 @@ import pandas as pd
 import tensorflow as tf
 
 from tensorflow.keras.metrics import Precision, Recall, AUC, TrueNegatives, TruePositives, FalseNegatives, \
-    FalsePositives, Accuracy
+    FalsePositives, Accuracy, SensitivityAtSpecificity
 from tensorflow_addons.metrics import F1Score, FBetaScore
-from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
-
+from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLROnPlateau
+from tensorflow.keras.models import load_model
+from tensorflow.keras.callbacks import Callback
+from sklearn.model_selection import KFold
+from sklearn.model_selection import StratifiedKFold
 from preprocessor import Preprocessor, FlowPreprocessor, TwoStreamPreprocessor, MModePreprocessor
 from visualization.visualization import plot_bayesian_hparam_opt, plot_roc, plot_to_tensor, plot_confusion_matrix
 from models.models import *
@@ -31,7 +36,7 @@ def log_test_results(model, test_set, test_df, test_metrics, writer):
     '''
     Visualize performance of a trained model on the test set. Optionally save the model.
     :param model: A trained TensorFlow model
-    :param test_set: A TensorFlow image generator for the test set
+    :param test_set: A TensorFlow dataset for the test set
     :param test_df: Dataframe containing npz files and labels for test set
     :param test_metrics: Dict of test set performance metrics
     :param writer: file writer object for tensorboard
@@ -56,6 +61,59 @@ def log_test_results(model, test_set, test_df, test_metrics, writer):
         tf.summary.text(name='Test set metrics', data=tf.convert_to_tensor(test_summary_str), step=0)
         tf.summary.image(name='ROC Curve (Test Set)', data=roc_img, step=0)
         tf.summary.image(name='Confusion Matrix (Test Set)', data=cm_img, step=0)
+    return
+
+
+def log_miniclip_test_results(model, test_set, test_df, writer):
+    '''
+    Visualize performance of a trained model on the test set. Optionally save the model.
+    :param model: A trained TensorFlow model
+    :param test_set: A TensorFlow dataset for the test set
+    :param test_df: Dataframe containing npz files and labels for test set
+    :param writer: file writer object for tensorboard
+    '''
+
+    # Get predictions
+    test_predictions = model.predict(test_set, verbose=0)
+
+    # get parent clip ids
+    clip_ids = []
+    for idx, row in test_df.iterrows():
+        clip_ids.append(row['id'].split('_')[0])
+    test_df.loc[:, 'clip_id'] = clip_ids
+    test_df.loc[:, 'pred'] = np.where(test_predictions >= 0.5, 1, 0)
+
+    # go through each parent clip and reassign miniclip predictions (if any miniclip is sliding, all are sliding)
+    # also create labels and predictions for clips only
+    clips = pd.unique(test_df['clip_id'])
+    clip_labels = []
+    clip_preds = []
+    for clip_id in clips:
+        miniclips = test_df[test_df['clip_id'] == clip_id]
+        if any(miniclips['pred'] == 1):
+            test_df.loc[test_df['clip_id'] == clip_id, 'pred'] = [1] * len(miniclips)
+        clip_labels.append(miniclips.iloc[0]['label'])
+        clip_preds.append(miniclips.iloc[0]['pred'])
+
+    metrics = [Accuracy, AUC, Recall, Specificity, TrueNegatives, TruePositives, FalseNegatives, FalsePositives]
+
+    # Create table of metrics for adjusted clips and miniclips
+    miniclip_summary_str = [['**Metric**', '**Value**']]
+    clip_summary_str = [['**Metric**', '**Value**']]
+    for metric in metrics:
+        m = metric()
+        m.update_state(test_df['label'], test_df['pred'])
+        miniclip_summary_str.append([m.name, str(m.result().numpy())])
+
+        m.reset_state()
+        m.update_state(clip_labels, clip_preds)
+        clip_summary_str.append([m.name, str(m.result().numpy())])
+
+    # Write to TensorBoard logs
+    with writer.as_default():
+        tf.summary.text(name='Test set metrics for clips', data=tf.convert_to_tensor(clip_summary_str), step=0)
+        tf.summary.text(name='Test set metrics for adjusted mini-clips',
+                        data=tf.convert_to_tensor(miniclip_summary_str), step=0)
     return
 
 
@@ -97,7 +155,7 @@ def log_train_params(writer, hparams):
 
 def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
                 hparams=cfg['TRAIN']['PARAMS']['XCEPTION'],
-                model_out_dir=cfg['TRAIN']['PATHS']['MODEL_OUT']):
+                model_out_dir=cfg['TRAIN']['PATHS']['MODEL_OUT'], train_df=None, val_df=None):
     '''
     Trains and saves a model given specific hyperparameters
 
@@ -122,15 +180,10 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
 
     CSVS_FOLDER = cfg['TRAIN']['PATHS']['CSVS']
 
-    train_df = None
-    val_df = None
     test_df = None
-
-    train_set = None
-    val_set = None
     test_set = None
 
-    if m_mode or (not (flow == 'Both')):
+    if train_df is None or val_df is None:
 
         # Read in training, validation, and test dataframes
         if flow == 'Yes':
@@ -142,52 +195,26 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
             val_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'val.csv'))  # [:20]
             test_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'test.csv'))  # [:20]
 
-        # Create TF datasets for training, validation and test sets
-        # Note: This does NOT load the dataset into memory! We specify paths,
-        #       and labels so that TensorFlow can perform dynamic loading.
-        train_set = tf.data.Dataset.from_tensor_slices((train_df['filename'].tolist(), train_df['label']))
-        val_set = tf.data.Dataset.from_tensor_slices((val_df['filename'].tolist(), val_df['label']))
+    # Create TF datasets for training, validation and test sets
+    # Note: This does NOT load the dataset into memory! We specify paths,
+    #       and labels so that TensorFlow can perform dynamic loading.
+    train_set = tf.data.Dataset.from_tensor_slices((train_df['filename'].tolist(), train_df['label']))
+    val_set = tf.data.Dataset.from_tensor_slices((val_df['filename'].tolist(), val_df['label']))
+    if cfg['TRAIN']['SPLITS']['TEST'] > 0:
         test_set = tf.data.Dataset.from_tensor_slices((test_df['filename'].tolist(), test_df['label']))
 
-        # Create preprocessing object given the preprocessing function for model_def
-        if m_mode:
-            preprocessor = MModePreprocessor(preprocessing_fn)
-        elif flow == 'Yes':
-            preprocessor = FlowPreprocessor(preprocessing_fn)
-        else:
-            preprocessor = Preprocessor(preprocessing_fn)
+    # Create preprocessing object given the preprocessing function for model_def
+    if m_mode:
+        preprocessor = MModePreprocessor(preprocessing_fn)
+    elif flow == 'Yes':
+        preprocessor = FlowPreprocessor(preprocessing_fn)
+    else:
+        preprocessor = Preprocessor(preprocessing_fn)
 
-        # Define the preprocessing pipelines for train, test and validation
-        train_set = preprocessor.prepare(train_set, train_df, shuffle=True, augment=True)
-        val_set = preprocessor.prepare(val_set, val_df, shuffle=False, augment=False)
-        test_set = preprocessor.prepare(test_set, test_df, shuffle=False, augment=False)
-
-    elif flow == 'Both' and not m_mode:
-
-        train_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'train.csv'))  # [:20]
-        val_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'val.csv'))  # [:20]
-        test_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'test.csv'))  # [:20]
-
-        x_train_ds = tf.data.Dataset.from_tensor_slices((train_df['filename'].tolist(),
-                                                         train_df['flow_filename'].tolist()))
-        x_val_ds = tf.data.Dataset.from_tensor_slices((val_df['filename'].tolist(), val_df['flow_filename'].tolist()))
-        x_test_ds = tf.data.Dataset.from_tensor_slices((test_df['filename'].tolist(),
-                                                        test_df['flow_filename'].tolist()))
-
-        y_train_ds = tf.data.Dataset.from_tensor_slices(train_df['label'])
-        y_val_ds = tf.data.Dataset.from_tensor_slices(val_df['label'])
-        y_test_ds = tf.data.Dataset.from_tensor_slices(test_df['label'])
-
-        train_set = tf.data.Dataset.zip((x_train_ds, y_train_ds))
-        val_set = tf.data.Dataset.zip((x_val_ds, y_val_ds))
-        test_set = tf.data.Dataset.zip((x_test_ds, y_test_ds))
-
-        # Create preprocessing object given the preprocessing function for model_def
-        preprocessor = TwoStreamPreprocessor(preprocessing_fn)
-
-        # Define the preprocessing pipelines for train, test and validation
-        train_set = preprocessor.prepare(train_set, train_df, shuffle=True, augment=True)
-        val_set = preprocessor.prepare(val_set, val_df, shuffle=False, augment=False)
+    # Define the preprocessing pipelines for train, test and validation
+    train_set = preprocessor.prepare(train_set, train_df, shuffle=True, augment=True)
+    val_set = preprocessor.prepare(val_set, val_df, shuffle=False, augment=False)
+    if cfg['TRAIN']['SPLITS']['TEST'] > 0:
         test_set = preprocessor.prepare(test_set, test_df, shuffle=False, augment=False)
 
     # Create dictionary for class weights:
@@ -207,7 +234,8 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
     # Defining Binary Classification Metrics
     metrics = ['accuracy', AUC(name='auc'), FBetaScore(num_classes=2, average='micro', threshold=0.5)]
     metrics += [Precision(), Recall()]
-    metrics += [TrueNegatives(), TruePositives(), FalseNegatives(), FalsePositives(), Specificity(), PhiCoefficient()]
+    metrics += [TrueNegatives(), TruePositives(), FalseNegatives(), FalsePositives(), Specificity(), PhiCoefficient(),
+                SensitivityAtSpecificity(0.96)]
 
     # Get the model
     if m_mode:
@@ -256,7 +284,16 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
             tf.summary.scalar('learning rate', data=learning_rate, step=epoch)
         return learning_rate
 
+    class tst_callback(keras.callbacks.Callback):
+        def __init__(self):
+            super().__init__()
+
+        def on_epoch_end(self, epoch, logs=None):
+            tst_results = model.evaluate(test_set, verbose=1)
+
     lr_callback = tf.keras.callbacks.LearningRateScheduler(scheduler)
+    reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=3, verbose=1,
+                                  min_lr=1e-8, min_delta=0.0001)
 
     # Creating a ModelCheckpoint for saving the model
     model_out_dir += time
@@ -274,7 +311,7 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
     # Train and save the model
     epochs = cfg['TRAIN']['PARAMS']['EPOCHS']
     history = model.fit(train_set, epochs=epochs, validation_data=val_set, class_weight=class_weight,
-                        callbacks=[save_cp, basic_call, early_stopping, lr_callback], verbose=2)
+                        callbacks=[save_cp, basic_call, early_stopping, lr_callback], verbose=1)
 
     # Log early stopping to tensorboard
     if len(history.epoch) < epochs:
@@ -291,6 +328,16 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
             test_summary_str.append([metric, str(value)])
         if log_dir is not None:
             log_test_results(model, test_set, test_df, test_metrics, writer2)
+            log_miniclip_test_results(model, test_set, test_df, writer2)
+    else:
+        test_results = model.evaluate(val_set, verbose=1)
+        test_summary_str = [['**Metric**', '**Value**']]
+        for metric, value in zip(model.metrics_names, test_results):
+            test_metrics[metric] = value
+            test_summary_str.append([metric, str(value)])
+        if log_dir is not None:
+            log_test_results(model, val_set, val_df, test_metrics, writer2)
+            log_miniclip_test_results(model, val_set, val_df, writer2)
 
     return model, test_metrics, test_set
 
@@ -369,9 +416,11 @@ def bayesian_hparam_optimization(checkpoint=None):
                 hparams[hparam] = cfg['TRAIN']['PARAMS'][model_name][hparam]  # Add hyperparameters being held constant
         print('HPARAM VALUES: ', hparams)
         _, test_metrics, _ = train_model(hparams=hparams)
-        score = 1. - test_metrics[objective_metric]
+        # score = 1. - test_metrics[objective_metric]
+        score = 1.5 * (1. - test_metrics[objective_metric]) + (1. - test_metrics['recall'])
         save_hparam_search_results(init_results, score, objective_metric, hparam_names, hparams, model_name,
                                    cur_datetime)
+        # score = 1.5 * (1. - test_metrics[objective_metric]) + (1 - test_metrics['recall'])
         gc.collect()
         tf.keras.backend.clear_session()
         return score  # We aim to minimize error
@@ -386,9 +435,9 @@ def bayesian_hparam_optimization(checkpoint=None):
         checkpoint_res = load(os.path.join(cfg['HPARAM_SEARCH']['PATH'], checkpoint))
         x0 = checkpoint_res.x_iters
         y0 = checkpoint_res.func_vals
-        search_results = gp_minimize(func=objective, dimensions=dimensions, x0=x0, y0=y0, acq_func='EI',
-                                     n_calls=cfg['TRAIN']['HPARAM_SEARCH']['N_EVALS'], callback=[checkpoint_saver],
-                                     verbose=True)
+        search_results = gp_minimize(func=objective, dimensions=dimensions, x0=x0, y0=y0, n_initial_points=-len(x0),
+                                     acq_func='EI', n_calls=cfg['TRAIN']['HPARAM_SEARCH']['N_EVALS'] - len(x0),
+                                     callback=[checkpoint_saver], verbose=True)
     else:
         search_results = gp_minimize(func=objective, dimensions=dimensions, acq_func='EI',
                                      n_calls=cfg['TRAIN']['HPARAM_SEARCH']['N_EVALS'], callback=[checkpoint_saver],
@@ -398,7 +447,137 @@ def bayesian_hparam_optimization(checkpoint=None):
     return search_results
 
 
+def cross_validation(df=None, hparams=None):
+    '''
+    Perform k-fold cross-validation. Results are saved in CSV format.
+    :param df: A DataFrame consisting of the entire dataset of LUS frames
+    :param save_weights: Flag indicating whether to save model weights
+    :return DataFrame of metrics
+    '''
+
+    # n_classes = len(cfg['DATA']['CLASSES'])
+    cur_date = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
+    csv_path = os.path.join(os.getcwd(), 'data/', cfg['PREPROCESS']['PATHS']['CSVS_OUTPUT'])
+    npz_dir = cfg['PREPROCESS']['PATHS']['NPZ']
+    n_folds = cfg['TRAIN']['N_FOLDS']
+
+    # load miniclip dataframes and assign labels
+    if df is None:
+        sliding_path = os.path.join(csv_path, 'sliding_mini_clips.csv')
+        no_sliding_path = os.path.join(csv_path, 'no_sliding_mini_clips.csv')
+        sliding_df = pd.read_csv(sliding_path)
+
+        # add labels to dataframes
+        sliding_df['label'] = [1] * len(sliding_df)
+        no_sliding_df = pd.read_csv(no_sliding_path)
+        no_sliding_df['label'] = [0] * len(no_sliding_df)
+
+        # Add file path to dataframes
+        paths1 = []
+        for index, row in sliding_df.iterrows():
+            paths1.append(os.path.join(os.getcwd(), 'data/', npz_dir, 'sliding/', row['id'] + '.npz'))
+        sliding_df['filename'] = paths1
+
+        paths0 = []
+        for index, row in no_sliding_df.iterrows():
+            paths0.append(os.path.join(os.getcwd(), 'data/', npz_dir, 'no_sliding/', row['id'] + '.npz'))
+        no_sliding_df['filename'] = paths0
+        df = pd.concat([sliding_df, no_sliding_df]).reset_index(drop=True)
+
+    metrics = ['accuracy', 'auc']
+    metrics += ['precision']
+    metrics += ['recall']
+    metrics += ['specificity']
+    metrics += ['true_positives']
+    metrics += ['true_negatives']
+    metrics += ['false_positives']
+    metrics += ['false_negatives']
+    metrics_df = pd.DataFrame(np.zeros((n_folds + 2, len(metrics) + 1)), columns=['Fold'] + metrics)
+    metrics_df['Fold'] = list(range(n_folds)) + ['mean', 'std']
+
+    model_name = cfg['TRAIN']['MODEL_DEF'].lower()
+    # model_def, preprocessing_fn = get_model(model_name)
+    hparams = cfg['TRAIN']['PARAMS'][model_name.upper()] if hparams is None else hparams
+
+    all_pts = df['patient_id'].unique()
+    val_split = 1.0 / n_folds
+    cfg['TRAIN']['SPLITS']['VAL'] = val_split
+    cfg['TRAIN']['SPLITS']['TEST'] = 0.
+    pt_k_fold = StratifiedKFold(n_splits=n_folds, shuffle=True, random_state=cfg['TRAIN']['SPLITS']['RANDOM_SEED'])
+
+    partition_path = os.path.join(cfg['TRAIN']['PATHS']['PARTITIONS'], 'kfold' + cur_date)
+    if not os.path.exists(partition_path):
+        os.makedirs(partition_path)
+
+    # Train a model n_folds times with different folds
+    cur_fold = 0
+    row_idx = 0
+    labels = []
+    for patient in all_pts:
+        labels.append(df[df['patient_id'] == patient]['label'].iloc[0])
+    for train_index, val_index in pt_k_fold.split(all_pts, labels):
+        print('FITTING MODEL FOR FOLD ' + str(cur_fold))
+
+        # Partition into training and validation sets for this fold. Save the partitions.
+        train_pts = all_pts[train_index]
+        val_pts = all_pts[val_index]
+        train_df = df[df['patient_id'].isin(train_pts)]
+        val_df = df[df['patient_id'].isin(val_pts)]
+
+        train_df.to_csv(os.path.join(partition_path, 'fold_' + str(cur_fold) + '_train_set.csv'), index=False)
+        val_df.to_csv(os.path.join(partition_path, 'fold_' + str(cur_fold) + '_val_set.csv'), index=False)
+        print('TRAIN/VAL SPLIT: [{}, {}] mini-clips, [{}, {}] patients'
+              .format(train_df.shape[0], val_df.shape[0], train_pts.shape[0], val_pts.shape[0]))
+
+        # Train the model and evaluate performance on test set
+        model_def_str = cfg['TRAIN']['MODEL_DEF']
+        model, val_metrics, _ = train_model(hparams=hparams, train_df=train_df,
+                                        val_df=val_df)
+
+        metrics_df['specificity'] = metrics_df['specificity'].astype(object)
+
+        for metric in val_metrics:
+            if metric in metrics_df.columns:
+                metrics_df[metric][row_idx] = val_metrics[metric]
+        row_idx += 1
+        cur_fold += 1
+        gc.collect()
+        tf.keras.backend.clear_session()
+        del model
+
+    # Record mean and standard deviation of test set results
+    for metric in metrics:
+        metrics_df[metric][n_folds] = metrics_df[metric][0:-2].mean()
+        metrics_df[metric][n_folds + 1] = metrics_df[metric][0:-2].std()
+
+    # Save results
+    file_path = os.path.join(cfg['TRAIN']['PATHS']['EXPERIMENTS'], 'cross_val_' + model_name + cur_date + '.csv')
+    metrics_df.to_csv(file_path, columns=metrics_df.columns, index_label=False, index=False)
+    return metrics_df
+
+
+def test_miniclip_preds():
+    test_df = pd.read_csv(cfg['PREDICT']['TEST_DF'])
+    model_def_str = cfg['TRAIN']['MODEL_DEF']
+    model_def_fn, preprocessing_fn = get_model(model_def_str)
+
+    model = load_model(os.path.join('..', cfg['PREDICT']['MODEL']), compile=False)
+    dataset = tf.data.Dataset.from_tensor_slices((test_df['filename'].tolist(), test_df['label']))
+    preprocessor = MModePreprocessor(preprocessing_fn)
+
+    test_set = preprocessor.prepare(dataset, test_df, shuffle=False, augment=False)
+    log_miniclip_test_results(model, test_set, test_df, None)
+
+
 if __name__ == '__main__':
     # Train and save the model
     model_def_str = cfg['TRAIN']['MODEL_DEF']
-    train_model(hparams=cfg['TRAIN']['PARAMS'][model_def_str.upper()])
+    # train_model(hparams=cfg['TRAIN']['PARAMS'][model_def_str.upper()])
+    # test_miniclip_preds()
+
+    # bayesian_hparam_optimization(checkpoint='hparam_search_EFFICIENTNET20220309-065150.pkl')
+    # bayesian_hparam_optimization()
+    train_df = pd.read_csv(os.path.join(cfg['TRAIN']['PATHS']['CSVS'], 'train.csv'))
+    val_df = pd.read_csv(os.path.join(cfg['TRAIN']['PATHS']['CSVS'], 'val.csv'))
+    df = pd.concat([train_df, val_df]).reset_index(drop=True)
+    cross_validation(df=df)

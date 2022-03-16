@@ -70,11 +70,7 @@ def download(df, sliding, fr_rows, video_out_root_folder=cfg['PATHS']['UNMASKED_
         cap.release()
 
         # Discard video if frame rate is not multiple of base frame rate
-        if not (fr % base_fr == 0):
-            os.remove(out_path)
-        else:
-            # Add to frame rate CSV rows
-            fr_rows.append([row['id'], fr])
+        fr_rows.append([row['id'], fr])
 
 
 # Get database configs
@@ -110,10 +106,18 @@ no_sliding_extra_df = pd.read_sql('''SELECT * FROM clips WHERE (pleural_line_fin
                                (pleural_effusion is null) AND (consolidation is null) AND 
                                labelbox_project_number LIKE 'Lung sliding sprint%';''', cnx)
 
+# sliding_extra_df = pd.read_sql('''SELECT * FROM clips WHERE (pleural_line_findings is null OR
+#                                 pleural_line_findings='thickened') AND
+#                                (quality NOT LIKE '%significant_probe_movement%' OR quality is null) AND
+#                                (a_or_b_lines='a_lines' OR a_or_b_lines='non_a_non_b' OR a_or_b_lines is null) AND
+#                                (pleural_effusion is null) AND (consolidation is null) AND
+#                                labelbox_project_number LIKE 'Lung sliding sprint%';''', cnx)
+
 # Load examples that must be excluded from negative class (bad clips)
 bad_no_sliding_df = pd.read_csv(os.path.join(cfg['PATHS']['CSVS_OUTPUT'], 'bad_ids.csv'))
 
-no_sliding_df = pd.concat([no_sliding_df, no_sliding_extra_df])
+no_sliding_df = pd.concat([no_sliding_df, no_sliding_extra_df]).reset_index(drop=True)
+# sliding_df = pd.concat([sliding_df, sliding_extra_df]).reset_index(drop=True)
 no_sliding_df = no_sliding_df[~no_sliding_df['id'].isin(bad_no_sliding_df['id'])]
 
 # If we're just asking the amount of videos available, the program will terminate after logging this information

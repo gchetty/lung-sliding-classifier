@@ -9,6 +9,10 @@ src/feature_heatmaps/
 src/data/auto_masking_deeper.h5
 proto/
 *.h5
+*.csv
+*.mp4
+*.png
+*.jpg
 database_config.yml
 !data/partitions/.gitkeep
 !data/serializations/.gitkeep
