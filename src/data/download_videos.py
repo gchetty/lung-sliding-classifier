@@ -113,11 +113,15 @@ no_sliding_extra_df = pd.read_sql('''SELECT * FROM clips WHERE (pleural_line_fin
 #                                (pleural_effusion is null) AND (consolidation is null) AND
 #                                labelbox_project_number LIKE 'Lung sliding sprint%';''', cnx)
 
+sliding_extra_df = pd.read_csv(os.path.join(cfg['PATHS']['CSVS_OUTPUT'], 'sliding_extra.csv'))
+
 # Load examples that must be excluded from negative class (bad clips)
-bad_no_sliding_df = pd.read_csv(os.path.join(cfg['PATHS']['CSVS_OUTPUT'], 'bad_ids.csv'))
+bad_sliding_df = pd.read_csv(os.path.join(cfg['PATHS']['CSVS_OUTPUT'], 'sliding_bad_ids.csv'))
+bad_no_sliding_df = pd.read_csv(os.path.join(cfg['PATHS']['CSVS_OUTPUT'], 'no_sliding_bad_ids.csv'))
 
 no_sliding_df = pd.concat([no_sliding_df, no_sliding_extra_df]).reset_index(drop=True)
-# sliding_df = pd.concat([sliding_df, sliding_extra_df]).reset_index(drop=True)
+sliding_df = pd.concat([sliding_df, sliding_extra_df]).reset_index(drop=True)
+sliding_df = sliding_df[~sliding_df['id'].isin(bad_sliding_df['id'])]
 no_sliding_df = no_sliding_df[~no_sliding_df['id'].isin(bad_no_sliding_df['id'])]
 
 # If we're just asking the amount of videos available, the program will terminate after logging this information

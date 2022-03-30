@@ -9,7 +9,7 @@ PREPROCESS:
 
   # The parameters to adjust based off of the desired transformations to apply in preprocessing
   PARAMS:
-    AMOUNT_ONLY: False  # If set to True, the tool exits after querying the database and returning counts.
+    AMOUNT_ONLY: True  # If set to True, the tool exits after querying the database and returning counts.
     FLOW: 'No'  # Yes for flow only, No for no flow, and Mixed for videos and flow.
     FLOW_CROP_WIDTH: 90  # Width to resize to for flow if cropping used.
     USE_BOUNDING_BOX: True # Whether to include bounding boxes in npz files
@@ -49,11 +49,11 @@ PREPROCESS:
 # as desired above. This could use a refactor in the future.
 TRAIN:
   M_MODE: True  # Choose whether or not to perform the M Mode transformation.
-  M_MODE_SLICE_METHOD: 'brightest_vertical_sum_box'  # 'brightest_vertical_sum_sampled', 'brightest_vertical_sum_box' (needs bounding box), 'brightest_vertical_sum', 'brightest' (for brightest pixel),  'box_middle' (needs bounding box) or 'random'.
-  M_MODE_SLICE_SAMPLE: 20 # for 'brightest_vertical_sum_sampled', number of slices to randomly sample (top k brightest sums)
+  M_MODE_SLICE_METHOD: 'brightest_vertical_sum_sampled' #'brightest_vertical_sum_sampled'  # 'brightest_vertical_sum_sampled', 'brightest_vertical_sum_box' (needs bounding box), 'brightest_vertical_sum', 'brightest' (for brightest pixel),  'box_middle' (needs bounding box) or 'random'.
+  M_MODE_SLICE_SAMPLE: 15 # for 'brightest_vertical_sum_sampled', number of slices to randomly sample (top k brightest sums)
   MIXED_PRECISION: False
   OUTPUT_BIAS: False  # A class imbalance technique - whether or not to bias the model (output head) prior to training.
-  PATIENCE: 15  # The number of consecutive epochs with val_loss not improving, after which the model halts training.
+  PATIENCE: 12  # The number of consecutive epochs with val_loss not improving, after which the model halts training.
   MODEL_DEF: 'efficientnet'  # Check models.py for the current list of possible values (which is also where you would create a custom one).
   SAVE_BEST_ONLY: True  # Whether or not to only save the 'best' model, according to validation loss.
   N_FOLDS: 10
@@ -61,19 +61,19 @@ TRAIN:
   # Parameters used to determine the train, test and validation splits. TRAIN, VAL and TEST have to sum to 1.
   # Only TEST can have a value of 0.
   SPLITS:
-    RANDOM_SEED: 10  # The random seed (integer) used for generating splits. -1 for unseeded.
+    RANDOM_SEED: 5  # The random seed (integer) used for generating splits. -1 for unseeded.
     TRAIN: 0.75  # Proportion of examples to include in the training set.
     VAL: 0.1  # Proportion of examples to include in the validation set.
-    TEST: 0  # Proportion of examples to include in the test set.
+    TEST: 0.15  # Proportion of examples to include in the test set.
 
   HPARAM_SEARCH:
-    N_EVALS: 10
-    OBJECTIVE: 'specificity'
+    N_EVALS: 60
+    OBJECTIVE: 'score'
 
   # Parameters for augmentation and model-training specifics.
   PARAMS:
-    EPOCHS: 50  # Maximum number of epochs to train the model for.
-    BATCH_SIZE: 32  # Integer to set the batch size. If you're running into memory errors, you'll have to lower this. Set this to 1 for GRADCAM.
+    EPOCHS: 40  # Maximum number of epochs to train the model for.
+    BATCH_SIZE: 40  # Integer to set the batch size. If you're running into memory errors, you'll have to lower this. Set this to 1 for GRADCAM.
     SHUFFLE: True  # Boolean, whether to shuffle the training set or not.
     INCREASE: False  # Boolean, whether to oversample the minority class (assumed to be the negative class) or not.
     AUGMENTATION_CHANCE: 0.8  # Probability to augment an incoming batch.
@@ -95,15 +95,18 @@ TRAIN:
 
     # EfficentNet, used for M-mode recon
     EFFICIENTNET:
-      LR: 0.0000314442 #0.0000487
-      LR_DECAY_VAL: 0.1  # Learning rate decay
-      DROPOUT: 0.5 #Dropout probability
-      BLOCKS_FROZEN: 30   # Number of blocks to freeze - MUST be 0 or positive, and less than or equal to the previous ('BLOCKS')
-      L2_REG: 0.000558725 #0.00018  # L2 regularization penalty
+      LR: 0.000171 #0.000432805 #0.000314 #0.0000487 #0.0000314442
+      LR_DECAY_VAL: 0.05642  # Learning rate decay
+      DROPOUT: 0.215 #Dropout probability
+      BLOCKS_FROZEN: 30   # Number of blocks to freeze - MUST be 0 or positive
+      L2_REG: 0.008629 #0.000558725 #0.01 #0.000008 #0.000558725 #0.00018  # L2 regularization penalty
       WEIGHT_INITIALIZER: 'he_normal'  # Method to initialize weights for convolutional and FC layers - see https://www.tensorflow.org/api_docs/python/tf/keras/initializers
-      ALPHA: 0.23 # focal loss parameter
-      GAMMA: 2.0 # focal loss parameter
+      ALPHA: 0.105001 # focal loss parameter
+      GAMMA: 1.178085 #2.5987 # focal loss parameter
       FC0_NODES: 64
+      BLOCK_CUTOFF: 1 # 0-3
+      CLASS_WEIGHTS: True
+
 
     # 2D Xception net, used for M-mode reconstructions - Best performing model thus far
     XCEPTION:
@@ -215,28 +218,37 @@ HPARAM_SEARCH:
   EFFICIENTNET:
     LR:
       TYPE: 'float_log'
-      RANGE: [ 0.00001, 0.001 ]
+      RANGE: [ 0.00001, 0.01 ]
     DROPOUT:
       TYPE: 'float_uniform'
-      RANGE: [ 0.0, 0.5 ]
+      RANGE: [ 0.2, 0.5 ]
+    LR_DECAY_VAL:
+      TYPE: 'float_uniform'
+      RANGE: [0.01, 0.3]
     GAMMA: # focal loss parameter
       TYPE: 'float_uniform'
       RANGE: [0, 5]
-#    ALPHA: # focal loss parameter
-#      TYPE: 'float_uniform'
-#      RANGE: [0.01, 1]
+    ALPHA: # focal loss parameter
+      TYPE: 'float_uniform'
+      RANGE: [0.05, 0.4]
     L2_REG:
       TYPE: 'float_log'
-      RANGE: [0.0000001, 0.01]
+      RANGE: [0.000001, 0.01]
 #    FC0_NODES:
 #      TYPE: 'set'
 #      RANGE: [16, 32, 64, 128]
 #    BLOCKS_FROZEN:
 #      TYPE: 'set'
 #      RANGE: [0, 50, 100, 150]
+    BLOCK_CUTOFF:
+      TYPE: 'set'
+      RANGE: [0, 1, 2, 3]
+    CLASS_WEIGHTS:
+      TYPE: 'set'
+      RANGE: [True, False]
 
 PREDICT:
-  MODEL: 'results/models/efficientnet/20220315-092322'  # Trained model used to generate predictions
+  MODEL: 'results/models/efficientnet/20220328-173642'  # Trained model used to generate predictions
   TEST_DF: 'csvs_split/test.csv' # table of mini-clips to generate predictions for
   PREDICTIONS_OUT: '../results/predictions'
 
@@ -250,6 +262,6 @@ EXPLAINABILITY:
   PATHS:
     NPZ: 'data/npzs/'  # Directory holding NPZs that heatmaps can be generated for.
     FR_CSVS: 'data/csvs/'  # Directory with tables produced in preprocessing pipeline.
-    NPZ_DF: 'csvs_split/val.csv'  # Table of mini-clips that heatmaps can be generated for.
-    MODEL: 'results/models/efficientnet/20220218-133645'  # Trained model used to generate heatmaps.
+    NPZ_DF: 'csvs_split/test.csv'  # Table of mini-clips that heatmaps can be generated for.
+    MODEL: 'results/models/efficientnet/20220325-190905'  # Trained model used to generate heatmaps.
     FEATURE_HEATMAPS: 'feature_heatmaps/'  # Output directory for heatmap videos.

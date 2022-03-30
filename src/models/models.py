@@ -772,6 +772,14 @@ def efficientnet(model_config, input_shape, metrics, class_counts):
     X_input = Input(input_shape, name='input')
     base_model = EfficientNet(include_top=False, weights='imagenet', input_shape=input_shape, input_tensor=X_input)
 
+    output_bias = None
+    kernel_init = model_config['WEIGHT_INITIALIZER']
+    if cfg['TRAIN']['OUTPUT_BIAS']:
+        count0 = class_counts[0]
+        count1 = class_counts[1]
+        output_bias = math.log(count1 / count0)
+        output_bias = tf.keras.initializers.Constant(output_bias)
+
     # # ----- Set regularization -------
     # # Setting l2 regularization only sets it in the model config, and not in the layers
     # # But reloading with the model config removes pre-trained weights
@@ -804,18 +812,25 @@ def efficientnet(model_config, input_shape, metrics, class_counts):
         elif ('batch' in base_model.layers[i].name) or ('bn' in base_model.layers[i].name):
             base_model.layers[i].trainable = False
 
-    x = base_model.output
+    block_cutoff = ['top_activation', 'block6d_add', 'block5c_add', 'block4c_add']
+    cutoff = block_cutoff[model_config['BLOCK_CUTOFF']]
+    x = base_model.get_layer(cutoff).output
 
     # Add custom top layers
     x = GlobalAveragePooling2D()(x)
     x = Dropout(dropout)(x)
     x = Dense(fc0_nodes, activation='relu', kernel_regularizer=L2(l2_reg), name='fc0')(x)
-    x = Dense(1, name='logits')(x)
+    # x = Dense(fc0_nodes, activation='relu', name='fc0')(x)
+
+    x = Dense(1, bias_regularizer=output_bias, kernel_initializer=kernel_init, name='logits')(x)
     outputs = Activation('sigmoid', dtype='float32', name='output')(x)
 
     model = tf.keras.Model(inputs=X_input, outputs=outputs)
     model.summary()
-    alpha = class_counts[0]/(class_counts[0] + class_counts[1])
+
+    # alpha = class_counts[0] / (class_counts[0] + class_counts[1]) + model_config['ALPHA']
+    alpha = model_config['ALPHA']
+    print(alpha)
     model.compile(loss=tfa.losses.SigmoidFocalCrossEntropy(reduction=tf.keras.losses.Reduction.AUTO,
                                                            alpha=alpha, gamma=model_config['GAMMA']),
                   optimizer=optimizer, metrics=metrics)

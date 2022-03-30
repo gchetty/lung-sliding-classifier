@@ -2,6 +2,7 @@
 Script for training experiments, including model training, hyperparameter search, cross validation, etc
 '''
 import keras.callbacks
+import logging
 import numpy as np
 import tensorflow.keras.backend
 import yaml
@@ -66,7 +67,7 @@ def log_test_results(model, test_set, test_df, test_metrics, writer):
 
 def log_miniclip_test_results(model, test_set, test_df, writer):
     '''
-    Visualize performance of a trained model on the test set. Optionally save the model.
+    Adjust clip and mini-clip prediction results - if any mini-clip is sliding, then entire clip is sliding
     :param model: A trained TensorFlow model
     :param test_set: A TensorFlow dataset for the test set
     :param test_df: Dataframe containing npz files and labels for test set
@@ -155,7 +156,7 @@ def log_train_params(writer, hparams):
 
 def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
                 hparams=cfg['TRAIN']['PARAMS']['XCEPTION'],
-                model_out_dir=cfg['TRAIN']['PATHS']['MODEL_OUT'], train_df=None, val_df=None):
+                model_out_dir=cfg['TRAIN']['PATHS']['MODEL_OUT'], train_df=None, val_df=None, log_name=None):
     '''
     Trains and saves a model given specific hyperparameters
 
@@ -233,9 +234,9 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
 
     # Defining Binary Classification Metrics
     metrics = ['accuracy', AUC(name='auc'), FBetaScore(num_classes=2, average='micro', threshold=0.5)]
-    metrics += [Precision(), Recall()]
-    metrics += [TrueNegatives(), TruePositives(), FalseNegatives(), FalsePositives(), Specificity(), PhiCoefficient(),
-                SensitivityAtSpecificity(0.96)]
+    metrics += [Precision(name='precision'), Recall(name='recall')]
+    metrics += [TrueNegatives(), TruePositives(), FalseNegatives(), FalsePositives(), Specificity(name='specificity'),
+                PhiCoefficient(), SensitivityAtSpecificity(0.95)]
 
     # Get the model
     if m_mode:
@@ -258,7 +259,10 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
     time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 
     # Log metrics
-    log_dir = cfg['TRAIN']['PATHS']['TENSORBOARD'] + time
+    if log_name is None:
+        log_dir = cfg['TRAIN']['PATHS']['TENSORBOARD'] + time
+    else:
+        log_dir = cfg['TRAIN']['PATHS']['TENSORBOARD'] + log_name + '_' + time
 
     # uncomment line below to include tensorboard profiler in callbacks
     # basic_call = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1, profile_batch=1)
@@ -297,7 +301,8 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
 
     # Creating a ModelCheckpoint for saving the model
     model_out_dir += time
-    save_cp = ModelCheckpoint(model_out_dir, save_best_only=cfg['TRAIN']['SAVE_BEST_ONLY'])
+    save_cp = ModelCheckpoint(os.path.join(model_out_dir), save_best_only=cfg['TRAIN']['SAVE_BEST_ONLY'])
+    save_cp_2 = ModelCheckpoint(os.path.join(model_out_dir, 'model.h5'), save_best_only=True)
 
     # Early stopping
     early_stopping = EarlyStopping(monitor='val_loss', verbose=1, patience=cfg['TRAIN']['PATIENCE'], mode='min',
@@ -310,13 +315,26 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
 
     # Train and save the model
     epochs = cfg['TRAIN']['PARAMS']['EPOCHS']
-    history = model.fit(train_set, epochs=epochs, validation_data=val_set, class_weight=class_weight,
-                        callbacks=[save_cp, basic_call, early_stopping, lr_callback], verbose=1)
+    history = None
+    err = False
+    try:
+        if hparams['CLASS_WEIGHTS']:
+            history = model.fit(train_set, epochs=epochs, validation_data=val_set, class_weight=class_weight,
+                                callbacks=[save_cp, basic_call, early_stopping, lr_callback, save_cp_2], verbose=1)
+        else:
+            history = model.fit(train_set, epochs=epochs, validation_data=val_set,
+                                callbacks=[save_cp, basic_call, early_stopping, lr_callback], verbose=1)
+    except tf.errors.InvalidArgumentError as e:
+        logging.warning('An exception occurred: {}'.format(e))
+        err = True
 
     # Log early stopping to tensorboard
-    if len(history.epoch) < epochs:
-        with writer2.as_default():
-            tf.summary.text(name='Early Stopping', data=tf.convert_to_tensor('Training stopped early'), step=0)
+    if history is not None:
+        if len(history.epoch) < epochs:
+            with writer2.as_default():
+                tf.summary.text(name='Early Stopping', data=tf.convert_to_tensor('Training stopped early'), step=0)
+
+    model.load_weights(model_out_dir)
 
     test_metrics = {}
     if cfg['TRAIN']['SPLITS']['TEST'] > 0:
@@ -330,6 +348,7 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
             log_test_results(model, test_set, test_df, test_metrics, writer2)
             log_miniclip_test_results(model, test_set, test_df, writer2)
     else:
+        # try:
         test_results = model.evaluate(val_set, verbose=1)
         test_summary_str = [['**Metric**', '**Value**']]
         for metric, value in zip(model.metrics_names, test_results):
@@ -338,11 +357,19 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
         if log_dir is not None:
             log_test_results(model, val_set, val_df, test_metrics, writer2)
             log_miniclip_test_results(model, val_set, val_df, writer2)
+        # except tf.errors.InvalidArgumentError as e:
+        #     logging.warning('An exception occurred during model evaluation: {}'.format(e))
+        #     best_metric_idx = np.argmax(history.history['val_loss'])
+        #     for metric in model.metrics_names:
+        #         test_metrics[metric] = history.history[metric][best_metric_idx]
+
+    test_metrics['err'] = err
 
     return model, test_metrics, test_set
 
 
-def save_hparam_search_results(init_dict, score, objective_metric, hparam_names, hparams, model_name, cur_datetime):
+def save_hparam_search_results(init_dict, score, objective_metric, hparam_names, hparams, model_name, cur_datetime,
+                               metric_names, metric_vals):
     '''
     Saves the results of a hyperparameter search in a table and a partial dependence plot
     :param init_dict: Initial results dictionary (hyperparameter names for keys and empty lists as values)
@@ -368,12 +395,15 @@ def save_hparam_search_results(init_dict, score, objective_metric, hparam_names,
     for hparam_name in hparam_names:
         results[hparam_name].append(hparams[hparam_name])
 
+    for i in range(len(metric_vals)):
+        results[metric_names[i]].append(metric_vals[i])
+
     results_df = pd.DataFrame(results)
     results_df.to_csv(results_path, index_label=False, index=False)
     return results
 
 
-def bayesian_hparam_optimization(checkpoint=None):
+def bayesian_hparam_optimization(checkpoint=None, df=None):
     '''
     Conducts a Bayesian hyperparameter optimization, given the parameter ranges and selected model
     :param checkpoint: string containing filename of checkpoint to load from previous search (.pkl file)
@@ -407,7 +437,46 @@ def bayesian_hparam_optimization(checkpoint=None):
             hparam_names.append(hparam_name)
             results[hparam_name] = []
     print("Hyperparameter list: {}".format(hparam_names))
+    metric_names = ['err', 'specificity', 'recall', 'accuracy', 'auc']
+    for m in metric_names:
+        results[m] = []
     init_results = results
+
+    n_folds = cfg['TRAIN']['N_FOLDS']
+    all_pts = df['patient_id'].unique()
+    val_split = 1.0 / n_folds
+    cfg['TRAIN']['SPLITS']['VAL'] = val_split
+    cfg['TRAIN']['SPLITS']['TEST'] = 0.
+    pt_k_fold = StratifiedKFold(n_splits=n_folds, shuffle=True, random_state=cfg['TRAIN']['SPLITS']['RANDOM_SEED'])
+
+    partition_path = os.path.join(cfg['TRAIN']['PATHS']['PARTITIONS'], 'kfold' + cur_datetime)
+    if not os.path.exists(partition_path):
+        os.makedirs(partition_path)
+
+    cur_fold = 0
+    labels = []
+    for patient in all_pts:
+        labels.append(df[df['patient_id'] == patient]['label'].iloc[0])
+
+    train_dfs = []
+    val_dfs = []
+    for train_index, val_index in pt_k_fold.split(all_pts, labels):
+
+        # Partition into training and validation sets for this fold. Save the partitions.
+        train_pts = all_pts[train_index]
+        val_pts = all_pts[val_index]
+        train_df = df[df['patient_id'].isin(train_pts)]
+        val_df = df[df['patient_id'].isin(val_pts)]
+
+        train_dfs.append(train_df)
+        val_dfs.append(val_df)
+
+        train_df.to_csv(os.path.join(partition_path, 'fold_' + str(cur_fold) + '_train_set.csv'), index=False)
+        val_df.to_csv(os.path.join(partition_path, 'fold_' + str(cur_fold) + '_val_set.csv'), index=False)
+        cur_fold += 1
+        if cur_fold > 2:
+            break
+
 
     def objective(vals):
         hparams = dict(zip(hparam_names, vals))
@@ -415,15 +484,27 @@ def bayesian_hparam_optimization(checkpoint=None):
             if hparam not in hparams:
                 hparams[hparam] = cfg['TRAIN']['PARAMS'][model_name][hparam]  # Add hyperparameters being held constant
         print('HPARAM VALUES: ', hparams)
-        _, test_metrics, _ = train_model(hparams=hparams)
-        # score = 1. - test_metrics[objective_metric]
-        score = 1.5 * (1. - test_metrics[objective_metric]) + (1. - test_metrics['recall'])
-        save_hparam_search_results(init_results, score, objective_metric, hparam_names, hparams, model_name,
-                                   cur_datetime)
+        scores = []
+        metrics = []
+        for i in range(3):
+            _, test_metrics, _ = train_model(hparams=hparams, train_df=train_dfs[i], val_df=val_dfs[i], log_name=str(i))
+            # score = 1. - test_metrics[objective_metric]
+            score = 1.5 * (1. - test_metrics['specificity']) + (1. - test_metrics['recall'])
+            metric_vals = []
+            for metric in metric_names:
+                metric_vals.append(test_metrics[metric])
+            scores.append(score)
+            metrics.append(metric_vals)
+            gc.collect()
+            tf.keras.backend.clear_session()
+        avg_score = np.mean(scores)
+        avg_metrics = np.mean(metrics, axis=0)
+        save_hparam_search_results(init_results, avg_score, objective_metric, hparam_names, hparams, model_name,
+                                   cur_datetime, metric_names, avg_metrics)
         # score = 1.5 * (1. - test_metrics[objective_metric]) + (1 - test_metrics['recall'])
         gc.collect()
         tf.keras.backend.clear_session()
-        return score  # We aim to minimize error
+        return avg_score  # We aim to minimize error
 
     result_path = cfg['HPARAM_SEARCH']['PATH'] + 'hparam_search_' + model_name + \
                   cur_datetime + '.pkl'
@@ -530,9 +611,8 @@ def cross_validation(df=None, hparams=None):
               .format(train_df.shape[0], val_df.shape[0], train_pts.shape[0], val_pts.shape[0]))
 
         # Train the model and evaluate performance on test set
-        model_def_str = cfg['TRAIN']['MODEL_DEF']
         model, val_metrics, _ = train_model(hparams=hparams, train_df=train_df,
-                                        val_df=val_df)
+                                            val_df=val_df)
 
         metrics_df['specificity'] = metrics_df['specificity'].astype(object)
 
@@ -556,28 +636,13 @@ def cross_validation(df=None, hparams=None):
     return metrics_df
 
 
-def test_miniclip_preds():
-    test_df = pd.read_csv(cfg['PREDICT']['TEST_DF'])
-    model_def_str = cfg['TRAIN']['MODEL_DEF']
-    model_def_fn, preprocessing_fn = get_model(model_def_str)
-
-    model = load_model(os.path.join('..', cfg['PREDICT']['MODEL']), compile=False)
-    dataset = tf.data.Dataset.from_tensor_slices((test_df['filename'].tolist(), test_df['label']))
-    preprocessor = MModePreprocessor(preprocessing_fn)
-
-    test_set = preprocessor.prepare(dataset, test_df, shuffle=False, augment=False)
-    log_miniclip_test_results(model, test_set, test_df, None)
-
-
 if __name__ == '__main__':
     # Train and save the model
     model_def_str = cfg['TRAIN']['MODEL_DEF']
-    # train_model(hparams=cfg['TRAIN']['PARAMS'][model_def_str.upper()])
-    # test_miniclip_preds()
-
-    # bayesian_hparam_optimization(checkpoint='hparam_search_EFFICIENTNET20220309-065150.pkl')
+    train_model(hparams=cfg['TRAIN']['PARAMS'][model_def_str.upper()])
     # bayesian_hparam_optimization()
     train_df = pd.read_csv(os.path.join(cfg['TRAIN']['PATHS']['CSVS'], 'train.csv'))
     val_df = pd.read_csv(os.path.join(cfg['TRAIN']['PATHS']['CSVS'], 'val.csv'))
     df = pd.concat([train_df, val_df]).reset_index(drop=True)
-    cross_validation(df=df)
+    # bayesian_hparam_optimization(checkpoint='hparam_search_EFFICIENTNET20220323-162018.pkl', df=df)
+    # cross_validation(df=df)

@@ -197,24 +197,31 @@ def visualize_heatmap(orig_img, heatmap, img_filename, label, probs, class_names
 
     :return: Path to saved image
     '''
-
+    mpl.use('agg')
+    plt.clf()
     fig, ax = plt.subplots(1, 2)
     ax[0].imshow(orig_img)
+    ax[0].set_axis_off()
     ax[1].imshow(heatmap)
+    ax[1].set_axis_off()
 
     # Display some information about the example
-    pred_class = int(probs > 0.5)
-    fig.text(0.02, 0.90, "Prediction probabilities for: " + str(class_names) + ': ' +
-             str(['{:.2f}'.format(probs)]), fontsize=8)
-    fig.text(0.02, 0.92, "Predicted Class: " + str(pred_class) + ' (' + class_names[pred_class] + ')', fontsize=8)
+    pred_class = int(probs >= 0.5)
+    # fig.text(0.02, 0.90, "Prediction probabilities for: " + str(class_names) + ': ' +
+    #          str(['{:.2f}'.format(probs)]), fontsize=8)
     if label is not None:
-        fig.text(0.02, 0.94, "Ground Truth Class: " + str(label) + ' (' + class_names[label] + ')', fontsize=8)
-    fig.suptitle(img_filename, fontsize=6, fontweight='bold')
-    # fig.tight_layout()
+        fig.text(0.025, 0.90, 'Label: ' + str(class_names[label]), fontsize=10)
+    fig.text(0.5125, 0.90, "Prediction: {} ({:.0f}%)".format(class_names[pred_class], max(probs, 1-probs)*100), fontsize=10)
+    # if label is not None:
+    #     fig.text(0.02, 0.94, "Ground Truth Class: " + str(label) + ' (' + class_names[label] + ')', fontsize=8)
+    # fig.suptitle(img_filename, fontsize=6, fontweight='bold')
+    fig.tight_layout()
 
     # Save the image
     filename = None
     if dir_path is not None:
         filename = os.path.join(dir_path, img_filename.split('/')[-1] + '_gradcam_' + datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + '.png')
         plt.savefig(filename)
+    plt.clf()
+    plt.close("all")
     return filename

@@ -6,8 +6,10 @@ import yaml
 import argparse
 from utils import refresh_folder
 from tqdm import tqdm
+from src.preprocessor import get_middle_pixel_index
 
 cfg = yaml.full_load(open(os.path.join(os.getcwd(),"../../config.yml"), 'r'))['PREPROCESS']
+cfg_full = yaml.full_load(open(os.path.join(os.getcwd(), "../../config.yml"), 'r'))
 
 # PIPELINE UPDATE FOR BOX AND ORIG DIMS NOT APPLIED FOR FLOW!!!
 
@@ -73,6 +75,41 @@ def video_to_frames_downsampled(orig_id, patient_id, df_rows, cap, fr, seq_lengt
 
     return
 
+def miniclip_to_mmode(clip, bounding_box, height_width):
+    # Extract m-mode
+    num_frames, new_height, new_width = clip.shape[0], clip.shape[1], clip.shape[2]
+    method = cfg_full['TRAIN']['M_MODE_SLICE_METHOD']
+    middle_pixel = get_middle_pixel_index(clip[0], bounding_box, height_width, method=method)
+
+    # Fix bad bounding box
+    if middle_pixel == 0:
+        middle_pixel = new_width // 2
+    three_slice = clip[:, :, middle_pixel - 1:middle_pixel + 2, 0]
+    mmode = np.median(three_slice, axis=2).T
+    mmode_image = cv2.resize(mmode, (cfg_full['PREPROCESS']['PARAMS']['WINDOW'], new_height), interpolation=cv2.INTER_CUBIC)
+    mmode_image = mmode_image.reshape((new_height, cfg_full['PREPROCESS']['PARAMS']['WINDOW'], 1))
+
+    return mmode_image
+
+def miniclip_to_multi_mmode(clip, bounding_box, height_width):
+    # Extract m-mode
+    num_frames, new_height, new_width = clip.shape[0], clip.shape[1], clip.shape[2]
+    middle_pixel_lst = get_middle_pixel_index(clip[0], bounding_box, height_width, method='top_k_brightest')
+
+    mmode_lst = []
+    for middle_pixel in middle_pixel_lst:
+        # Fix bad bounding box
+        if middle_pixel == 0:
+            middle_pixel = new_width // 2
+        mmode = clip[:, :, middle_pixel, 0]
+        # mmode = np.median(three_slice, axis=2).T
+        mmode_image = cv2.resize(mmode, (cfg_full['PREPROCESS']['PARAMS']['WINDOW'], new_height),
+                                 interpolation=cv2.INTER_CUBIC)
+        mmode_image = mmode_image.reshape((new_height, cfg_full['PREPROCESS']['PARAMS']['WINDOW'], 1))
+        mmode_lst.append(mmode_image)
+
+    return mmode_lst
+
 
 def video_to_frames_contig(orig_id, patient_id, df_rows, cap, seq_length=cfg['PARAMS']['WINDOW_SECONDS'],
                            resize=cfg['PARAMS']['IMG_SIZE'], write_path='', box=None):
@@ -109,9 +146,21 @@ def video_to_frames_contig(orig_id, patient_id, df_rows, cap, seq_length=cfg['PA
             # When seq_length frames have been read, update df rows and write npz files
             # The id of the xth mini-clip from a main clip is the id of the main clip with _x appended to it
             if counter == 0:
-                df_rows.append([orig_id + '_' + str(mini_clip_num), patient_id])  # append to what will make output dataframes
-                np.savez_compressed(write_path + '_' + str(mini_clip_num), frames=frames,
-                                    bounding_box=box, height_width=(cap_height, cap_width))  # output
+
+                if cfg_full['TRAIN']['M_MODE_SLICE_METHOD'] == 'top_k_brightest':
+
+                    mmode_lst = miniclip_to_multi_mmode(np.array(frames), box, (cap_height, cap_width))
+                    mmode_idx = 0
+                    for mmode in mmode_lst:
+                        # append to what will make output dataframes
+                        df_rows.append([orig_id + '_' + str(mini_clip_num)+ '_' + str(mmode_idx), patient_id])
+                        np.savez_compressed(write_path + '_' + str(mini_clip_num) + '_' + str(mmode_idx), mmode=mmode)
+                        mmode_idx += 1
+                else:
+                    # append to what will make output dataframes
+                    df_rows.append([orig_id + '_' + str(mini_clip_num), patient_id])
+                    mmode = miniclip_to_mmode(np.array(frames), box, (cap_height, cap_width))
+                    np.savez_compressed(write_path + '_' + str(mini_clip_num), mmode=mmode)  # output
                 counter = seq_length
                 mini_clip_num += 1
                 frames = []
