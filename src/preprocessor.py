@@ -203,7 +203,7 @@ def augment_two_stream(x1, x2):
     '''
 
     img_size = cfg['PREPROCESS']['PARAMS']['IMG_SIZE']
-    window = cfg['PREPROCESS']['PARAMS']['WINDOW']
+    window = cfg['PREPROCESS']['PARAMS']['M_MODE_WIDTH']
     zero_pad = tf.constant(np.zeros([window] + img_size + [1]), dtype=tf.float32)
     x2 = tf.concat([x2, zero_pad], axis=-1)  # add third channel of 0s to flow clip
 
@@ -259,7 +259,7 @@ def parse_tf(filename, label):
     '''
 
     img_size_tuple = cfg['PREPROCESS']['PARAMS']['IMG_SIZE']
-    num_frames = cfg['PREPROCESS']['PARAMS']['WINDOW']
+    num_frames = cfg['PREPROCESS']['PARAMS']['M_MODE_WIDTH']
     shape = (num_frames, img_size_tuple[0], img_size_tuple[1], 3)
     clip, label = tf.numpy_function(parse_fn, [filename, label], (tf.float32, tf.float32))
     clip.set_shape(shape)
@@ -280,7 +280,7 @@ def parse_flow(filename, label):
     '''
 
     img_size_tuple = cfg['PREPROCESS']['PARAMS']['IMG_SIZE']
-    num_frames = cfg['PREPROCESS']['PARAMS']['WINDOW']
+    num_frames = cfg['PREPROCESS']['PARAMS']['M_MODE_WIDTH']
     shape = (num_frames, img_size_tuple[0], img_size_tuple[1], 2)
     clip, label = tf.numpy_function(parse_fn, [filename, label], (tf.float32, tf.float32))
     clip.set_shape(shape)
@@ -311,7 +311,7 @@ def parse_clip_only(filename):
     '''
 
     img_size_tuple = cfg['PREPROCESS']['PARAMS']['IMG_SIZE']
-    num_frames = cfg['PREPROCESS']['PARAMS']['WINDOW']
+    num_frames = cfg['PREPROCESS']['PARAMS']['M_MODE_WIDTH']
     shape = (num_frames, img_size_tuple[0], img_size_tuple[1], 3)
     clip = tf.numpy_function(parse_fn_no_label, [filename], tf.float32)
     tf.ensure_shape(clip, shape)
@@ -326,7 +326,7 @@ def parse_flow_only(filename):
     '''
 
     img_size_tuple = cfg['PREPROCESS']['PARAMS']['IMG_SIZE']
-    num_frames = cfg['PREPROCESS']['PARAMS']['WINDOW']
+    num_frames = cfg['PREPROCESS']['PARAMS']['M_MODE_WIDTH']
     shape = (num_frames, img_size_tuple[0], img_size_tuple[1], 2)
     clip = tf.numpy_function(parse_fn_no_label, [filename], tf.float32)
     tf.ensure_shape(clip, shape)
@@ -381,74 +381,31 @@ def augment_clip_m_mode_video(x):
     return x
 
 
-def parse_tf_m_mode(filename, label, augment=False):
+def parse_tf_m_mode(filename, label):
     '''
     Loads an LUS clip corresponding to an inputted filename, and returns the corresponding M-mode reconstruction
     as well as the associated label
 
     :param filename: Path to LUS clip to load
     :param label: Binary label indicating whether the LUS clip exhibits lung sliding
-    :param augment: Whether to augment LUS clips before extracting M-mode images
-
     :return: Tuple of (M-mode reconstruction, label), both as tensors
     '''
 
     img_height = cfg['PREPROCESS']['PARAMS']['IMG_SIZE'][0]
-    num_frames = cfg['PREPROCESS']['PARAMS']['WINDOW']
+    num_frames = cfg['PREPROCESS']['PARAMS']['M_MODE_WIDTH']
     shape = (img_height, num_frames, 3)
-    pic, label = tf.numpy_function(parse_fn_m_mode, [filename, label, augment], (tf.float32, tf.float32))
+    pic, label = tf.numpy_function(parse_fn_m_mode, [filename, label], (tf.float32, tf.float32))
     pic.set_shape(shape)
     label.set_shape((1,))
     return pic, label
 
 
-# def parse_fn_m_mode(filename, label, augment=False):
-#     '''
-#     Loads an LUS clip, optionally augments it, and extracts an M-mode representation
-#
-#     :param filename: Path to LUS clip to load
-#     :param label: Binary label indicating whether the LUS clip exhibits lung sliding
-#     :param augment: Whether to augment LUS clips before extracting M-mode images
-#
-#     :return: Tuple of (M-mode reconstruction, label), both as tensors
-#     '''
-#     loaded = np.load(filename)
-#     bounding_box = None
-#     if cfg['PREPROCESS']['PARAMS']['USE_BOUNDING_BOX']:
-#         clip, bounding_box, height_width = loaded['frames'], loaded['bounding_box'], loaded['height_width']
-#     else:
-#         clip, height_width = loaded['frames'], loaded['height_width']
-#
-#     # Augment clip before extracting m-mode
-#     # if augment:
-#     #     clip = augment_clip_m_mode_video(clip)
-#     clip = tf.clip_by_value(clip, 0, 255)
-#
-#     # Extract m-mode
-#     num_frames, new_height, new_width = clip.shape[0], clip.shape[1], clip.shape[2]
-#     method = cfg['TRAIN']['M_MODE_SLICE_METHOD']
-#     middle_pixel = get_middle_pixel_index(clip[0], bounding_box, height_width, method=method)
-#
-#     # Fix bad bounding box
-#     if middle_pixel == 0:
-#         middle_pixel = new_width // 2
-#     three_slice = clip[:, :, middle_pixel - 1:middle_pixel + 2, 0]
-#     mmode = np.median(three_slice, axis=2).T
-#     mmode_image = cv2.resize(mmode, (cfg['PREPROCESS']['PARAMS']['WINDOW'], new_height), interpolation=cv2.INTER_CUBIC)
-#     mmode_image = mmode_image.reshape((new_height, cfg['PREPROCESS']['PARAMS']['WINDOW'], 1))
-#
-#     as_tensor = tf.convert_to_tensor(mmode_image)
-#     converted = tf.image.grayscale_to_rgb(as_tensor)
-#     final_pic = tf.cast(converted, tf.float32)
-#     return final_pic, (1 - tf.one_hot(label, 1))
-
-def parse_fn_m_mode(filename, label, augment=False):
+def parse_fn_m_mode(filename, label):
     '''
     Loads an LUS clip, optionally augments it, and extracts an M-mode representation
 
     :param filename: Path to LUS clip to load
     :param label: Binary label indicating whether the LUS clip exhibits lung sliding
-    :param augment: Whether to augment LUS clips before extracting M-mode images
 
     :return: Tuple of (M-mode reconstruction, label), both as tensors
     '''
@@ -490,9 +447,6 @@ def get_middle_pixel_index(image, bounding_box, original_height_width, method='b
         middle_pixel_index = get_middle_pixel_index_brightest_vertical_sum_sampled(image, bounding_box,
                                                                                    original_height_width)
 
-    elif method == 'top_k_brightest':
-        middle_pixel_index = get_middle_pixel_index_top_k_brightest(image, bounding_box, original_height_width)
-
     return middle_pixel_index
 
 
@@ -516,7 +470,14 @@ def get_middle_pixel_index_brightest_vertical_sum(image, bounding_box, original_
     middle_pixel_index = np.argmax(sum_horizontal_slice)
     return middle_pixel_index
 
+
 def get_middle_pixel_index_brightest_vertical_sum_box(image, bounding_box, original_height_width):
+    '''
+    Get horizontal pixel index using brightest column-wise sum index
+    :param image: LUS frame
+    :param bounding_box: Tuple of (ymin, xmin, ymax, xmax) of pleural line ROI
+    :param original_height_width: original LUS frame dimensions before resizing
+    '''
     ymin, xmin, ymax, xmax = bounding_box
     resized_width = cfg['PREPROCESS']['PARAMS']['IMG_SIZE'][1]
     o_height, o_width = original_height_width
@@ -527,7 +488,14 @@ def get_middle_pixel_index_brightest_vertical_sum_box(image, bounding_box, origi
     middle_pixel_index = np.argmax(sum_horizontal_slice)
     return middle_pixel_index + new_xmin
 
+
 def get_middle_pixel_index_brightest_vertical_sum_sampled(image, bounding_box, original_height_width):
+    '''
+        Get horizontal pixel index by randomly selecting from top brightest column-wise sums
+        :param image: LUS frame
+        :param bounding_box: Tuple of (ymin, xmin, ymax, xmax) of pleural line ROI
+        :param original_height_width: original LUS frame dimensions before resizing
+    '''
     ymin, xmin, ymax, xmax = bounding_box
     resized_width = cfg['PREPROCESS']['PARAMS']['IMG_SIZE'][1]
     o_height, o_width = original_height_width
@@ -541,18 +509,6 @@ def get_middle_pixel_index_brightest_vertical_sum_sampled(image, bounding_box, o
     middle_pixel_index = np.argsort(sum_horizontal_slice)[np.random.randint(n_slices - sample, n_slices)]
     return middle_pixel_index + new_xmin
 
-def get_middle_pixel_index_top_k_brightest(image, bounding_box, original_height_width):
-    ymin, xmin, ymax, xmax = bounding_box
-    resized_width = cfg['PREPROCESS']['PARAMS']['IMG_SIZE'][1]
-    o_height, o_width = original_height_width
-    new_xmin = int(xmin * resized_width / o_width)
-    new_xmax = int(xmax * resized_width / o_width)
-    cropped = image[:, new_xmin:new_xmax]
-    sum_horizontal_slice = np.sum(cropped, axis=0)
-    k = cfg['TRAIN']['M_MODE_SLICE_SAMPLE']
-    n_slices = len(sum_horizontal_slice)
-    middle_pixel_index_lst = np.argsort(sum_horizontal_slice)[n_slices - k: n_slices]
-    return middle_pixel_index_lst
 
 # PREPROCESSOR CLASS THAT HANDLES NO LABELS - FOR HOLDOUTS???
 
@@ -738,7 +694,7 @@ class MModePreprocessor:
             ds = ds.shuffle(shuffle_val)
 
         # Augment clip and extract m-mode reconstructions
-        ds = ds.map(lambda x, y: parse_tf_m_mode(x, y, augment), num_parallel_calls=self.autotune)
+        ds = ds.map(lambda x, y: parse_tf_m_mode(x, y), num_parallel_calls=self.autotune)
 
         # Define batch size
         ds = ds.batch(self.batch_size, num_parallel_calls=self.autotune)

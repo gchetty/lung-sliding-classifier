@@ -27,7 +27,7 @@ class GradCAMExplainer:
         self.model = load_model(os.path.join('..', cfg['EXPLAINABILITY']['PATHS']['MODEL']), compile=False)
         self.save_img_dir = cfg['EXPLAINABILITY']['PATHS']['FEATURE_HEATMAPS']
         self.npz_dir = cfg['EXPLAINABILITY']['PATHS']['NPZ']
-        self.img_dim = tuple((cfg['PREPROCESS']['PARAMS']['WINDOW'], cfg['PREPROCESS']['PARAMS']['IMG_SIZE'][0]))
+        self.img_dim = tuple((cfg['PREPROCESS']['PARAMS']['M_MODE_WIDTH'], cfg['PREPROCESS']['PARAMS']['IMG_SIZE'][0]))
         self.classes = ['Absent Lung Sliding', 'Lung Sliding']
         self.x_col = 'filename'
         self.y_col = 'label'
@@ -52,6 +52,10 @@ class GradCAMExplainer:
         predicted class with respect to the feature maps of the final convolutional layer of the model.
         :param npz_df: Pandas Dataframe of npz files, linking npz filenames to labels
         '''
+
+        for i in ['sliding', 'no_sliding']:
+            if not os.path.exists(os.path.join(self.save_img_dir, i)):
+                os.makedirs(os.path.join(self.save_img_dir, i))
 
         # get dataset and apply preprocessor
         ds = tf.data.Dataset.from_tensor_slices((npz_df['filename'].tolist(), npz_df['label']))
@@ -78,9 +82,8 @@ class GradCAMExplainer:
             heatmap = np.maximum(heatmap, 0.0)  # Equivalent of passing through ReLU
             heatmap /= np.max(heatmap)
             heatmap = cv2.resize(heatmap, self.img_dim)
-            heatmap = cv2.applyColorMap(np.uint8(255 * heatmap), cv2.COLORMAP_AUTUMN)
+            heatmap = cv2.applyColorMap(np.uint8(255 * heatmap), cv2.COLORMAP_JET)
             heatmap = cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB)
-            # orig_img = self.get_mmode(filename)
             orig_img = np.load(filename)['mmode']
             orig_img = cv2.convertScaleAbs(cv2.cvtColor(np.float32(orig_img), cv2.COLOR_GRAY2RGB))
             heatmap_img = cv2.addWeighted(heatmap, self.hm_intensity, orig_img, 1.0 - self.hm_intensity, 0)
@@ -94,9 +97,9 @@ class GradCAMExplainer:
             idx += 1
         return heatmap
 
-    def get_heatmap_for_clip(self, npz_df=None):
+    def get_single_heatmap(self, npz_df=None):
         '''
-        Apply Grad-CAM to an individual LUS image
+        Apply Grad-CAM to an individual M-Mode
         :param frame_df: Pandas DataFrame of LUS frames
         :return: The heatmap produced by Grad-CAM
         '''
@@ -113,35 +116,10 @@ class GradCAMExplainer:
         heatmap = self.apply_gradcam(filtered_df)
         return heatmap
 
-    def get_mmode(self, filename):
-        '''
-        Get M-mode image from the specified npz file
-        :param filename: file name of npz file to use for M-mode reconstruction
-        :return: The M-mode image produced
-        '''
-        loaded = np.load(filename)
-        bounding_box = None
-        if cfg['PREPROCESS']['PARAMS']['USE_BOUNDING_BOX']:
-            clip, bounding_box, height_width = loaded['frames'], loaded['bounding_box'], loaded['height_width']
-        else:
-            clip, height_width = loaded['frames'], loaded['height_width']
-
-        # Extract m-mode
-        num_frames, new_height, new_width = clip.shape[0], clip.shape[1], clip.shape[2]
-        method = cfg['TRAIN']['M_MODE_SLICE_METHOD']
-        middle_pixel = get_middle_pixel_index(clip[0], bounding_box, height_width, method=method)
-
-        # Fix bad bounding box
-        if middle_pixel == 0:
-            middle_pixel = new_width // 2
-        three_slice = clip[:, :, middle_pixel - 1:middle_pixel + 2, 0]
-        mmode = np.median(three_slice, axis=2).T
-        mmode_image = mmode.reshape((new_height, num_frames, 1))
-
-        return cv2.convertScaleAbs(cv2.cvtColor(np.float32(mmode_image), cv2.COLOR_GRAY2RGB))
-
 
 if __name__ == '__main__':
     gradcam = GradCAMExplainer()
-    # gradcam.get_heatmap_for_clip()
-    heatmap = gradcam.apply_gradcam(npz_df=pd.read_csv(cfg['EXPLAINABILITY']['PATHS']['NPZ_DF']))
+    if cfg['EXPLAINABILITY']['SINGLE_MMODE']:
+        gradcam.get_single_heatmap()
+    else:
+        gradcam.apply_gradcam(npz_df=pd.read_csv(cfg['EXPLAINABILITY']['PATHS']['NPZ_DF']))

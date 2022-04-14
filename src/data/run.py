@@ -14,7 +14,7 @@ flow = cfg['FLOW']
 smooth = cfg['SMOOTHING']
 amount_only = cfg['AMOUNT_ONLY']
 
-os.system('python download_videos.py')
+# os.system('python download_videos.py')
 
 if amount_only:
     exit()

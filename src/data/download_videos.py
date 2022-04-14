@@ -106,6 +106,7 @@ no_sliding_extra_df = pd.read_sql('''SELECT * FROM clips WHERE (pleural_line_fin
                                (pleural_effusion is null) AND (consolidation is null) AND 
                                labelbox_project_number LIKE 'Lung sliding sprint%';''', cnx)
 
+# Uncomment to query all extra sliding clips
 # sliding_extra_df = pd.read_sql('''SELECT * FROM clips WHERE (pleural_line_findings is null OR
 #                                 pleural_line_findings='thickened') AND
 #                                (quality NOT LIKE '%significant_probe_movement%' OR quality is null) AND
@@ -113,6 +114,7 @@ no_sliding_extra_df = pd.read_sql('''SELECT * FROM clips WHERE (pleural_line_fin
 #                                (pleural_effusion is null) AND (consolidation is null) AND
 #                                labelbox_project_number LIKE 'Lung sliding sprint%';''', cnx)
 
+# load extra infusion of sliding clips
 sliding_extra_df = pd.read_csv(os.path.join(cfg['PATHS']['CSVS_OUTPUT'], 'sliding_extra.csv'))
 
 # Load examples that must be excluded from negative class (bad clips)
@@ -127,7 +129,7 @@ no_sliding_df = no_sliding_df[~no_sliding_df['id'].isin(bad_no_sliding_df['id'])
 # If we're just asking the amount of videos available, the program will terminate after logging this information
 AMOUNT_ONLY = cfg['PARAMS']['AMOUNT_ONLY']
 if AMOUNT_ONLY:
-    print('AMOUNT_ONLY is set to True in the config file; set this to False if you wanted to download the videos.' )
+    print('AMOUNT_ONLY is set to True in the config file; set this to False if you wanted to download the videos.')
     print('In total, there are ' + str(len(sliding_df)) + ' available videos with sliding,' +
       ' and ' + str(len(no_sliding_df)) + ' without.')
     exit()

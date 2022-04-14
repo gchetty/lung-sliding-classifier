@@ -780,30 +780,6 @@ def efficientnet(model_config, input_shape, metrics, class_counts):
         output_bias = math.log(count1 / count0)
         output_bias = tf.keras.initializers.Constant(output_bias)
 
-    # # ----- Set regularization -------
-    # # Setting l2 regularization only sets it in the model config, and not in the layers
-    # # But reloading with the model config removes pre-trained weights
-    # # We have to save pre-trained weights, load by config (to get L2), and then load in weights
-    # # As per https://sthalles.github.io/keras-regularizer/
-    #
-    # for layer in base_model.layers:
-    #     for attr in ['kernel_regularizer']:
-    #         if hasattr(layer, attr):
-    #             setattr(layer, attr, L2(l2_reg))
-    #
-    # # This json will contain added L2 regularization
-    # json = base_model.to_json()
-    #
-    # # Save weights
-    # weights_path = os.path.join(tempfile.gettempdir(), 'temp_weights.h5')
-    # base_model.save_weights(weights_path)
-    #
-    # # Load L2 regularization into layers (pre-trained weights will be lost here)
-    # base_model = tf.keras.models.model_from_json(json)
-    #
-    # # Load weights
-    # base_model.load_weights(weights_path, by_name=True)
-
     # Freeze layers
     for i in range(len(base_model.layers)):
         if i <= freeze_cutoff:
@@ -820,21 +796,15 @@ def efficientnet(model_config, input_shape, metrics, class_counts):
     x = GlobalAveragePooling2D()(x)
     x = Dropout(dropout)(x)
     x = Dense(fc0_nodes, activation='relu', kernel_regularizer=L2(l2_reg), name='fc0')(x)
-    # x = Dense(fc0_nodes, activation='relu', name='fc0')(x)
 
     x = Dense(1, bias_regularizer=output_bias, kernel_initializer=kernel_init, name='logits')(x)
     outputs = Activation('sigmoid', dtype='float32', name='output')(x)
 
     model = tf.keras.Model(inputs=X_input, outputs=outputs)
     model.summary()
-
-    # alpha = class_counts[0] / (class_counts[0] + class_counts[1]) + model_config['ALPHA']
-    alpha = model_config['ALPHA']
-    print(alpha)
     model.compile(loss=tfa.losses.SigmoidFocalCrossEntropy(reduction=tf.keras.losses.Reduction.AUTO,
-                                                           alpha=alpha, gamma=model_config['GAMMA']),
+                                                           alpha=model_config['ALPHA'], gamma=model_config['GAMMA']),
                   optimizer=optimizer, metrics=metrics)
-
     return model
 
 

@@ -207,14 +207,9 @@ def visualize_heatmap(orig_img, heatmap, img_filename, label, probs, class_names
 
     # Display some information about the example
     pred_class = int(probs >= 0.5)
-    # fig.text(0.02, 0.90, "Prediction probabilities for: " + str(class_names) + ': ' +
-    #          str(['{:.2f}'.format(probs)]), fontsize=8)
     if label is not None:
         fig.text(0.025, 0.90, 'Label: ' + str(class_names[label]), fontsize=10)
     fig.text(0.5125, 0.90, "Prediction: {} ({:.0f}%)".format(class_names[pred_class], max(probs, 1-probs)*100), fontsize=10)
-    # if label is not None:
-    #     fig.text(0.02, 0.94, "Ground Truth Class: " + str(label) + ' (' + class_names[label] + ')', fontsize=8)
-    # fig.suptitle(img_filename, fontsize=6, fontweight='bold')
     fig.tight_layout()
 
     # Save the image

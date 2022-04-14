@@ -23,7 +23,7 @@ class UnetSegmentation:
         if not os.path.exists(os.path.join(output_path, 'bad_clips')):
             os.mkdir(os.path.join(output_path, 'bad_clips'))
         num_clips = len(video_files)
-        for clip_index, file in tqdm(enumerate(video_files)):
+        for clip_index, file in enumerate(tqdm(video_files)):
             head, tail = os.path.split(file)
             # Creates new folder to store data to output_path
             try:
@@ -38,7 +38,7 @@ class UnetSegmentation:
             frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
             frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
             frame_rate = float(cap.get(cv2.CAP_PROP_FPS))
-            print('FRS', frame_rate)
+            # print('FRS', frame_rate)
 
             # video = cv2.VideoWriter(os.path.join(output_folder_new, tail[:-4] + '.mp4'), cv2.VideoWriter_fourcc(*'mp4v'),
             #                         frame_rate, (frame_width, frame_height), True)
