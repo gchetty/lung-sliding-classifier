@@ -68,7 +68,7 @@ TRAIN:
 
   # Parameters for augmentation and model-training specifics.
   PARAMS:
-    EPOCHS: 1  # Maximum number of epochs to train the model for.
+    EPOCHS: 40  # Maximum number of epochs to train the model for.
     BATCH_SIZE: 40  # Integer to set the batch size. If you're running into memory errors, you'll have to lower this. Set this to 1 for GRADCAM.
     SHUFFLE: True  # Boolean, whether to shuffle the training set or not.
     INCREASE: False  # Boolean, whether to oversample the minority class (assumed to be the negative class) or not.
@@ -91,7 +91,7 @@ TRAIN:
 
     # EfficentNet, used for M-mode recon
     EFFICIENTNET:
-      LR: 0.000171 #0.000432805 #0.000314 #0.0000487 #0.0000314442
+      LR: 0.000171
       LR_DECAY_VAL: 0.05642  # Learning rate decay
       LR_DECAY_EPOCH: 15 # Epoch to start lr decay
       DROPOUT: 0.2151 # Dropout probability
