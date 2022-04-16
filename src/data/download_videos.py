@@ -70,11 +70,7 @@ def download(df, sliding, fr_rows, video_out_root_folder=cfg['PATHS']['UNMASKED_
         cap.release()
 
         # Discard video if frame rate is not multiple of base frame rate
-        if not (fr % base_fr == 0):
-            os.remove(out_path)
-        else:
-            # Add to frame rate CSV rows
-            fr_rows.append([row['id'], fr])
+        fr_rows.append([row['id'], fr])
 
 
 # Get database configs
@@ -110,16 +106,22 @@ no_sliding_extra_df = pd.read_sql('''SELECT * FROM clips WHERE (pleural_line_fin
                                (pleural_effusion is null) AND (consolidation is null) AND 
                                labelbox_project_number LIKE 'Lung sliding sprint%';''', cnx)
 
-# Load examples that must be excluded from negative class (bad clips)
-bad_no_sliding_df = pd.read_csv(os.path.join(cfg['PATHS']['CSVS_OUTPUT'], 'bad_ids.csv'))
+# load extra infusion of sliding clips
+sliding_extra_df = pd.read_csv(os.path.join(cfg['PATHS']['CSVS_OUTPUT'], 'sliding_extra.csv'))
 
-no_sliding_df = pd.concat([no_sliding_df, no_sliding_extra_df])
+# Load examples that must be excluded from negative class (bad clips)
+bad_sliding_df = pd.read_csv(os.path.join(cfg['PATHS']['CSVS_OUTPUT'], 'sliding_bad_ids.csv'))
+bad_no_sliding_df = pd.read_csv(os.path.join(cfg['PATHS']['CSVS_OUTPUT'], 'no_sliding_bad_ids.csv'))
+
+no_sliding_df = pd.concat([no_sliding_df, no_sliding_extra_df]).reset_index(drop=True)
+sliding_df = pd.concat([sliding_df, sliding_extra_df]).reset_index(drop=True)
+sliding_df = sliding_df[~sliding_df['id'].isin(bad_sliding_df['id'])]
 no_sliding_df = no_sliding_df[~no_sliding_df['id'].isin(bad_no_sliding_df['id'])]
 
 # If we're just asking the amount of videos available, the program will terminate after logging this information
 AMOUNT_ONLY = cfg['PARAMS']['AMOUNT_ONLY']
 if AMOUNT_ONLY:
-    print('AMOUNT_ONLY is set to True in the config file; set this to False if you wanted to download the videos.' )
+    print('AMOUNT_ONLY is set to True in the config file; set this to False if you wanted to download the videos.')
     print('In total, there are ' + str(len(sliding_df)) + ' available videos with sliding,' +
       ' and ' + str(len(no_sliding_df)) + ' without.')
     exit()

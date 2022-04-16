@@ -29,7 +29,7 @@ class GradCAM3D:
         self.heatmap_dir = cfg['EXPLAINABILITY']['PATHS']['FEATURE_HEATMAPS']
         self.npz_dir = cfg['EXPLAINABILITY']['PATHS']['NPZ']
         self.img_dim = tuple(cfg['PREPROCESS']['PARAMS']['IMG_SIZE'])
-        self.window = cfg['PREPROCESS']['PARAMS']['WINDOW']
+        self.window = cfg['PREPROCESS']['PARAMS']['M_MODE_WIDTH']
         self.classes = ['No sliding', 'Sliding']
         _, self.preprocessing_fn = get_model(cfg['TRAIN']['MODEL_DEF'])
         self.hm_intensity = 0.5

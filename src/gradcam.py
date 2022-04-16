@@ -13,6 +13,8 @@ from src.visualization.visualization import visualize_heatmap
 from src.models.models import get_model
 from src.preprocessor import MModePreprocessor
 from src.predict import predict_set
+from tqdm import tqdm
+import gc
 
 from src.preprocessor import get_middle_pixel_index
 
@@ -25,8 +27,8 @@ class GradCAMExplainer:
         self.model = load_model(os.path.join('..', cfg['EXPLAINABILITY']['PATHS']['MODEL']), compile=False)
         self.save_img_dir = cfg['EXPLAINABILITY']['PATHS']['FEATURE_HEATMAPS']
         self.npz_dir = cfg['EXPLAINABILITY']['PATHS']['NPZ']
-        self.img_dim = tuple((90, cfg['PREPROCESS']['PARAMS']['IMG_SIZE'][0]))
-        self.classes = ['No sliding', 'Sliding']
+        self.img_dim = tuple((cfg['PREPROCESS']['PARAMS']['M_MODE_WIDTH'], cfg['PREPROCESS']['PARAMS']['IMG_SIZE'][0]))
+        self.classes = ['Absent Lung Sliding', 'Lung Sliding']
         self.x_col = 'filename'
         self.y_col = 'label'
         _, preprocessing_fn = get_model(cfg['TRAIN']['MODEL_DEF'])
@@ -51,6 +53,10 @@ class GradCAMExplainer:
         :param npz_df: Pandas Dataframe of npz files, linking npz filenames to labels
         '''
 
+        for i in ['sliding', 'no_sliding']:
+            if not os.path.exists(os.path.join(self.save_img_dir, i)):
+                os.makedirs(os.path.join(self.save_img_dir, i))
+
         # get dataset and apply preprocessor
         ds = tf.data.Dataset.from_tensor_slices((npz_df['filename'].tolist(), npz_df['label']))
         preprocessor = MModePreprocessor(self.preprocessing_fn)
@@ -58,14 +64,15 @@ class GradCAMExplainer:
 
         preds, probs = predict_set(self.model, npz_df)
         idx = 0
-        for x, y in preprocessed_set:
+        for x, y in tqdm(preprocessed_set):
             filename = npz_df['filename'].iloc[idx]
             # Obtain gradient of output with respect to last convolutional layer weights
             with tf.GradientTape() as tape:
                 last_conv_layer = self.model.get_layer(self.last_conv_layer)
                 iterate = Model([self.model.inputs], [self.model.output, last_conv_layer.output])
                 model_out, last_conv_layer = iterate(x)
-                class_out = tf.math.maximum(1 - model_out[:, np.argmax(model_out[0])], model_out[:, np.argmax(model_out[0])])
+                class_out = tf.math.maximum(1 - model_out[:, np.argmax(model_out[0])],
+                                            model_out[:, np.argmax(model_out[0])])
                 grads = tape.gradient(class_out, last_conv_layer)
                 pooled_grads = tf.keras.backend.mean(grads, axis=(0, 1, 2))
 
@@ -76,20 +83,23 @@ class GradCAMExplainer:
             heatmap /= np.max(heatmap)
             heatmap = cv2.resize(heatmap, self.img_dim)
             heatmap = cv2.applyColorMap(np.uint8(255 * heatmap), cv2.COLORMAP_JET)
-            orig_img = self.get_mmode(filename)
+            heatmap = cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB)
+            orig_img = np.load(filename)['mmode']
+            orig_img = cv2.convertScaleAbs(cv2.cvtColor(np.float32(orig_img), cv2.COLOR_GRAY2RGB))
             heatmap_img = cv2.addWeighted(heatmap, self.hm_intensity, orig_img, 1.0 - self.hm_intensity, 0)
 
             # Visualize the Grad-CAM heatmap and optionally save it to disk
             img_filename = npz_df[self.x_col].iloc[idx]
             label = npz_df[self.y_col].iloc[idx]
+            folder = 'sliding' if label == 1 else 'no_sliding'
             _ = visualize_heatmap(orig_img, heatmap_img, img_filename, label, probs[idx], self.classes,
-                                  dir_path=self.save_img_dir)
-        idx += 1
+                                  dir_path=os.path.join(self.save_img_dir, folder))
+            idx += 1
         return heatmap
 
-    def get_heatmap_for_clip(self, npz_df=None):
+    def get_single_heatmap(self, npz_df=None):
         '''
-        Apply Grad-CAM to an individual LUS image
+        Apply Grad-CAM to an individual M-Mode
         :param frame_df: Pandas DataFrame of LUS frames
         :return: The heatmap produced by Grad-CAM
         '''
@@ -106,34 +116,10 @@ class GradCAMExplainer:
         heatmap = self.apply_gradcam(filtered_df)
         return heatmap
 
-    def get_mmode(self, filename):
-        '''
-        Get M-mode image from the specified npz file
-        :param filename: file name of npz file to use for M-mode reconstruction
-        :return: The M-mode image produced
-        '''
-        loaded = np.load(filename)
-        bounding_box = None
-        if cfg['PREPROCESS']['PARAMS']['USE_BOUNDING_BOX']:
-            clip, bounding_box, height_width = loaded['frames'], loaded['bounding_box'], loaded['height_width']
-        else:
-            clip, height_width = loaded['frames'], loaded['height_width']
-
-        # Extract m-mode
-        num_frames, new_height, new_width = clip.shape[0], clip.shape[1], clip.shape[2]
-        method = cfg['TRAIN']['M_MODE_SLICE_METHOD']
-        middle_pixel = get_middle_pixel_index(clip[0], bounding_box, height_width, method=method)
-
-        # Fix bad bounding box
-        if middle_pixel == 0:
-            middle_pixel = new_width // 2
-        three_slice = clip[:, :, middle_pixel - 1:middle_pixel + 2, 0]
-        mmode = np.median(three_slice, axis=2).T
-        mmode_image = mmode.reshape((new_height, num_frames, 1))
-
-        return cv2.convertScaleAbs(cv2.cvtColor(mmode_image, cv2.COLOR_GRAY2RGB))
-
 
 if __name__ == '__main__':
     gradcam = GradCAMExplainer()
-    gradcam.get_heatmap_for_clip()
+    if cfg['EXPLAINABILITY']['SINGLE_MMODE']:
+        gradcam.get_single_heatmap()
+    else:
+        gradcam.apply_gradcam(npz_df=pd.read_csv(cfg['EXPLAINABILITY']['PATHS']['NPZ_DF']))

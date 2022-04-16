@@ -6,13 +6,15 @@ import yaml
 import argparse
 from utils import refresh_folder
 from tqdm import tqdm
+from src.preprocessor import get_middle_pixel_index
 
 cfg = yaml.full_load(open(os.path.join(os.getcwd(),"../../config.yml"), 'r'))['PREPROCESS']
+cfg_full = yaml.full_load(open(os.path.join(os.getcwd(), "../../config.yml"), 'r'))
 
 # PIPELINE UPDATE FOR BOX AND ORIG DIMS NOT APPLIED FOR FLOW!!!
 
 
-def video_to_frames_downsampled(orig_id, patient_id, df_rows, cap, fr, seq_length=cfg['PARAMS']['WINDOW'],
+def video_to_frames_downsampled(orig_id, patient_id, df_rows, cap, fr, seq_length=cfg['PARAMS']['M_MODE_WIDTH'],
                                 resize=cfg['PARAMS']['IMG_SIZE'], write_path='', box=None,
                                 base_fr=cfg['PARAMS']['BASE_FR']):
 
@@ -74,7 +76,31 @@ def video_to_frames_downsampled(orig_id, patient_id, df_rows, cap, fr, seq_lengt
     return
 
 
-def video_to_frames_contig(orig_id, patient_id, df_rows, cap, seq_length=cfg['PARAMS']['WINDOW'],
+def miniclip_to_mmode(clip, bounding_box, height_width):
+    '''
+    Convert LUS mini-clip to M-mode image
+    :param clip: LUS clip
+    :param bounding_box: Tuple of (ymin, xmin, ymax, xmax) of pleural line ROI
+    :param height_width: original LUS frame dimensions before resizing
+    '''
+    # Extract m-mode
+    num_frames, new_height, new_width = clip.shape[0], clip.shape[1], clip.shape[2]
+    method = cfg_full['TRAIN']['M_MODE_SLICE_METHOD']
+    middle_pixel = get_middle_pixel_index(clip[0], bounding_box, height_width, method=method)
+
+    # Fix bad bounding box
+    if middle_pixel == 0:
+        middle_pixel = new_width // 2
+    three_slice = clip[:, :, middle_pixel - 1:middle_pixel + 2, 0]
+    mmode = np.median(three_slice, axis=2).T
+    mmode_image = cv2.resize(mmode, (cfg_full['PREPROCESS']['PARAMS']['M_MODE_WIDTH'], new_height),
+                             interpolation=cv2.INTER_CUBIC)
+    mmode_image = mmode_image.reshape((new_height, cfg_full['PREPROCESS']['PARAMS']['M_MODE_WIDTH'], 1))
+
+    return mmode_image
+
+
+def video_to_frames_contig(orig_id, patient_id, df_rows, cap, seq_length=cfg['PARAMS']['WINDOW_SECONDS'],
                            resize=cfg['PARAMS']['IMG_SIZE'], write_path='', box=None):
 
     '''
@@ -90,6 +116,8 @@ def video_to_frames_contig(orig_id, patient_id, df_rows, cap, seq_length=cfg['PA
     :param box: Tuple of (ymin, xmin, ymax, xmax) of pleural line ROI
     '''
 
+    fr = round(cap.get(cv2.CAP_PROP_FPS))
+    seq_length *= fr
     counter = seq_length
     mini_clip_num = 1  # nth mini-clip being made from the main clip
     frames = []
@@ -106,9 +134,10 @@ def video_to_frames_contig(orig_id, patient_id, df_rows, cap, seq_length=cfg['PA
             # When seq_length frames have been read, update df rows and write npz files
             # The id of the xth mini-clip from a main clip is the id of the main clip with _x appended to it
             if counter == 0:
-                df_rows.append([orig_id + '_' + str(mini_clip_num), patient_id])  # append to what will make output dataframes
-                np.savez_compressed(write_path + '_' + str(mini_clip_num), frames=frames,
-                                    bounding_box=box, height_width=(cap_height, cap_width))  # output
+                # append to what will make output dataframes
+                df_rows.append([orig_id + '_' + str(mini_clip_num), patient_id])
+                mmode = miniclip_to_mmode(np.array(frames), box, (cap_height, cap_width))
+                np.savez_compressed(write_path + '_' + str(mini_clip_num), mmode=mmode)  # output
                 counter = seq_length
                 mini_clip_num += 1
                 frames = []
@@ -129,11 +158,10 @@ def video_to_frames_contig(orig_id, patient_id, df_rows, cap, seq_length=cfg['PA
 
     finally:
         cap.release()
-
     return
 
 
-def flow_frames_to_npz_downsampled(path, orig_id, patient_id, df_rows, fr, seq_length=cfg['PARAMS']['WINDOW'],
+def flow_frames_to_npz_downsampled(path, orig_id, patient_id, df_rows, fr, seq_length=cfg['PARAMS']['M_MODE_WIDTH'],
                                    resize=cfg['PARAMS']['IMG_SIZE'], write_path='', base_fr=cfg['PARAMS']['BASE_FR']):
 
     '''
@@ -188,7 +216,7 @@ def flow_frames_to_npz_downsampled(path, orig_id, patient_id, df_rows, fr, seq_l
     return
 
 
-def flow_frames_to_npz_contig(path, orig_id, patient_id, df_rows, seq_length=cfg['PARAMS']['WINDOW'],
+def flow_frames_to_npz_contig(path, orig_id, patient_id, df_rows, seq_length=cfg['PARAMS']['M_MODE_WIDTH'],
                               resize=cfg['PARAMS']['IMG_SIZE'], write_path=''):
 
     '''
@@ -256,16 +284,8 @@ def video_to_npz(path, orig_id, patient_id, df_rows, write_path='', fr=None, box
 
     if not fr:
         fr = round(cap.get(cv2.CAP_PROP_FPS))
-        # Disregard clips with undesired frame rate, only if frame rate not passed in (passed in = override checking)
-        if not (fr % base_fr == 0):
-            return
-    else:  # If frame rate is passed, cast frame rate to closest multiple of base frame rate
-        fr = round(fr / base_fr) * base_fr
 
-    if fr == base_fr:
-        video_to_frames_contig(orig_id, patient_id, df_rows, cap, write_path=write_path, box=box)
-    else:
-        video_to_frames_downsampled(orig_id, patient_id, df_rows, cap, fr, write_path=write_path, box=box)
+    video_to_frames_contig(orig_id, patient_id, df_rows, cap, write_path=write_path, box=box)
 
 
 def parse_args():
@@ -277,7 +297,6 @@ def parse_args():
 
 
 if __name__ == '__main__':
-
     args = parse_args()
 
     flow = True if (args.flow == 'True') else False
