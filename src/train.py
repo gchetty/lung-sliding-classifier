@@ -16,7 +16,8 @@ from tensorflow.keras.metrics import Precision, Recall, AUC, TrueNegatives, True
 from tensorflow_addons.metrics import F1Score, FBetaScore
 from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLROnPlateau
 from sklearn.model_selection import StratifiedKFold
-from preprocessor import Preprocessor, FlowPreprocessor, TwoStreamPreprocessor, MModePreprocessor
+from preprocessor import Preprocessor, MModePreprocessor
+from preprocessor_flow import FlowPreprocessor, TwoStreamPreprocessor
 from visualization.visualization import plot_bayesian_hparam_opt, plot_roc, plot_to_tensor, plot_confusion_matrix
 from models.models import *
 from custom.metrics import Specificity, PhiCoefficient

@@ -8,7 +8,7 @@ from utils import refresh_folder
 from tqdm import tqdm
 from src.preprocessor import get_middle_pixel_index
 
-cfg = yaml.full_load(open(os.path.join(os.getcwd(),"../../config.yml"), 'r'))['PREPROCESS']
+cfg = yaml.full_load(open(os.path.join(os.getcwd(), "../../config.yml"), 'r'))['PREPROCESS']
 cfg_full = yaml.full_load(open(os.path.join(os.getcwd(), "../../config.yml"), 'r'))
 
 # PIPELINE UPDATE FOR BOX AND ORIG DIMS NOT APPLIED FOR FLOW!!!
@@ -161,109 +161,6 @@ def video_to_frames_contig(orig_id, patient_id, df_rows, cap, seq_length=cfg['PA
     return
 
 
-def flow_frames_to_npz_downsampled(path, orig_id, patient_id, df_rows, fr, seq_length=cfg['PARAMS']['M_MODE_WIDTH'],
-                                   resize=cfg['PARAMS']['IMG_SIZE'], write_path='', base_fr=cfg['PARAMS']['BASE_FR']):
-
-    '''
-    Converts a directory of x and y flow frames to mini-clips, downsampled, with flows stacked on axis = -1
-
-    :param path: Path to directory containing flow frames
-    :param orig_id: ID of the LUS video file associated with the flow frames
-    :param patient_id: Patient ID corresponding to the video file
-    :param df_rows: list of (mini-clip_ID, patient_ID), updated in this function, and later downloaded
-    :param fr: Frame rate (in FPS) of original LUS clip
-    :param seq_length: Length of each mini-clip
-    :param resize: [width, height], dimensions to resize frames to before saving
-    :param write_path: Path to directory where output mini-clips are saved
-    :param base_fr: Base frame rate to downsample to
-    '''
-
-    frames_x = []
-    frames_y = []
-
-    stride = fr // base_fr
-
-    # Read all flow frames
-    for file in os.listdir(path):
-
-        frame = cv2.imread(os.path.join(path, file), 0)
-        frame = cv2.resize(frame, tuple(reversed(resize)))
-
-        # NOT TESTED
-        weights = [0.2989, 0.5870, 0.1140]  # In accordance with tfa rgb to grayscale
-        frame = np.dot(frame, weights).astype(np.uint8)
-        frame = np.expand_dims(frame, axis=-1)
-
-        ind = int(file[7:12])  # flow frame number
-
-        if (ind - 1) % stride == 0:  # take every nth flow frame only
-            if '_x_' in file:
-                frames_x.append(frame)
-            else:
-                frames_y.append(frame)
-
-    counter = 1
-    num_mini_clips = len(frames_x) // seq_length
-
-    # Stack x and y flow (making 2 channels) and save mini-clip sequences
-    for i in range(num_mini_clips):
-        df_rows.append([orig_id + '_' + str(counter), patient_id])
-        x_seq = np.array(frames_x[i * seq_length:i * seq_length + seq_length])
-        y_seq = np.array(frames_y[i * seq_length:i * seq_length + seq_length])
-        np.savez_compressed(write_path + '_' + str(counter), frames=np.stack((x_seq, y_seq), axis=-1))
-        counter += 1
-
-    return
-
-
-def flow_frames_to_npz_contig(path, orig_id, patient_id, df_rows, seq_length=cfg['PARAMS']['M_MODE_WIDTH'],
-                              resize=cfg['PARAMS']['IMG_SIZE'], write_path=''):
-
-    '''
-    Converts a directory of x and y flow frames to contiguous mini-clips, with flows stacked on axis = -1
-
-    :param path: Path to directory containing flow frames
-    :param orig_id: ID of the LUS video file associated with the flow frames
-    :param patient_id: Patient ID corresponding to the video file
-    :param df_rows: list of (mini-clip_ID, patient_ID), updated in this function, and later downloaded
-    :param seq_length: Length of each mini-clip
-    :param resize: [width, height], dimensions to resize frames to before saving
-    :param write_path: Path to directory where output mini-clips are saved
-    '''
-
-    frames_x = []
-    frames_y = []
-
-    # Read all flow frames
-    for file in os.listdir(path):
-
-        frame = cv2.imread(os.path.join(path, file), 0)
-        frame = cv2.resize(frame, tuple(reversed(resize)))
-
-        # NOT TESTED
-        weights = [0.2989, 0.5870, 0.1140]  # In accordance with tfa rgb to grayscale
-        frame = np.dot(frame, weights).astype(np.uint8)
-        frame = np.expand_dims(frame, axis=-1)
-
-        if '_x_' in file:
-            frames_x.append(frame)
-        else:
-            frames_y.append(frame)
-
-    counter = 1
-    num_mini_clips = len(frames_x) // seq_length
-
-    # Stack x and y flow (making 2 channels) and save mini-clip sequences
-    for i in range(num_mini_clips):
-        df_rows.append([orig_id + '_' + str(counter), patient_id])
-        x_seq = np.array(frames_x[i * seq_length:i * seq_length + seq_length])
-        y_seq = np.array(frames_y[i * seq_length:i * seq_length + seq_length])
-        np.savez_compressed(write_path + '_' + str(counter), frames=np.stack((x_seq, y_seq), axis=-1))
-        counter += 1
-
-    return
-
-
 def video_to_npz(path, orig_id, patient_id, df_rows, write_path='', fr=None, box=None,
                  base_fr=cfg['PARAMS']['BASE_FR']):
 
@@ -290,7 +187,6 @@ def video_to_npz(path, orig_id, patient_id, df_rows, write_path='', fr=None, box
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Extract mini-clips as npzs")
-    parser.add_argument('--flow', default='False', type=str)
     parser.add_argument('--smooth', default='False', type=str)
     args = parser.parse_args()
     return args
@@ -298,15 +194,11 @@ def parse_args():
 
 if __name__ == '__main__':
     args = parse_args()
-
-    flow = True if (args.flow == 'True') else False
     smooth = True if (args.smooth == 'True') else False
 
     # Paths for video or frame input
     input_folder = ''
-    if flow:
-        input_folder = cfg['PATHS']['FLOW_VIDEOS']
-    elif smooth:
+    if smooth:
         input_folder = cfg['PATHS']['SMOOTHED_VIDEOS']
     else:
         input_folder = cfg['PATHS']['MASKED_VIDEOS']
@@ -314,12 +206,7 @@ if __name__ == '__main__':
     no_sliding_input = os.path.join(input_folder, 'no_sliding/')
 
     # Paths for npz output
-    npz_folder = ''
-
-    if not flow:
-        npz_folder = cfg['PATHS']['NPZ']
-    else:
-        npz_folder = cfg['PATHS']['FLOW_NPZ']
+    npz_folder = cfg['PATHS']['NPZ']
 
     refresh_folder(npz_folder)
 
@@ -352,81 +239,48 @@ if __name__ == '__main__':
 
     # Iterate through clips and extract & download mini-clips
 
-    if flow:
+    for file in tqdm(os.listdir(sliding_input)):
 
-        for id in os.listdir(sliding_input):
-            path = os.path.join(sliding_input, id)
-            patient_id = ((sliding_df[sliding_df['id'] == id])['patient_id']).values[0]
-            fr = ((sliding_fps_df[sliding_fps_df['id'] == id])['frame_rate']).values[0]
-            if fr == base_fr:
-                flow_frames_to_npz_contig(path, orig_id=id, patient_id=patient_id, df_rows=df_rows_sliding,
-                                          write_path=(sliding_npz_folder + id))
-            else:
-                flow_frames_to_npz_downsampled(path, orig_id=id, patient_id=patient_id, df_rows=df_rows_sliding, fr=fr,
-                                               write_path=(sliding_npz_folder + id))
+        f = os.path.join(sliding_input, file)
+        patient_id = ((sliding_df[sliding_df['id'] == file[:-4]])['patient_id']).values[0]
 
-        for id in os.listdir(no_sliding_input):
-            path = os.path.join(no_sliding_input, id)
-            patient_id = ((no_sliding_df[no_sliding_df['id'] == id])['patient_id']).values[0]
-            fr = ((no_sliding_fps_df[no_sliding_fps_df['id'] == id])['frame_rate']).values[0]
-            if fr == base_fr:
-                flow_frames_to_npz_contig(path, orig_id=id, patient_id=patient_id, df_rows=df_rows_no_sliding,
-                                          write_path=(no_sliding_npz_folder + id))
-            else:
-                flow_frames_to_npz_downsampled(path, orig_id=id, patient_id=patient_id, df_rows=df_rows_no_sliding,
-                                               fr=fr, write_path=(no_sliding_npz_folder + id))
+        if use_box:
+            query = sliding_box_df[sliding_box_df['id'] == file[:-4]]
 
-    else:
+            if not query.empty:
+                box_info = query.iloc[0]
+                box = (box_info['ymin'], box_info['xmin'], box_info['ymax'], box_info['xmax'])
 
-        for file in tqdm(os.listdir(sliding_input)):
-
-            f = os.path.join(sliding_input, file)
-            patient_id = ((sliding_df[sliding_df['id'] == file[:-4]])['patient_id']).values[0]
-
-            if use_box:
-                query = sliding_box_df[sliding_box_df['id'] == file[:-4]]
-
-                if not query.empty:
-                    box_info = query.iloc[0]
-                    box = (box_info['ymin'], box_info['xmin'], box_info['ymax'], box_info['xmax'])
-
-                    video_to_npz(f, orig_id=file[:-4], patient_id=patient_id, df_rows=df_rows_sliding,
-                                 write_path=(sliding_npz_folder + file[:-4]), box=box)
-            else:
                 video_to_npz(f, orig_id=file[:-4], patient_id=patient_id, df_rows=df_rows_sliding,
-                             write_path=(sliding_npz_folder + file[:-4]))
+                             write_path=(sliding_npz_folder + file[:-4]), box=box)
+        else:
+            video_to_npz(f, orig_id=file[:-4], patient_id=patient_id, df_rows=df_rows_sliding,
+                         write_path=(sliding_npz_folder + file[:-4]))
 
-        for file in tqdm(os.listdir(no_sliding_input)):
+    for file in tqdm(os.listdir(no_sliding_input)):
 
-            f = os.path.join(no_sliding_input, file)
-            patient_id = ((no_sliding_df[no_sliding_df['id'] == file[:-4]])['patient_id']).values[0]
+        f = os.path.join(no_sliding_input, file)
+        patient_id = ((no_sliding_df[no_sliding_df['id'] == file[:-4]])['patient_id']).values[0]
 
-            if use_box:
-                query = no_sliding_box_df[no_sliding_box_df['id'] == file[:-4]]
+        if use_box:
+            query = no_sliding_box_df[no_sliding_box_df['id'] == file[:-4]]
 
-                if not query.empty:
-                    box_info = query.iloc[0]
-                    box = (box_info['ymin'], box_info['xmin'], box_info['ymax'], box_info['xmax'])
+            if not query.empty:
+                box_info = query.iloc[0]
+                box = (box_info['ymin'], box_info['xmin'], box_info['ymax'], box_info['xmax'])
 
-                    video_to_npz(f, orig_id=file[:-4], patient_id=patient_id, df_rows=df_rows_no_sliding,
-                                 write_path=(no_sliding_npz_folder + file[:-4]), box=box)
-            else:
                 video_to_npz(f, orig_id=file[:-4], patient_id=patient_id, df_rows=df_rows_no_sliding,
-                             write_path=(no_sliding_npz_folder + file[:-4]))
+                             write_path=(no_sliding_npz_folder + file[:-4]), box=box)
+        else:
+            video_to_npz(f, orig_id=file[:-4], patient_id=patient_id, df_rows=df_rows_no_sliding,
+                         write_path=(no_sliding_npz_folder + file[:-4]))
 
     # Download dataframes linking mini-clip ids and patient ids as csv files
     out_df_sliding = pd.DataFrame(df_rows_sliding, columns=['id', 'patient_id'])
     out_df_no_sliding = pd.DataFrame(df_rows_no_sliding, columns=['id', 'patient_id'])
 
-    csv_out_path_sliding = ''
-    csv_out_path_no_sliding = ''
-
-    if flow:
-        csv_out_path_sliding = os.path.join(csv_out_folder, 'sliding_flow_mini_clips.csv')
-        csv_out_path_no_sliding = os.path.join(csv_out_folder, 'no_sliding_flow_mini_clips.csv')
-    else:
-        csv_out_path_sliding = os.path.join(csv_out_folder, 'sliding_mini_clips.csv')
-        csv_out_path_no_sliding = os.path.join(csv_out_folder, 'no_sliding_mini_clips.csv')
+    csv_out_path_sliding = os.path.join(csv_out_folder, 'sliding_mini_clips.csv')
+    csv_out_path_no_sliding = os.path.join(csv_out_folder, 'no_sliding_mini_clips.csv')
 
     out_df_sliding.to_csv(csv_out_path_sliding, index=False)
     out_df_no_sliding.to_csv(csv_out_path_no_sliding, index=False)
