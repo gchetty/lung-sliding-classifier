@@ -106,14 +106,6 @@ no_sliding_extra_df = pd.read_sql('''SELECT * FROM clips WHERE (pleural_line_fin
                                (pleural_effusion is null) AND (consolidation is null) AND 
                                labelbox_project_number LIKE 'Lung sliding sprint%';''', cnx)
 
-# Uncomment to query all extra sliding clips
-# sliding_extra_df = pd.read_sql('''SELECT * FROM clips WHERE (pleural_line_findings is null OR
-#                                 pleural_line_findings='thickened') AND
-#                                (quality NOT LIKE '%significant_probe_movement%' OR quality is null) AND
-#                                (a_or_b_lines='a_lines' OR a_or_b_lines='non_a_non_b' OR a_or_b_lines is null) AND
-#                                (pleural_effusion is null) AND (consolidation is null) AND
-#                                labelbox_project_number LIKE 'Lung sliding sprint%';''', cnx)
-
 # load extra infusion of sliding clips
 sliding_extra_df = pd.read_csv(os.path.join(cfg['PATHS']['CSVS_OUTPUT'], 'sliding_extra.csv'))
 

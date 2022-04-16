@@ -1,3 +1,8 @@
+"""
+THIS CODE IS TO BE USED WITH WaveBase Inc. AUTO-MASKING SOFTWARE
+FOR MORE INFORMATION, SEE https://www.wavebase.ai/
+"""
+
 import cv2
 import numpy as np
 import os
