@@ -261,8 +261,6 @@ packages.
 
 ## Contacts
 
-## Contacts
-
 **Robert Arntfield**  
 Project Lead  
 Deep Breathe  
