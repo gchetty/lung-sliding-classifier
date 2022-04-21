@@ -156,6 +156,27 @@ def log_train_params(writer, hparams):
     return
 
 
+def prepare_two_stream(train_df, val_df, test_df):
+    '''
+    Prepares dataset for two stream (mixed flow and videos) data
+    :param train_df: Training NPZ DataFrame linking each M-mode to its ground truth, associated clip, and patient
+    :param val_df: Validation NPZ DataFrame linking each M-mode to its ground truth, associated clip, and patient
+    :param test_df: Testing NPZ DataFrame linking each M-mode to its ground truth, associated clip, and patient
+    '''
+    x_train_ds = tf.data.Dataset.from_tensor_slices((train_df['filename'].tolist(),
+                                                     train_df['flow_filename'].tolist()))
+    x_val_ds = tf.data.Dataset.from_tensor_slices((val_df['filename'].tolist(), val_df['flow_filename'].tolist()))
+    x_test_ds = tf.data.Dataset.from_tensor_slices((test_df['filename'].tolist(),
+                                                    test_df['flow_filename'].tolist()))
+    y_train_ds = tf.data.Dataset.from_tensor_slices(train_df['label'])
+    y_val_ds = tf.data.Dataset.from_tensor_slices(val_df['label'])
+    y_test_ds = tf.data.Dataset.from_tensor_slices(test_df['label'])
+    train_set = tf.data.Dataset.zip((x_train_ds, y_train_ds))
+    val_set = tf.data.Dataset.zip((x_val_ds, y_val_ds))
+    test_set = tf.data.Dataset.zip((x_test_ds, y_test_ds))
+    return train_set, val_set, test_set
+
+
 def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
                 hparams=cfg['TRAIN']['PARAMS']['XCEPTION'],
                 model_out_dir=cfg['TRAIN']['PATHS']['MODEL_OUT'], train_df=None, val_df=None, log_name=None):
@@ -165,6 +186,9 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
     :param model_def_str: A string in {'test1', ... } specifying the name of the desired model
     :param hparams: A dictionary specifying the hyperparameters to use
     :param model_out_dir: The path to save the model
+    :param train_df: Training NPZ DataFrame linking each M-mode to its ground truth, associated clip, and patient
+    :param val_df: Validation NPZ DataFrame linking each M-mode to its ground truth, associated clip, and patient
+    :param log_name: Optionally include a name to be added to the filename of the logs for this training run
     '''
 
     # Enable mixed precision
@@ -187,14 +211,20 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
     if train_df is None or val_df is None:
 
         # Read in training, validation, and test dataframes
-        if flow == 'Yes':
-            train_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'flow_train.csv'))  # [:20]
-            val_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'flow_val.csv'))  # [:20]
-            test_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'flow_test.csv'))  # [:20]
-        else:
+        if m_mode or (not (flow == 'Both')):
+            if flow == 'Yes':
+                train_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'flow_train.csv'))  # [:20]
+                val_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'flow_val.csv'))  # [:20]
+                test_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'flow_test.csv'))  # [:20]
+            else:
+                train_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'train.csv'))  # [:20]
+                val_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'val.csv'))  # [:20]
+                test_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'test.csv'))  # [:20]
+        elif flow == 'Both' and not m_mode:
             train_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'train.csv'))  # [:20]
             val_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'val.csv'))  # [:20]
             test_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'test.csv'))  # [:20]
+            train_set, val_set, test_set = prepare_two_stream(train_df, val_df, test_df)
 
     # Create TF datasets for training, validation and test sets
     # Note: This does NOT load the dataset into memory! We specify paths,
@@ -209,6 +239,8 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
         preprocessor = MModePreprocessor(preprocessing_fn)
     elif flow == 'Yes':
         preprocessor = FlowPreprocessor(preprocessing_fn)
+    elif flow == 'Both':
+        preprocessor = TwoStreamPreprocessor(preprocessing_fn)
     else:
         preprocessor = Preprocessor(preprocessing_fn)
 
