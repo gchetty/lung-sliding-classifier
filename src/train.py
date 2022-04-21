@@ -220,19 +220,19 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
                 train_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'train.csv'))  # [:20]
                 val_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'val.csv'))  # [:20]
                 test_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'test.csv'))  # [:20]
+
+            # Create TF datasets for training, validation and test sets
+            # Note: This does NOT load the dataset into memory! We specify paths,
+            #       and labels so that TensorFlow can perform dynamic loading.
+            train_set = tf.data.Dataset.from_tensor_slices((train_df['filename'].tolist(), train_df['label']))
+            val_set = tf.data.Dataset.from_tensor_slices((val_df['filename'].tolist(), val_df['label']))
+            if cfg['TRAIN']['SPLITS']['TEST'] > 0:
+                test_set = tf.data.Dataset.from_tensor_slices((test_df['filename'].tolist(), test_df['label']))
         elif flow == 'Both' and not m_mode:
             train_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'train.csv'))  # [:20]
             val_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'val.csv'))  # [:20]
             test_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'test.csv'))  # [:20]
             train_set, val_set, test_set = prepare_two_stream(train_df, val_df, test_df)
-
-    # Create TF datasets for training, validation and test sets
-    # Note: This does NOT load the dataset into memory! We specify paths,
-    #       and labels so that TensorFlow can perform dynamic loading.
-    train_set = tf.data.Dataset.from_tensor_slices((train_df['filename'].tolist(), train_df['label']))
-    val_set = tf.data.Dataset.from_tensor_slices((val_df['filename'].tolist(), val_df['label']))
-    if cfg['TRAIN']['SPLITS']['TEST'] > 0:
-        test_set = tf.data.Dataset.from_tensor_slices((test_df['filename'].tolist(), test_df['label']))
 
     # Create preprocessing object given the preprocessing function for model_def
     if m_mode:
