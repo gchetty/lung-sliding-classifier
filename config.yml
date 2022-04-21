@@ -48,7 +48,7 @@ PREPROCESS:
 # TRAIN encompasses all of the parameters to adjust for training models, which all assume that miniclips are stored and preprocessed
 # as desired above. This could use a refactor in the future.
 TRAIN:
-  EXPERIMENT_TYPE: 'cross_val' # choose from [single_train, hparam_search, hparam_cross_val_search, cross_val]
+  EXPERIMENT_TYPE: 'train_single' # choose from [train_single, hparam_search, hparam_cross_val_search, cross_val]
   M_MODE: True  # Choose whether or not to perform the M Mode transformation.
   M_MODE_SLICE_METHOD: 'brightest_vertical_sum_sampled' #'brightest_vertical_sum_sampled'  # 'brightest_vertical_sum_sampled', 'brightest_vertical_sum_box' (needs bounding box), 'brightest_vertical_sum', 'brightest' (for brightest pixel),  'box_middle' (needs bounding box) or 'random'.
   M_MODE_SLICE_SAMPLE: 15 # for 'brightest_vertical_sum_sampled', number of slices to randomly sample (top k brightest sums)
@@ -251,7 +251,7 @@ CROSS_VAL:
 
 PREDICT:
   MODEL: 'results/models/efficientnet/20220325-190905/'  # Trained model used to generate predictions
-  TEST_DF: 'csvs_split/test.csv' # table of mini-clips to generate predictions for
+  TEST_DF: 'csvs_split/test.csv' # table of NPZs to generate predictions for
   PREDICTIONS_OUT: '../results/predictions'
 
 # EXPLAINABILITY encompasses the parameters needed to produce heatmaps, currently only for convolution-based networks.
@@ -261,7 +261,6 @@ EXPLAINABILITY:
   # Path variables required for heatmap generation
   PATHS:
     NPZ: 'data/npzs/'  # Directory holding NPZs that heatmaps can be generated for.
-    FR_CSVS: 'data/csvs/'  # Directory with tables produced in preprocessing pipeline.
-    NPZ_DF: 'csvs_split/train.csv'  # Table of mini-clips that heatmaps can be generated for.
+    NPZ_DF: 'csvs_split/test.csv'  # Table of mini-clips that heatmaps can be generated for.
     MODEL: 'results/models/efficientnet/20220325-190905'  # Trained model used to generate heatmaps.
     FEATURE_HEATMAPS: 'feature_heatmaps/'  # Output directory for heatmap videos.

@@ -167,8 +167,6 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
     :param model_out_dir: The path to save the model
     '''
 
-    # hparams = cfg['TRAIN']['PARAMS'][model_def_str.upper()]
-
     # Enable mixed precision
     mixed_precision = cfg['TRAIN']['MIXED_PRECISION']
     if mixed_precision:
@@ -448,6 +446,10 @@ def bayesian_hparam_optimization(checkpoint=None, df=None, cross_val_runs=0):
     :param cross_val_runs: number of runs for each hparam combination (on different validation folds)
     :return: Dict of hyperparameters deemed optimal
     '''
+
+    # set test split to 0 to avoid model testing on test set data
+    cfg['TRAIN']['SPLITS']['TEST'] = 0.
+
     model_name = cfg['TRAIN']['MODEL_DEF'].upper()
     cur_datetime = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     objective_metric = cfg['HPARAM_SEARCH']['OBJECTIVE']
@@ -622,14 +624,14 @@ def cross_validation(df=None, hparams=None):
     return metrics_df
 
 
-def train_experiment(experiment='single_train', checkpoint=None):
+def train_experiment(experiment='train_single', checkpoint=None):
     '''
     Run a specific type of training experiment (single, hparam search, hparam search with cross val, cross val)
     :param experiment: type of experiment
     :param checkpoint: name of checkpoint to load for hparam search
     '''
     model_def_str = cfg['TRAIN']['MODEL_DEF']
-    if experiment == 'single_train':
+    if experiment == 'train_single':
         train_model(hparams=cfg['TRAIN']['PARAMS'][model_def_str.upper()])
     elif experiment == 'hparam_search':
         if cfg['HPARAM_SEARCH']['LOAD_CHECKPOINT']:
