@@ -24,7 +24,6 @@ def augment_flow(x):
     x = tf.map_fn(lambda x1: preprocessor.random_shift_clip(x1), x)
     x = tf.map_fn(lambda x1: preprocessor.random_flip_left_right_clip(x1), x)
     x = tf.map_fn(lambda x1: preprocessor.random_zoom_clip(x1), x)
-    # AUGMENT RANDOM NOISE WONT WORK RN BECAUSE
     return x
 
 
@@ -51,18 +50,13 @@ def augment_two_stream(x1, x2):
         x)
     x = tf.map_fn(lambda x1: tf.image.random_contrast(x1, cfg['TRAIN']['PARAMS']['AUGMENTATION']['CONTRAST_BOUNDS'][0],
                                                       cfg['TRAIN']['PARAMS']['AUGMENTATION']['CONTRAST_BOUNDS'][1]), x)
-    #x = tf.map_fn(lambda x1: random_shift_clip(x1), x)
     x = tf.map_fn(lambda x1: preprocessor.random_flip_left_right_clip(x1), x)
-    #x = tf.map_fn(lambda x1: random_zoom_clip(x1), x)
     x = tf.map_fn(lambda x1: preprocessor.random_noise(x1), x)
 
     # Separate regular and flow mini-clips
     x1, x2 = tf.split(x, 2, axis=-4)
     x2 = tf.split(x2, [2, 1], axis=-1)[0]
-
-    #tf.ensure_shape(x1, [window] + img_size + [3])
     x1.set_shape([window] + img_size + [3])
-    #tf.ensure_shape(x2, [window] + img_size + [2])
     x2.set_shape([window] + img_size + [2])
 
     return x1, x2
