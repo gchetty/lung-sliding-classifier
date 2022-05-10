@@ -14,9 +14,6 @@ from src.models.models import get_model
 from src.preprocessor import MModePreprocessor
 from src.predict import predict_set
 from tqdm import tqdm
-import gc
-
-from src.preprocessor import get_middle_pixel_index
 
 cfg = yaml.full_load(open(os.path.join(os.getcwd(), "../config.yml"), 'r'))
 

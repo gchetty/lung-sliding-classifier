@@ -16,7 +16,8 @@ from tensorflow.keras.metrics import Precision, Recall, AUC, TrueNegatives, True
 from tensorflow_addons.metrics import F1Score, FBetaScore
 from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLROnPlateau
 from sklearn.model_selection import StratifiedKFold
-from preprocessor import Preprocessor, FlowPreprocessor, TwoStreamPreprocessor, MModePreprocessor
+from preprocessor import Preprocessor, MModePreprocessor
+from preprocessor_flow import FlowPreprocessor, TwoStreamPreprocessor
 from visualization.visualization import plot_bayesian_hparam_opt, plot_roc, plot_to_tensor, plot_confusion_matrix
 from models.models import *
 from custom.metrics import Specificity, PhiCoefficient
@@ -155,6 +156,27 @@ def log_train_params(writer, hparams):
     return
 
 
+def prepare_two_stream(train_df, val_df, test_df):
+    '''
+    Prepares dataset for two stream (mixed flow and videos) data
+    :param train_df: Training NPZ DataFrame linking each M-mode to its ground truth, associated clip, and patient
+    :param val_df: Validation NPZ DataFrame linking each M-mode to its ground truth, associated clip, and patient
+    :param test_df: Testing NPZ DataFrame linking each M-mode to its ground truth, associated clip, and patient
+    '''
+    x_train_ds = tf.data.Dataset.from_tensor_slices((train_df['filename'].tolist(),
+                                                     train_df['flow_filename'].tolist()))
+    x_val_ds = tf.data.Dataset.from_tensor_slices((val_df['filename'].tolist(), val_df['flow_filename'].tolist()))
+    x_test_ds = tf.data.Dataset.from_tensor_slices((test_df['filename'].tolist(),
+                                                    test_df['flow_filename'].tolist()))
+    y_train_ds = tf.data.Dataset.from_tensor_slices(train_df['label'])
+    y_val_ds = tf.data.Dataset.from_tensor_slices(val_df['label'])
+    y_test_ds = tf.data.Dataset.from_tensor_slices(test_df['label'])
+    train_set = tf.data.Dataset.zip((x_train_ds, y_train_ds))
+    val_set = tf.data.Dataset.zip((x_val_ds, y_val_ds))
+    test_set = tf.data.Dataset.zip((x_test_ds, y_test_ds))
+    return train_set, val_set, test_set
+
+
 def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
                 hparams=cfg['TRAIN']['PARAMS']['XCEPTION'],
                 model_out_dir=cfg['TRAIN']['PATHS']['MODEL_OUT'], train_df=None, val_df=None, log_name=None):
@@ -164,9 +186,10 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
     :param model_def_str: A string in {'test1', ... } specifying the name of the desired model
     :param hparams: A dictionary specifying the hyperparameters to use
     :param model_out_dir: The path to save the model
+    :param train_df: Training NPZ DataFrame linking each M-mode to its ground truth, associated clip, and patient
+    :param val_df: Validation NPZ DataFrame linking each M-mode to its ground truth, associated clip, and patient
+    :param log_name: Optionally include a name to be added to the filename of the logs for this training run
     '''
-
-    # hparams = cfg['TRAIN']['PARAMS'][model_def_str.upper()]
 
     # Enable mixed precision
     mixed_precision = cfg['TRAIN']['MIXED_PRECISION']
@@ -188,28 +211,36 @@ def train_model(model_def_str=cfg['TRAIN']['MODEL_DEF'],
     if train_df is None or val_df is None:
 
         # Read in training, validation, and test dataframes
-        if flow == 'Yes':
-            train_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'flow_train.csv'))  # [:20]
-            val_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'flow_val.csv'))  # [:20]
-            test_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'flow_test.csv'))  # [:20]
-        else:
+        if m_mode or (not (flow == 'Both')):
+            if flow == 'Yes':
+                train_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'flow_train.csv'))  # [:20]
+                val_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'flow_val.csv'))  # [:20]
+                test_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'flow_test.csv'))  # [:20]
+            else:
+                train_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'train.csv'))  # [:20]
+                val_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'val.csv'))  # [:20]
+                test_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'test.csv'))  # [:20]
+
+            # Create TF datasets for training, validation and test sets
+            # Note: This does NOT load the dataset into memory! We specify paths,
+            #       and labels so that TensorFlow can perform dynamic loading.
+            train_set = tf.data.Dataset.from_tensor_slices((train_df['filename'].tolist(), train_df['label']))
+            val_set = tf.data.Dataset.from_tensor_slices((val_df['filename'].tolist(), val_df['label']))
+            if cfg['TRAIN']['SPLITS']['TEST'] > 0:
+                test_set = tf.data.Dataset.from_tensor_slices((test_df['filename'].tolist(), test_df['label']))
+        elif flow == 'Both' and not m_mode:
             train_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'train.csv'))  # [:20]
             val_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'val.csv'))  # [:20]
             test_df = pd.read_csv(os.path.join(CSVS_FOLDER, 'test.csv'))  # [:20]
-
-    # Create TF datasets for training, validation and test sets
-    # Note: This does NOT load the dataset into memory! We specify paths,
-    #       and labels so that TensorFlow can perform dynamic loading.
-    train_set = tf.data.Dataset.from_tensor_slices((train_df['filename'].tolist(), train_df['label']))
-    val_set = tf.data.Dataset.from_tensor_slices((val_df['filename'].tolist(), val_df['label']))
-    if cfg['TRAIN']['SPLITS']['TEST'] > 0:
-        test_set = tf.data.Dataset.from_tensor_slices((test_df['filename'].tolist(), test_df['label']))
+            train_set, val_set, test_set = prepare_two_stream(train_df, val_df, test_df)
 
     # Create preprocessing object given the preprocessing function for model_def
     if m_mode:
         preprocessor = MModePreprocessor(preprocessing_fn)
     elif flow == 'Yes':
         preprocessor = FlowPreprocessor(preprocessing_fn)
+    elif flow == 'Both':
+        preprocessor = TwoStreamPreprocessor(preprocessing_fn)
     else:
         preprocessor = Preprocessor(preprocessing_fn)
 
@@ -447,6 +478,10 @@ def bayesian_hparam_optimization(checkpoint=None, df=None, cross_val_runs=0):
     :param cross_val_runs: number of runs for each hparam combination (on different validation folds)
     :return: Dict of hyperparameters deemed optimal
     '''
+
+    # set test split to 0 to avoid model testing on test set data
+    cfg['TRAIN']['SPLITS']['TEST'] = 0.
+
     model_name = cfg['TRAIN']['MODEL_DEF'].upper()
     cur_datetime = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     objective_metric = cfg['HPARAM_SEARCH']['OBJECTIVE']
@@ -621,14 +656,14 @@ def cross_validation(df=None, hparams=None):
     return metrics_df
 
 
-def train_experiment(experiment='single_train', checkpoint=None):
+def train_experiment(experiment='train_single', checkpoint=None):
     '''
     Run a specific type of training experiment (single, hparam search, hparam search with cross val, cross val)
     :param experiment: type of experiment
     :param checkpoint: name of checkpoint to load for hparam search
     '''
     model_def_str = cfg['TRAIN']['MODEL_DEF']
-    if experiment == 'single_train':
+    if experiment == 'train_single':
         train_model(hparams=cfg['TRAIN']['PARAMS'][model_def_str.upper()])
     elif experiment == 'hparam_search':
         if cfg['HPARAM_SEARCH']['LOAD_CHECKPOINT']:
