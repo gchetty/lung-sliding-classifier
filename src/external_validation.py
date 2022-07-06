@@ -1,21 +1,57 @@
 import os
+import sys
+import yaml
+import gc
+import datetime
+import tensorflow as tf
+import numpy as np
+import pandas as pd
 from src.preprocessor import MModePreprocessor
 from models.models import get_model
-from train import *
-from predict import *
-from src.custom.metrics import *
+from train import log_train_params
+from predict import predict_set
+from src.custom.metrics import Specificity, PhiCoefficient
 from src.data.utils import refresh_folder
+from tensorflow.keras.models import load_model
+from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
+from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.metrics import Precision, Recall, AUC, TrueNegatives, TruePositives, FalseNegatives, \
     FalsePositives, Accuracy, SensitivityAtSpecificity
 from tensorflow_addons.metrics.f_scores import F1Score
+from tensorflow_addons.losses import SigmoidFocalCrossEntropy
 
-import tensorflow as tf
-
+# cfg refers to the subdictionary of the config file pertaining to our fine-tuning experiments. cfg_full is the entire
+# loaded config file.
 cfg = yaml.full_load(open(os.path.join(os.getcwd(), "config.yml"), 'r'))['GENERALIZE']
 cfg_full = yaml.full_load(open(os.path.join(os.getcwd(), "config.yml"), 'r'))
 
 
+def make_scheduler(writer, hparams):
+    def scheduler(epoch, lr):
+        '''
+        Returns learning rate for the upcoming epoch based on a set schedule
+        Decreases learning rate by a factor of e^-(DECAY_VAL) starting at epoch 15
+
+        :param epoch: Integer, training epoch number
+        :param lr: Float, current learning rate
+
+        :return: Float, new learning rate
+        '''
+        learning_rate = lr
+        if epoch > hparams['LR_DECAY_EPOCH']:
+            learning_rate = lr * tf.math.exp(-1 * hparams['LR_DECAY_VAL'])
+        with writer.as_default():  # Write LR scalar to log directory
+            tf.summary.scalar('learning rate', data=learning_rate, step=epoch)
+        return learning_rate
+    return scheduler
+
+
 def write_folds_to_txt(folds, file_path):
+    '''
+    Saves patient id folds to .txt file in the following structure:
+    -> An integer, n, which indicates the length of the current fold
+    -> Followed by n lines, each containing one (unique) patient id
+    '''
     txt = open(file_path, "a")
     for i in range(len(folds)):
         txt.write(str(len(folds[i])) + '\n')
@@ -24,7 +60,7 @@ def write_folds_to_txt(folds, file_path):
     txt.close()
 
 
-def label_file(file):
+def add_date_to_filename(file):
     '''
     Labels a file name with useful information about date and time.
     :param file: name of file as string
@@ -35,29 +71,49 @@ def label_file(file):
     return labelled_filename
 
 
-class CucumberTrainer:
+def check_performance(df):
+    '''
+    Returns true if all metrics stored in the supplied results DataFrame meet fine-tuning standards, or False otherwise.
+    :param df: DataFrame storing model performance metrics to be evaluated against fine-tune performance thresholds.
+    '''
+    # Return false if values less than these thresholds
+    lower_bounds = ['accuracy', 'auc', 'recall', 'precision', 'true_negatives', 'true_positives']
+    # Return false if values greater than these thresholds
+    upper_bounds = ['false_negatives', 'true_positives']
+
+    for thresh in lower_bounds:
+        if df[thresh].values[0] < cfg['FINETUNE']['METRIC_THRESHOLDS'][thresh.upper()]:
+            return False
+    for thresh in upper_bounds:
+        if df[thresh].values[0] > cfg['FINETUNE']['METRIC_THRESHOLDS'][thresh.upper()]:
+            return False
+
+    return True
+
+
+# TAAFT stands for: Threshold-Aware Accumulative Fine-Tuner
+class TAAFT:
     '''
     The CucumberTrainer class encapsulates the implementation of the fine-tuning for generalizability experiments.
     Handles fold sampling and fine-tuning trials.
     '''
-    def __init__(self, df, k):
+    def __init__(self, clip_df, k):
         '''
         :param df: DataFrame containing all clip data from external centers
-        :param mmode_folder: Path to M-mode images corresponding to clips in df
         :param k: Number of folds in which to split data in df by patient id
         '''
         print("CREATING A NEW CUCUMBER TRAINER (k = {})".format(k))
         self.k = k
-        self.df = df
+        self.clip_df = clip_df
 
     def sample_folds(self):
         '''
-        Samples external data in self.df into self.k folds. Preserves ratio of positive to negative classes in each fold.
+        Samples external data in self.clip_df into self.k folds. Preserves ratio of positive to negative classes in each fold.
         Folds are saved in a .txt file, where each fold is identified with an integer index, followed by each patient id
         in the fold on a new line.
         '''
-        sliding_df = self.df[self.df['pleural_line_findings'] != 'absent_lung_sliding']
-        no_sliding_df = self.df[self.df['pleural_line_findings'] == 'absent_lung_sliding']
+        sliding_df = self.clip_df[self.clip_df['pleural_line_findings'] != 'absent_lung_sliding']
+        no_sliding_df = self.clip_df[self.clip_df['pleural_line_findings'] == 'absent_lung_sliding']
 
         # Get unique patient ids.
         sliding_ids = sliding_df.patient_id.unique()
@@ -101,9 +157,8 @@ class CucumberTrainer:
 
         # Note: the code block above assumes that, if the number of sliding ids is not perfectly divisible by the
         # desired number of folds, then we make one fold slightly bigger than the rest. This must be modified if
-        # we choose to keep the smaller "leftover" fold.
+        # we choose not to keep the smaller "leftover" fold.
 
-        # f = open(folds_path, "a")
         sliding_count = 0
         sliding = []
         no_sliding = []
@@ -112,19 +167,19 @@ class CucumberTrainer:
         # Populate each fold with sliding ids
         cur_fold_num = 0
         for size in fold_sizes:
-            # f.write(str(cur_fold_num + 1) + '\n')
             for i in range(size):
                 cur_id = sliding_ids[-1]
                 sliding_ids = sliding_ids[:-1]
                 cur_fold.append(cur_id)
                 clips_by_id = sliding_df[sliding_df['patient_id'] == cur_id]
                 sliding_count += len(clips_by_id)
-                # f.write(cur_id + '\n')
             folds.append(cur_fold)
             cur_fold = []
             cur_fold_num += 1
             sliding.append(sliding_count)
             sliding_count = 0
+
+        num_folds = len(folds)
 
         # Distribute non-sliding ids across folds. This is done in a roulette-like manner so that the ratio of negative
         # to positive classes in each fold is preserved.
@@ -133,16 +188,16 @@ class CucumberTrainer:
             if len(no_sliding_ids) == 0:
                 break
             cur_id = no_sliding_ids[-1]
-            folds[i % len(folds)].append(cur_id)
+            folds[i % num_folds].append(cur_id)
             no_sliding_ids = no_sliding_ids[:-1]
             clips_by_id = no_sliding_df[no_sliding_df['patient_id'] == cur_id]
             no_sliding_count = len(clips_by_id)
-            if i < len(folds):
+            if i < num_folds:
                 no_sliding.append(no_sliding_count)
             else:
-                no_sliding[i % len(folds)] += no_sliding_count
+                no_sliding[i % num_folds] += no_sliding_count
             i += 1
-        for i in range(len(folds)):
+        for i in range(num_folds):
             print("Fold {}: There are {} clips with lung sliding, and {} clips without lung sliding. Negative:Positive ~ {}"
                   .format(i + 1, sliding[i], no_sliding[i], round(sliding[i] / no_sliding[i], 3)))
 
@@ -156,32 +211,12 @@ class CucumberTrainer:
 
         print("Sampling complete with seed = " + str(cfg['FOLD_SAMPLE']['SEED']) + ". Folds saved to " + folds_path + ".")
 
-    def finetune_single_trial(self, hparams=None, cross_val=True):
+    def finetune_single_trial(self, hparams=None):
         '''
         Performs a single fine-tuning trial. Fine-tunes a model on external clip data, repeatedly augmenting external
         data slices to a training set until all external data has been used for training.
         :param hparams: Specifies the set of hyperparameters for fine-tuning the model.
         '''
-        # Helper function: returns True if all metric requirements are satisfied. Argument is DataFrame with metrics.
-        def performance_ok(df):
-            thresholds = cfg['FINETUNE']['THRESHOLDS']
-            if df['accuracy'].values[0] < thresholds['ACCURACY']:
-                return False
-            if df['auc'].values[0] < thresholds['AUC']:
-                return False
-            if df['recall'].values[0] < thresholds['RECALL']:
-                return False
-            if df['precision'].values[0] < thresholds['PRECISION']:
-                return False
-            if df['true_negatives'].values[0] < thresholds['TRUE_NEGATIVES']:
-                return False
-            if df['true_positives'].values[0] < thresholds['TRUE_POSITIVES']:
-                return False
-            if df['false_negatives'].values[0] > thresholds['FALSE_NEGATIVES']:
-                return False
-            if df['true_positives'].values[0] > thresholds['FALSE_POSITIVES']:
-                return False
-            return True
 
         print('Reading values from the config file...')
 
@@ -204,10 +239,10 @@ class CucumberTrainer:
         CSVS_FOLDER = cfg_full['TRAIN']['PATHS']['CSVS']
         EXT_FOLDER = cfg['PATHS']['CSVS_SPLIT']
 
-        folds_path = cfg['PATHS']['FOLDS']
+        FOLDS_PATH = cfg['PATHS']['FOLDS']
 
         # Ensure that the partition path has been created before running this code!
-        folds_file = os.path.join(folds_path, os.listdir(folds_path)[0])
+        folds_file = os.path.join(FOLDS_PATH, os.listdir(FOLDS_PATH)[0])
         print('Retrieving patient folds from {}...'.format(folds_file))
         folds = open(folds_file, "r")
         cur_fold = []
@@ -232,20 +267,20 @@ class CucumberTrainer:
 
         # set up the labelled external dataframe for augmenting the training data
         ext_dfs = []
-        for center in ['chile', 'ottawa']:
+        for center in cfg['LOCATIONS']:
             center_split_path = os.path.join(EXT_FOLDER, center)
             for csv in ['train.csv', 'val.csv']:
                 ext_dfs.append(pd.read_csv(os.path.join(center_split_path, csv)))
         ext_df = pd.concat(ext_dfs, ignore_index=True)
-        labelled_ext_df_path = os.path.join(os.getcwd(), 'generalizability/csvs/labelled_external_dfs/')
+        labelled_ext_df_path = os.path.join(cfg['CSV_OUT'], 'labelled_external_dfs/')
         if cfg['REFRESH_FOLDERS']:
             refresh_folder(labelled_ext_df_path)
-        labelled_ext_df_path += label_file('labelled_ext')
+        labelled_ext_df_path += add_date_to_filename('labelled_ext')
         ext_df.to_csv(labelled_ext_df_path)
 
         train_df = pd.DataFrame([])
 
-        print('Setup complete; cucumber slices ready! Don\'t forget hummus :)')
+        print('Setup complete')
 
         # Cucumber trial starts here.
         cur_fold_num = 0
@@ -253,10 +288,11 @@ class CucumberTrainer:
         add_set = []
         # Loop until all external data has been used up.
         while num_folds_added < cfg['FOLD_SAMPLE']['NUM_FOLDS']:
-            print('\n========================== TRIAL START =============================\n')
+            print('\n========================== STARTING TRIAL {} OF MAXIMUM {} =============================\n'
+                  .format(str(num_folds_added + 1), len(fold_list)))
             # Evaluate the model on the external test set. Note that we load the original pre-finetuned model at each
             # iteration to minimize codependence between runs of a given trial.
-            model = keras.models.load_model(cfg_full['PREDICT']['MODEL'], compile=False)
+            model = load_model(cfg_full['PREDICT']['MODEL'], compile=False)
             pred_labels, probs = predict_set(model, ext_df)
             # Can change these metrics as necessary
             metrics = [Accuracy(name='accuracy'), AUC(), F1Score(num_classes=2, average='micro', threshold=0.5), Precision(name='precision'), Recall(name='recall'),
@@ -267,6 +303,8 @@ class CucumberTrainer:
             results = []
             metric_names = []
             for metric in metrics:
+                # Probabilities are stored as floats, while Accuracy metric compares integer values for labels and
+                # probs. Round probabilities to the closer value of 0 or 1.
                 if metric.name == 'Accuracy':
                     probs = np.rint(probs)
                 metric.update_state(ext_df['label'], probs)
@@ -282,14 +320,14 @@ class CucumberTrainer:
                 refresh_folder(predictions_path)
 
             # Save the metric result DataFrame.
-            csv_name = label_file('') + '_metrics.csv'
+            csv_name = add_date_to_filename('') + '_metrics.csv'
             res_df.to_csv(os.path.join(predictions_path, csv_name), index=False)
             print("Metric results saved to", predictions_path)
 
             # If the model performs well on the external test set, save it! (Stop the trial here.)
-            if performance_ok(res_df):
+            if check_performance(res_df):
                 print('Model performance ok. Saving model...')
-                model.save(os.path.join(model_out_dir, label_file('finetuned_model') + '.pb'))
+                model.save(os.path.join(model_out_dir, add_date_to_filename('finetuned_model') + '.pb'))
                 write_folds_to_txt(add_set, cfg['PATHS']['FOLDS_USED'])
                 continue
 
@@ -304,6 +342,8 @@ class CucumberTrainer:
 
             # Augment the training data.
             train_df = pd.concat([train_df, add_df])
+
+            # Shuffle the training data.
             train_df.sample(frac=1)
             print('Training clips: {}\nValidation clips: {}'.format(len(train_df), len(ext_df)))
 
@@ -327,7 +367,7 @@ class CucumberTrainer:
                 else:
                     prev_model_path = os.path.join(cfg_full['TRAIN']['PATHS']['MODEL_OUT'],
                                                    os.listdir(cfg_full['TRAIN']['PATHS']['MODEL_OUT'])[-1])
-                model = keras.models.load_model(prev_model_path, compile=False)
+                model = load_model(prev_model_path, compile=False)
 
                 print('FINE-TUNING MODEL FOR FOLD ' + str(cv_run) + ' OF EXTERNAL CLIP TRAINING SET')
 
@@ -366,7 +406,7 @@ class CucumberTrainer:
                     os.makedirs(tensorboard_path)
 
                 # Log metrics
-                log_dir = label_file(cfg_full['TRAIN']['PATHS']['TENSORBOARD'])
+                log_dir = add_date_to_filename(cfg_full['TRAIN']['PATHS']['TENSORBOARD'])
 
                 # uncomment line below to include tensorboard profiler in callbacks
                 # basic_call = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1, profile_batch=1)
@@ -375,27 +415,11 @@ class CucumberTrainer:
                 # Learning rate scheduler & logging LR
                 writer1 = tf.summary.create_file_writer(log_dir + '/train')
 
-                def scheduler(epoch, lr):
-                    '''
-                    Returns learning rate for the upcoming epoch based on a set schedule
-                    Decreases learning rate by a factor of e^-(DECAY_VAL) starting at epoch 15
-
-                    :param epoch: Integer, training epoch number
-                    :param lr: Float, current learning rate
-
-                    :return: Float, new learning rate
-                    '''
-                    learning_rate = lr
-                    if epoch > hparams['LR_DECAY_EPOCH']:
-                        learning_rate = lr * tf.math.exp(-1 * hparams['LR_DECAY_VAL'])
-                    with writer1.as_default():  # Write LR scalar to log directory
-                        tf.summary.scalar('learning rate', data=learning_rate, step=epoch)
-                    return learning_rate
-
+                scheduler = make_scheduler(writer1, hparams)
                 lr_callback = tf.keras.callbacks.LearningRateScheduler(scheduler)
 
                 # Creating a ModelCheckpoint for saving the model
-                save_cp = ModelCheckpoint(os.path.join(model_out_dir, label_file('models')), save_best_only=cfg_full['TRAIN']['SAVE_BEST_ONLY'])
+                save_cp = ModelCheckpoint(os.path.join(model_out_dir, add_date_to_filename('models')), save_best_only=cfg_full['TRAIN']['SAVE_BEST_ONLY'])
 
                 # Early stopping
                 early_stopping = EarlyStopping(monitor='val_loss', verbose=1, patience=cfg_full['TRAIN']['PATIENCE'],
@@ -411,7 +435,7 @@ class CucumberTrainer:
                 lr = model_config['LR']
 
                 optimizer = Adam(learning_rate=lr)
-                model.compile(loss=tfa.losses.SigmoidFocalCrossEntropy(reduction=tf.keras.losses.Reduction.AUTO,
+                model.compile(loss=SigmoidFocalCrossEntropy(reduction=tf.keras.losses.Reduction.AUTO,
                                                                        alpha=model_config['ALPHA'],
                                                                        gamma=model_config['GAMMA']),
                               optimizer=optimizer, metrics=metrics)
@@ -437,20 +461,35 @@ class CucumberTrainer:
                 tf.keras.backend.clear_session()
                 del model
 
-            # # Record mean and standard deviation of test set results
-            # for metric in metrics:
-            #     metrics_df[metric][n_folds] = metrics_df[metric][0:-2].mean()
-            #     metrics_df[metric][n_folds + 1] = metrics_df[metric][0:-2].std()
-
             # Save results
-            file_path = os.path.join(cfg['PATHS']['EXPERIMENTS'], label_file('cross_val') + '.csv')
+            file_path = os.path.join(cfg['PATHS']['EXPERIMENTS'], add_date_to_filename('cross_val') + '.csv')
             metrics_df.to_csv(file_path, columns=metrics_df.columns, index_label=False, index=False)
 
             cur_fold_num += 1
             num_folds_added += 1
 
+    def finetune_multiple_trials(self, n_trials):
+        '''
+        Runs multiple trials.
+        :param n_trials: Number of trials to run.
+        '''
+        pass
 
-if __name__=='__main__':
+
+if __name__ == '__main__':
+    # If the generalizability folder has not been created, do this first. Create the subdirectories for each of the
+    # required data types (e.g. raw clips, npzs, m-modes, etc).
+    generalize_path = '/'.join(cfg['PATHS']['CSV_OUT'].split('/')[:-1])
+    if not os.path.exists(generalize_path):
+        os.makedirs(generalize_path)
+    for path in cfg['PATHS']:
+        if not os.path.exists(cfg['PATHS'][path]):
+            os.makedirs(cfg['PATHS'][path])
+
+    # Insert code to automatically preprocess everything?
+    os.chdir('\\'.join(os.getcwd().split('\\')[:-1]))
+    os.system('python')
+
     # Consolidate all external clip data into a single dataframe.
     csvs_dir = cfg['PATHS']['CSV_OUT']
     external_data = []
@@ -460,13 +499,16 @@ if __name__=='__main__':
             csv_file = os.path.join(csv_folder, input_class + '.csv')
             external_data.append(pd.read_csv(csv_file))
     external_df = pd.concat(external_data)
+
     external_data_dir = os.path.join(cfg['PATHS']['CSV_OUT'], 'combined_external_data')
-    external_df_path = os.path.join(external_data_dir, label_file('all_external_clips') + '.csv')
+    external_df_path = os.path.join(external_data_dir, add_date_to_filename('all_external_clips') + '.csv')
+
     if cfg['REFRESH_FOLDERS']:
         refresh_folder(external_data_dir)
+
     external_df.to_csv(external_df_path)
     print("All external clips consolidated into", external_df_path, '\n')
     # Construct a CucumberTrainer instance with the dataframe.
-    ct = CucumberTrainer(external_df, 5)
-    ct.sample_folds()
-    ct.finetune_single_trial()
+    taaft = TAAFT(external_df, 5)
+    taaft.sample_folds()
+    taaft.finetune_single_trial()

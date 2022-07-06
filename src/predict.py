@@ -15,7 +15,7 @@ from tensorflow.keras.metrics import Precision, Recall, AUC, TrueNegatives, True
 from custom.metrics import Specificity
 import time
 
-cfg = yaml.full_load(open(os.path.join(os.getcwd(), '../config.yml'), 'r'))
+cfg = yaml.full_load(open(os.path.join(os.getcwd(), 'config.yml'), 'r'))
 
 
 def predict_set(model, test_df, threshold=0.5, model_def_str=cfg['TRAIN']['MODEL_DEF']):

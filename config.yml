@@ -266,25 +266,27 @@ EXPLAINABILITY:
     FEATURE_HEATMAPS: 'feature_heatmaps/'  # Output directory for heatmap videos.
 
 GENERALIZE:
-  LOCATIONS: ['chile', 'ottawa']
-  REFRESH_FOLDERS: True # If you want to delete contents of generalizability-related folders before writing, set True.
+  LOCATIONS: ['chile', 'ottawa']  # List of centers involved in the multi-center study.
+  REFRESH_FOLDERS: True  # If you want to delete contents of generalizability-related folders before writing, set True.
   PARAMS:
-    OVERWRITE_FOLDS: True
+    OVERWRITE_FOLDS: True  # Set this to True if you want to overwrite existing fold .txt files.
   PATHS:
-    CSV_OUT: 'C:/Users/hsmle/Documents/Deep_Breathe/lung-sliding-classifier/generalizability/csvs'
-    MODEL_OUT: 'C:/Users/hsmle/Documents/Deep_Breathe/lung-sliding-classifier/generalizability/results/models'
-    FOLDS: 'C:/Users/hsmle/Documents/Deep_Breathe/lung-sliding-classifier/generalizability/folds'
-    CSVS_SPLIT: 'C:/Users/hsmle/Documents/Deep_Breathe/lung-sliding-classifier/generalizability/csvs_split'
-    PREDICTIONS_OUT: 'C:/Users/hsmle/Documents/Deep_Breathe/lung-sliding-classifier/generalizability/predictions'
+    MMODES: 'C:\\Users\\hsmle\\Documents\\Deep_Breathe\\lung-sliding-classifier\\generalizability\\mmodes'  # Path to external data M-mode images.
+    CSV_OUT: 'C:/Users/hsmle/Documents/Deep_Breathe/lung-sliding-classifier/generalizability/csvs'  # Path to external data csvs.
+    MODEL_OUT: 'C:/Users/hsmle/Documents/Deep_Breathe/lung-sliding-classifier/generalizability/results/models'  # Path to fine-tuned models.
+    FOLDS: 'C:/Users/hsmle/Documents/Deep_Breathe/lung-sliding-classifier/generalizability/folds'  # Path to external data patient-wise fold .txt files.
+    CSVS_SPLIT: 'C:/Users/hsmle/Documents/Deep_Breathe/lung-sliding-classifier/generalizability/csvs_split'  # Path to train-test-val splits for external data.
+    PREDICTIONS_OUT: 'C:/Users/hsmle/Documents/Deep_Breathe/lung-sliding-classifier/generalizability/predictions'  # Path to predictions from fine-tuning experiments.
     EXPERIMENTS: 'C:/Users/hsmle/Documents/Deep_Breathe/lung-sliding-classifier/generalizability/results/experiments'
+    TRIALS: 'C:/Users/hsmle/Documents/Deep_Breathe/lung-sliding-classifier/generalizability/results/trials'
   FOLD_SAMPLE:
-    SEED: 42069
-    OVERWRITE_FOLDER: True
-    NUM_FOLDS: 5
+    SEED: 42069  # Seed number for sampling external patient ids into slices, which are used during fine-tuning to augment training data as necessary.
+    OVERWRITE_FOLDER: True  # Set this to True if you want to overwrite existing fold .txt files.
+    NUM_FOLDS: 5  # Number of desired external patient slices for augmenting training data during fine-tuning.
   FINETUNE:
-    MODEL_DEF: 'efficientnet'
-    OVERWRITE_MODEL_DIR: True
-    THRESHOLDS:
+    MODEL_DEF: 'efficientnet'  # Set this equal to the model definition string used for the pre-trained model.
+    OVERWRITE_MODEL_DIR: True  # Set True if you want to clear existing contents in the model folder.
+    METRIC_THRESHOLDS:  # Thresholds for assessing the performance of a fine-tunend model.
       ACCURACY: 0.9
       AUC: 1
       PRECISION: 1
