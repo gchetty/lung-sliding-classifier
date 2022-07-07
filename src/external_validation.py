@@ -493,7 +493,7 @@ if __name__ == '__main__':
     # Consolidate all external clip data into a single dataframe.
     csvs_dir = cfg['PATHS']['CSV_OUT']
     external_data = []
-    for center in ['chile', 'ottawa']:
+    for center in cfg['LOCATIONS']:
         csv_folder = os.path.join(csvs_dir, center)
         for input_class in ['sliding', 'no_sliding']:
             csv_file = os.path.join(csv_folder, input_class + '.csv')

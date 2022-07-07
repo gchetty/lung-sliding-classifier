@@ -1,8 +1,6 @@
 import os
 import numpy as np
 import yaml
-import subprocess
-from moviepy.editor import *
 import cv2
 
 cfg = yaml.full_load(open(os.path.join(os.getcwd(), "..\\..\\config.yml"), 'r'))['PREPROCESS']
