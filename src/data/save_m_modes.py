@@ -2,6 +2,7 @@ import os
 import numpy as np
 import yaml
 import cv2
+from utils import refresh_folder
 
 cfg = yaml.full_load(open(os.path.join(os.getcwd(), "..\\..\\config.yml"), 'r'))['PREPROCESS']
 cfg_full = yaml.full_load(open(os.path.join(os.getcwd(), "..\\..\\config.yml"), 'r'))
@@ -11,6 +12,9 @@ npz_dir = cfg['PATHS']['NPZ']
 
 if not os.path.exists(mmode_dir):
     os.makedirs(mmode_dir)
+
+if cfg_full['GENERALIZE']['REFRESH_FOLDERS']:
+    refresh_folder(mmode_dir)
 
 
 def save_m_modes(src, dest):

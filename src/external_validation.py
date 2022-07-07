@@ -348,7 +348,7 @@ class TAAFT:
             train_df.sample(frac=1)
             print('Training clips: {}\nValidation clips: {}'.format(len(train_df), len(ext_df)))
 
-            # Create training and validation sets for fine-tune cross-validation.
+            # Create training and validation sets for fine-tuning.
             k = self.k
             val_num = len(train_df) // k
             train_folds = []
@@ -356,12 +356,12 @@ class TAAFT:
             while i < len(train_df):
                 train_folds.append(train_df[i:i + min(len(train_df) - i, val_num)])
                 i += val_num
-            print("{} folds ready for cross-val.".format(len(train_folds)))
+            print("{} folds ready.".format(len(train_folds)))
 
-            # Cross-validation for model fine-tuning.
-            print('Fine-tune cross-validation commencing...')
+            # Model fine-tuning.
+            print('Fine-tuning...')
             for cv_run in range(k):
-                # pick up training from where it left off at the end of previous cross val run.
+                # pick up training from where it left off at the end of previous fine-tuning run.
                 if cv_run > 0:
                     prev_model_path = os.path.join(cfg['PATHS']['MODEL_OUT'], os.listdir(cfg['PATHS']['MODEL_OUT'])[-1])
                 # for run 0 of cross val, retrieve the model from its location immediately after initial training.
@@ -372,13 +372,13 @@ class TAAFT:
 
                 print('FINE-TUNING MODEL FOR FOLD ' + str(cv_run) + ' OF EXTERNAL CLIP TRAINING SET')
 
-                # Set up the train and holdout for each cross-validation run. Note that both parts are taken from the
+                # Set up the train and holdout. Note that both parts are taken from the
                 # external data set aside for training. We have a separate dataframe to store testing data.
                 df_val_part = train_folds[cv_run]
                 df_train_part = train_df[~train_df.isin(df_val_part['patient_id'].unique())]
 
                 # The following code was borrowed from src/models/models.py.
-                # Fine-tune the model with a cross-validation run
+                # Fine-tune the model
                 model_def_fn, preprocessing_fn = get_model(cfg['FINETUNE']['MODEL_DEF'])
 
                 # Prepare the training and validation sets from the dataframes.
