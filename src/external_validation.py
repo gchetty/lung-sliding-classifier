@@ -106,7 +106,7 @@ class TAAFT:
         self.k = k
         self.clip_df = clip_df
 
-    def sample_folds(self):
+    def sample_folds(self, trial_folder):
         '''
         Samples external data in self.clip_df into self.k folds. Preserves ratio of positive to negative classes in each fold.
         Folds are saved in a .txt file, where each fold is identified with an integer index, followed by each patient id
@@ -128,14 +128,16 @@ class TAAFT:
         np.random.shuffle(no_sliding_ids)
 
         # Specify the path to this file based on the config file.
-        folds_dir = cfg['PATHS']['FOLDS']
+        folds_dir = os.path.join(trial_folder, 'folds')
         if not os.path.exists(folds_dir):
             os.makedirs(folds_dir)
+        else:
+            refresh_folder(folds_dir)
         filename = ('patient_folds_' + str(datetime.datetime.now()) + '.txt').replace(' ', '_')
         str_parts = filename.split('.')
         filename = '.'.join([str_parts[0], str_parts[2]])
         filename = filename.replace(':', '-')
-        folds_path = os.path.join(cfg['PATHS']['FOLDS'], filename)
+        folds_path = os.path.join(trial_folder, 'folds', filename)
 
         # Make the file that stores ids by fold if it doesn't already exist.
         # Clear the file if user intends to overwrite its contents.
@@ -211,7 +213,7 @@ class TAAFT:
 
         print("Sampling complete with seed = " + str(cfg['FOLD_SAMPLE']['SEED']) + ". Folds saved to " + folds_path + ".")
 
-    def finetune_single_trial(self, hparams=None):
+    def finetune_single_trial(self, trial_folder, hparams=None):
         '''
         Performs a single fine-tuning trial. Fine-tunes a model on external clip data, repeatedly augmenting external
         data slices to a training set until all external data has been used for training.
@@ -239,10 +241,9 @@ class TAAFT:
         CSVS_FOLDER = cfg_full['TRAIN']['PATHS']['CSVS']
         EXT_FOLDER = cfg['PATHS']['CSVS_SPLIT']
 
-        FOLDS_PATH = cfg['PATHS']['FOLDS']
-
         # Ensure that the partition path has been created before running this code!
-        folds_file = os.path.join(FOLDS_PATH, os.listdir(FOLDS_PATH)[0])
+        filename = os.listdir(os.path.join(trial_folder, 'folds'))[0]
+        folds_file = os.path.join(trial_folder, 'folds', filename)
         print('Retrieving patient folds from {}...'.format(folds_file))
         folds = open(folds_file, "r")
         cur_fold = []
@@ -272,7 +273,7 @@ class TAAFT:
             for csv in ['train.csv', 'val.csv']:
                 ext_dfs.append(pd.read_csv(os.path.join(center_split_path, csv)))
         ext_df = pd.concat(ext_dfs, ignore_index=True)
-        labelled_ext_df_path = os.path.join(cfg['CSV_OUT'], 'labelled_external_dfs/')
+        labelled_ext_df_path = os.path.join(cfg['PATHS']['CSV_OUT'], 'labelled_external_dfs/')
         if cfg['REFRESH_FOLDERS']:
             refresh_folder(labelled_ext_df_path)
         labelled_ext_df_path += add_date_to_filename('labelled_ext')
@@ -473,22 +474,27 @@ class TAAFT:
         Runs multiple trials.
         :param n_trials: Number of trials to run.
         '''
-        pass
+        TRIAL_PATH = cfg['PATHS']['TRIALS']
+        if not os.path.exists(TRIAL_PATH):
+            os.makedirs(TRIAL_PATH)
+        else:
+            refresh_folder(TRIAL_PATH)
+        for trial in range(n_trials):
+            CUR_TRIAL_DIR = os.path.join(TRIAL_PATH, 'trial_{}'.format(trial + 1))
+            if not os.path.exists(CUR_TRIAL_DIR):
+                os.makedirs(CUR_TRIAL_DIR)
+            else:
+                refresh_folder(CUR_TRIAL_DIR)
+            self.sample_folds(CUR_TRIAL_DIR)
+            self.finetune_single_trial(CUR_TRIAL_DIR)
 
 
 if __name__ == '__main__':
     # If the generalizability folder has not been created, do this first. Create the subdirectories for each of the
-    # required data types (e.g. raw clips, npzs, m-modes, etc).
-    generalize_path = '/'.join(cfg['PATHS']['CSV_OUT'].split('/')[:-1])
-    if not os.path.exists(generalize_path):
-        os.makedirs(generalize_path)
+    # required data types (e.g. raw clips, npzs, m-modes, etc.)
     for path in cfg['PATHS']:
         if not os.path.exists(cfg['PATHS'][path]):
             os.makedirs(cfg['PATHS'][path])
-
-    # Insert code to automatically preprocess everything?
-    os.chdir('\\'.join(os.getcwd().split('\\')[:-1]))
-    os.system('python')
 
     # Consolidate all external clip data into a single dataframe.
     csvs_dir = cfg['PATHS']['CSV_OUT']
@@ -501,14 +507,14 @@ if __name__ == '__main__':
     external_df = pd.concat(external_data)
 
     external_data_dir = os.path.join(cfg['PATHS']['CSV_OUT'], 'combined_external_data')
-    external_df_path = os.path.join(external_data_dir, add_date_to_filename('all_external_clips') + '.csv')
-
+    if not os.path.exists(external_data_dir):
+        os.makedirs(external_data_dir)
     if cfg['REFRESH_FOLDERS']:
         refresh_folder(external_data_dir)
+    external_df_path = os.path.join(external_data_dir, add_date_to_filename('all_external_clips') + '.csv')
 
     external_df.to_csv(external_df_path)
     print("All external clips consolidated into", external_df_path, '\n')
     # Construct a CucumberTrainer instance with the dataframe.
     taaft = TAAFT(external_df, 5)
-    taaft.sample_folds()
-    taaft.finetune_single_trial()
+    taaft.finetune_multiple_trials(3)
