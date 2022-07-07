@@ -4,7 +4,7 @@ from utils import refresh_folder
 from shutil import rmtree
 
 # Load dictionary of constants stored in config.yml
-cfg = yaml.full_load(open(os.path.join(os.getcwd(),"../../config.yml"), 'r'))['PREPROCESS']
+cfg = yaml.full_load(open(os.path.join(os.getcwd(),"..\\..\\config.yml"), 'r'))['PREPROCESS']
 
 # Obtain input folder paths where the downloaded videos are stored
 unmasked_folder = cfg['PATHS']['UNMASKED_VIDEOS']
