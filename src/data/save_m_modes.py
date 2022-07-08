@@ -36,7 +36,7 @@ def save_m_modes(src, dest):
 def length(video):
     '''
     Returns the length of an .mp4 video file (in seconds).
-    :param video: .mp4 file.
+    :param video: name of .mp4 file.
     '''
     cap = cv2.VideoCapture(video)
     fps = cap.get(cv2.CAP_PROP_FPS)

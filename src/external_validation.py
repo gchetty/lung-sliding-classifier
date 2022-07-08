@@ -51,6 +51,8 @@ def write_folds_to_txt(folds, file_path):
     Saves patient id folds to .txt file in the following structure:
     -> An integer, n, which indicates the length of the current fold
     -> Followed by n lines, each containing one (unique) patient id
+    :param folds: list of lists of strings. Represents a list of folds.
+    :params file_path: path where folds should be stored.
     '''
     txt = open(file_path, "a")
     for i in range(len(folds)):
@@ -75,6 +77,8 @@ def check_performance(df):
     '''
     Returns true if all metrics stored in the supplied results DataFrame meet fine-tuning standards, or False otherwise.
     :param df: DataFrame storing model performance metrics to be evaluated against fine-tune performance thresholds.
+
+    :return: Bool, whether performance in metrics df are satisfactory or not.
     '''
     # Return false if values less than these thresholds
     lower_bounds = ['accuracy', 'auc', 'recall', 'precision', 'true_negatives', 'true_positives']
@@ -111,6 +115,7 @@ class TAAFT:
         Samples external data in self.clip_df into self.k folds. Preserves ratio of positive to negative classes in each fold.
         Folds are saved in a .txt file, where each fold is identified with an integer index, followed by each patient id
         in the fold on a new line.
+        :param trial_folder: name of folder in which to place patient folds. Corresponds to a particular trial.
         '''
         sliding_df = self.clip_df[self.clip_df['pleural_line_findings'] != 'absent_lung_sliding']
         no_sliding_df = self.clip_df[self.clip_df['pleural_line_findings'] == 'absent_lung_sliding']
@@ -218,6 +223,7 @@ class TAAFT:
         '''
         Performs a single fine-tuning trial. Fine-tunes a model on external clip data, repeatedly augmenting external
         data slices to a training set until all external data has been used for training.
+        :param trial_folder: specifies folder in which to place metrics for current trial.
         :param hparams: Specifies the set of hyperparameters for fine-tuning the model.
         '''
 
