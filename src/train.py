@@ -27,7 +27,7 @@ from skopt.callbacks import CheckpointSaver
 from skopt import load
 import gc
 
-cfg = yaml.full_load(open(os.path.join(os.getcwd(), '../config.yml'), 'r'))
+cfg = yaml.full_load(open(os.path.join(os.getcwd(), 'config.yml'), 'r'))
 
 
 def log_test_results(model, test_set, test_df, test_metrics, writer):

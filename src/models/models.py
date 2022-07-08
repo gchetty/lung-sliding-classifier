@@ -32,7 +32,7 @@ from tensorflow.keras.applications.efficientnet import EfficientNetB0 as Efficie
 from tensorflow.keras.applications.efficientnet import preprocess_input as efficientnet_preprocess
 import tensorflow_addons as tfa
 
-cfg = yaml.full_load(open(os.path.join(os.getcwd(), '../config.yml'), 'r'))
+cfg = yaml.full_load(open(os.path.join(os.getcwd(), 'config.yml'), 'r'))
 
 
 def get_model(model_name):

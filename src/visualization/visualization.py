@@ -13,7 +13,7 @@ import datetime
 from sklearn.metrics import confusion_matrix, roc_curve
 from skopt.plots import plot_objective
 
-cfg = yaml.full_load(open(os.path.join(os.getcwd(), '../config.yml'), 'r'))
+cfg = yaml.full_load(open(os.path.join(os.getcwd(), 'config.yml'), 'r'))
 
 def plot_roc(labels, predictions, class_name_list, dir_path=None, title=None):
     '''
