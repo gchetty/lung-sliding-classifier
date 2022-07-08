@@ -123,7 +123,8 @@ class TAAFT:
         print("{} unique no-sliding patient ids found.\n".format(len(no_sliding_ids)))
 
         # Shuffle the patient ids.
-        np.random.seed(cfg_full['GENERALIZE']['FOLD_SAMPLE']['SEED'])
+        seed_num = int(trial_folder[-1])
+        np.random.seed(cfg_full['GENERALIZE']['FOLD_SAMPLE']['SEED'][seed_num - 1])
         np.random.shuffle(sliding_ids)
         np.random.shuffle(no_sliding_ids)
 

@@ -280,7 +280,7 @@ GENERALIZE:
     EXPERIMENTS: 'C:/Users/hsmle/Documents/Deep_Breathe/lung-sliding-classifier/generalizability/results/experiments'
     TRIALS: 'C:/Users/hsmle/Documents/Deep_Breathe/lung-sliding-classifier/generalizability/results/trials'
   FOLD_SAMPLE:
-    SEED: 42069  # Seed number for sampling external patient ids into slices, which are used during fine-tuning to augment training data as necessary.
+    SEED: [42069, 42070, 42071, 42072, 42073]  # Seed number for sampling external patient ids into slices, which are used during fine-tuning to augment training data as necessary.
     OVERWRITE_FOLDER: True  # Set this to True if you want to overwrite existing fold .txt files.
     NUM_FOLDS: 5  # Number of desired external patient slices for augmenting training data during fine-tuning.
   FINETUNE:
