@@ -80,16 +80,16 @@ def check_performance(df):
 
     :return: Bool, whether metrics in df exceed minimum performance thresholds.
     '''
-    # Return false if values less than these thresholds
-    lower_bounds = ['accuracy', 'auc', 'recall', 'precision', 'true_negatives', 'true_positives']
-    # Return false if values greater than these thresholds
-    upper_bounds = ['false_negatives', 'true_positives']
+    cfg_thresh = cfg['FINETUNE']['METRIC_THRESHOLDS']
 
-    for thresh in lower_bounds:
-        if df[thresh].values[0] < cfg['FINETUNE']['METRIC_THRESHOLDS'][thresh.upper()]:
+    # Check that metrics exceed lower bounds, if they exist
+    for thresh in cfg_thresh['LOWER_BOUNDS']:
+        if df[thresh.lower()].values[0] < cfg_thresh[thresh]:
             return False
-    for thresh in upper_bounds:
-        if df[thresh].values[0] > cfg['FINETUNE']['METRIC_THRESHOLDS'][thresh.upper()]:
+
+    # Check that metrics do not exceed upper bounds, if they exist
+    for thresh in cfg_thresh['UPPER_BOUNDS']:
+        if df[thresh.lower()].values[0] > cfg_thresh[thresh]:
             return False
 
     return True
