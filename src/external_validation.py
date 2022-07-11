@@ -530,5 +530,5 @@ if __name__ == '__main__':
     external_df = get_external_clip_df()
 
     # Construct a TAAFT instance with the dataframe.
-    taaft = TAAFT(external_df, 5)
+    taaft = TAAFT(external_df, cfg['GENERALIZE']['FOLD_SAMPLE']['NUM_FOLDS'])
     taaft.finetune_multiple_trials(cfg['GENERALIZE']['NUM_TRIALS'])
