@@ -33,12 +33,12 @@ def save_m_modes(src, dest):
             cv2.imwrite(os.path.join(mmode_class_dir, npz[:-4]) + '.jpg', arr)
 
 
-def length(video):
+def get_clip_length(video_path):
     '''
     Returns the length of an .mp4 video file (in seconds).
     :param video: name of .mp4 file.
     '''
-    cap = cv2.VideoCapture(video)
+    cap = cv2.VideoCapture(video_path)
     fps = cap.get(cv2.CAP_PROP_FPS)
     frame_ct = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     duration = frame_ct / fps
@@ -52,7 +52,7 @@ if __name__ == '__main__':
         clip_class_dir = os.path.join(raw_clips_dir, clip_class)
         for clip in os.listdir(clip_class_dir):
             # Get clip length.
-            l = length(os.path.join(clip_class_dir, clip))
+            l = get_clip_length(os.path.join(clip_class_dir, clip))
             if l < 3.0:
                 short_clips.append(os.path.join(clip_class_dir, clip))
     # Show the filenames of all clips less than the mini-clip window specified in the config file.

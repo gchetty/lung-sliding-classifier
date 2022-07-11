@@ -115,7 +115,7 @@ class TAAFT:
         Samples external data in self.clip_df into self.k folds. Preserves ratio of positive to negative classes in each fold.
         Folds are saved in a .txt file, where each fold is identified with an integer index, followed by each patient id
         in the fold on a new line.
-        :param trial_folder: name of folder in which to place patient folds. Corresponds to a particular trial.
+        :param trial_folder: full path to folder in which to place patient folds. Corresponds to a particular trial.
         '''
         sliding_df = self.clip_df[self.clip_df['pleural_line_findings'] != 'absent_lung_sliding']
         no_sliding_df = self.clip_df[self.clip_df['pleural_line_findings'] == 'absent_lung_sliding']
@@ -223,7 +223,7 @@ class TAAFT:
         '''
         Performs a single fine-tuning trial. Fine-tunes a model on external clip data, repeatedly augmenting external
         data slices to a training set until all external data has been used for training.
-        :param trial_folder: specifies folder in which to place metrics for current trial.
+        :param trial_folder: full path to folder in which to place metrics for current trial.
         :param hparams: Specifies the set of hyperparameters for fine-tuning the model.
         '''
 
