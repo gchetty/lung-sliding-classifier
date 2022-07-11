@@ -297,7 +297,11 @@ GENERALIZE:
       TRUE_POSITIVES: 1
       FALSE_NEGATIVES: 1
       FALSE_POSITIVES: 1
+      SENSITIVITY: 90.1
+      SPECIFICITY: 79.3
     CROSS_VAL:
       SPLIT: 0.1  # Specify the train-val data split for each fine-tune run.
       RUNS: 2
       EPOCHS: 1
+    LAZY: True # Set this to True if you want fine-tuning trials to terminate once model performance exceeds thresholds.
+    # A value of False will run trials to completion, regardless of whether the model performance exceeds thresholds or not.

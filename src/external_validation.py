@@ -243,12 +243,13 @@ class TAAFT:
 
         print("Sampling complete with seed = " + str(cfg['FOLD_SAMPLE']['SEED']) + ". Folds saved to " + folds_path + ".")
 
-    def finetune_single_trial(self, trial_folder, hparams=None):
+    def finetune_single_trial(self, trial_folder, hparams=None, lazy=True):
         '''
         Performs a single fine-tuning trial. Fine-tunes a model on external clip data, repeatedly augmenting external
         data slices to a training set until all external data has been used for training.
         :param trial_folder: full path to folder in which to place metrics for current trial.
         :param hparams: Specifies the set of hyperparameters for fine-tuning the model.
+        :param lazy: When True, trial will terminate once model performance exceeds minimum thresholds.
         '''
 
         print('Reading values from the config file...')
@@ -361,7 +362,8 @@ class TAAFT:
                 print('Model performance ok. Saving model...')
                 model.save(os.path.join(model_out_dir, add_date_to_filename('finetuned_model') + '.pb'))
                 write_folds_to_txt(add_set, cfg['PATHS']['FOLDS_USED'])
-                continue
+                if lazy:  # if we want trial to end once model performance exceeds thresholds
+                    break
 
             # Set aside some external data to be added to the existing training data.
             add_set = fold_list[num_folds_added]
@@ -517,7 +519,7 @@ class TAAFT:
             else:
                 refresh_folder(cur_trial_dir)
             self.sample_folds(cur_trial_dir)
-            self.finetune_single_trial(cur_trial_dir)
+            self.finetune_single_trial(cur_trial_dir, lazy=cfg['FINETUNE']['LAZY'])
 
 
 if __name__ == '__main__':
