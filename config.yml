@@ -23,6 +23,8 @@ PREPROCESS:
     WINDOW_SECONDS: 3 # Mini-clip length measured in seconds
     IMG_SIZE: [224, 224]  # (Height, Width) of final miniclips.
     BASE_FR: 30  # Base frame rate - videos are downsampled to this.
+    DB_TABLE: 'clips_chile'  # Name of the table in the database from which to pull clips.
+
 
   # The paths to save files. After running the preprocess pipeline, the npzs and csvs are usually all that are needed to train.
   # You shouldn't *have* to edit these, as they are stored as relative and not absolute paths.

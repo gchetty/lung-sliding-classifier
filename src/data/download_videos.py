@@ -88,8 +88,8 @@ cnx = mysql.connector.connect(user=USERNAME, password=PASSWORD,
 
 # Query Database for sliding and no_sliding labeled data but excluding significant probe movement and B lines
 # and pleural effusion or consolidation
-sliding_df = get_clips_from_db(location='chile', sliding=True)
-no_sliding_df = get_clips_from_db(location='chile', sliding=-False)
+sliding_df = get_clips_from_db(cfg['PARAMS']['DB_TABLE'], sliding=True)
+no_sliding_df = get_clips_from_db(cfg['PARAMS']['DB_TABLE'], sliding=-False)
 
 # sliding_df = pd.read_sql('''select * from clips_chile where view='parenchymal' and a_or_b_lines='a_lines'
 #                               and (quality NOT LIKE '%significant_probe_movement%' or quality is null)
