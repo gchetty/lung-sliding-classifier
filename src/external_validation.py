@@ -95,6 +95,30 @@ def check_performance(df):
     return True
 
 
+def get_external_clip_df():
+    # Consolidate all external clip data into a single dataframe.
+    csvs_dir = cfg['PATHS']['CSV_OUT']
+    external_data = []
+    for center in cfg['LOCATIONS']:
+        csv_folder = os.path.join(csvs_dir, center)
+        for input_class in ['sliding', 'no_sliding']:
+            csv_file = os.path.join(csv_folder, input_class + '.csv')
+            external_data.append(pd.read_csv(csv_file))
+    external_df = pd.concat(external_data)
+
+    external_data_dir = os.path.join(cfg['PATHS']['CSV_OUT'], 'combined_external_data')
+    if not os.path.exists(external_data_dir):
+        os.makedirs(external_data_dir)
+    if cfg['REFRESH_FOLDERS']:
+        refresh_folder(external_data_dir)
+    external_df_path = os.path.join(external_data_dir, add_date_to_filename('all_external_clips') + '.csv')
+
+    external_df.to_csv(external_df_path)
+    print("All external clips consolidated into", external_df_path, '\n')
+
+    return external_df
+
+
 # TAAFT stands for: Threshold-Aware Accumulative Fine-Tuner
 class TAAFT:
     '''
@@ -503,25 +527,8 @@ if __name__ == '__main__':
         if not os.path.exists(cfg['PATHS'][path]):
             os.makedirs(cfg['PATHS'][path])
 
-    # Consolidate all external clip data into a single dataframe.
-    csvs_dir = cfg['PATHS']['CSV_OUT']
-    external_data = []
-    for center in cfg['LOCATIONS']:
-        csv_folder = os.path.join(csvs_dir, center)
-        for input_class in ['sliding', 'no_sliding']:
-            csv_file = os.path.join(csv_folder, input_class + '.csv')
-            external_data.append(pd.read_csv(csv_file))
-    external_df = pd.concat(external_data)
+    external_df = get_external_clip_df()
 
-    external_data_dir = os.path.join(cfg['PATHS']['CSV_OUT'], 'combined_external_data')
-    if not os.path.exists(external_data_dir):
-        os.makedirs(external_data_dir)
-    if cfg['REFRESH_FOLDERS']:
-        refresh_folder(external_data_dir)
-    external_df_path = os.path.join(external_data_dir, add_date_to_filename('all_external_clips') + '.csv')
-
-    external_df.to_csv(external_df_path)
-    print("All external clips consolidated into", external_df_path, '\n')
     # Construct a TAAFT instance with the dataframe.
     taaft = TAAFT(external_df, 5)
     taaft.finetune_multiple_trials(cfg['GENERALIZE']['NUM_TRIALS'])
