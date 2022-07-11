@@ -51,7 +51,7 @@ def write_folds_to_txt(folds, file_path):
     Saves patient id folds to .txt file in the following structure:
     -> An integer, n, which indicates the length of the current fold
     -> Followed by n lines, each containing one (unique) patient id
-    :param folds: list of lists of strings. Represents a list of folds.
+    :param folds: 2D list of strings. Each row represents a list of folds.
     :params file_path: path where folds should be stored.
     '''
     txt = open(file_path, "a")
@@ -78,7 +78,7 @@ def check_performance(df):
     Returns true if all metrics stored in the supplied results DataFrame meet fine-tuning standards, or False otherwise.
     :param df: DataFrame storing model performance metrics to be evaluated against fine-tune performance thresholds.
 
-    :return: Bool, whether performance in metrics df are satisfactory or not.
+    :return: Bool, whether metrics in df exceed minimum performance thresholds.
     '''
     # Return false if values less than these thresholds
     lower_bounds = ['accuracy', 'auc', 'recall', 'precision', 'true_negatives', 'true_positives']
@@ -98,7 +98,7 @@ def check_performance(df):
 # TAAFT stands for: Threshold-Aware Accumulative Fine-Tuner
 class TAAFT:
     '''
-    The CucumberTrainer class encapsulates the implementation of the fine-tuning for generalizability experiments.
+    The TAAFT class encapsulates the implementation of the fine-tuning for generalizability experiments.
     Handles fold sampling and fine-tuning trials.
     '''
     def __init__(self, clip_df, k):
@@ -106,7 +106,7 @@ class TAAFT:
         :param df: DataFrame containing all clip data from external centers
         :param k: Number of folds in which to split data in df by patient id
         '''
-        print("CREATING A NEW CUCUMBER TRAINER (k = {})".format(k))
+        print("CREATING A NEW TAAFT (k = {})".format(k))
         self.k = k
         self.clip_df = clip_df
 
@@ -143,7 +143,7 @@ class TAAFT:
         str_parts = filename.split('.')
         filename = '.'.join([str_parts[0], str_parts[2]])
         filename = filename.replace(':', '-')
-        folds_path = os.path.join(trial_folder, 'folds', filename)
+        folds_path = os.path.join(folds_dir, filename)
 
         # Make the file that stores ids by fold if it doesn't already exist.
         # Clear the file if user intends to overwrite its contents.
@@ -290,7 +290,7 @@ class TAAFT:
 
         print('Setup complete')
 
-        # Cucumber trial starts here.
+        # Fine-tuning trial starts here.
         cur_fold_num = 0
         num_folds_added = 0  # number of external data slices that have been added to the training set
         add_set = []
@@ -476,18 +476,18 @@ class TAAFT:
             cur_fold_num += 1
             num_folds_added += 1
 
-    def finetune_multiple_trials(self, n_trials):
+    def finetune_multiple_trials(self, n_trials, trial_path=cfg['PATHS']['TRIALS']):
         '''
         Runs multiple trials.
         :param n_trials: Number of trials to run.
+        :param trial_path: Path to fine-tuning trial results.
         '''
-        TRIAL_PATH = cfg['PATHS']['TRIALS']
-        if not os.path.exists(TRIAL_PATH):
-            os.makedirs(TRIAL_PATH)
+        if not os.path.exists(trial_path):
+            os.makedirs(trial_path)
         else:
-            refresh_folder(TRIAL_PATH)
+            refresh_folder(trial_path)
         for trial in range(n_trials):
-            CUR_TRIAL_DIR = os.path.join(TRIAL_PATH, 'trial_{}'.format(trial + 1))
+            CUR_TRIAL_DIR = os.path.join(trial_path, 'trial_{}'.format(trial + 1))
             if not os.path.exists(CUR_TRIAL_DIR):
                 os.makedirs(CUR_TRIAL_DIR)
             else:
@@ -522,6 +522,6 @@ if __name__ == '__main__':
 
     external_df.to_csv(external_df_path)
     print("All external clips consolidated into", external_df_path, '\n')
-    # Construct a CucumberTrainer instance with the dataframe.
+    # Construct a TAAFT instance with the dataframe.
     taaft = TAAFT(external_df, 5)
     taaft.finetune_multiple_trials(3)
