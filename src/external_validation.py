@@ -22,7 +22,7 @@ from tensorflow_addons.losses import SigmoidFocalCrossEntropy
 
 # cfg refers to the subdictionary of the config file pertaining to our fine-tuning experiments. cfg_full is the entire
 # loaded config file.
-cfg = yaml.full_load(open(os.path.join(os.getcwd(), "config.yml"), 'r'))['GENERALIZE']
+cfg = yaml.full_load(open(os.path.join(os.getcwd(), "config.yml"), 'r'))['EXTERNAL_VAL']
 cfg_full = yaml.full_load(open(os.path.join(os.getcwd(), "config.yml"), 'r'))
 
 
@@ -153,7 +153,7 @@ class TAAFT:
 
         # Shuffle the patient ids.
         seed_num = int(trial_folder[-1])
-        np.random.seed(cfg_full['GENERALIZE']['FOLD_SAMPLE']['SEED'][seed_num - 1])
+        np.random.seed(cfg['FOLD_SAMPLE']['SEED'][seed_num - 1])
         np.random.shuffle(sliding_ids)
         np.random.shuffle(no_sliding_ids)
 
@@ -532,5 +532,5 @@ if __name__ == '__main__':
     external_df = get_external_clip_df()
 
     # Construct a TAAFT instance with the dataframe.
-    taaft = TAAFT(external_df, cfg['GENERALIZE']['FOLD_SAMPLE']['NUM_FOLDS'])
-    taaft.finetune_multiple_trials(cfg['GENERALIZE']['NUM_TRIALS'])
+    taaft = TAAFT(external_df, cfg['FOLD_SAMPLE']['NUM_FOLDS'])
+    taaft.finetune_multiple_trials(cfg['NUM_TRIALS'])

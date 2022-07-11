@@ -265,7 +265,7 @@ EXPLAINABILITY:
     MODEL: 'results/models/efficientnet/20220325-190905'  # Trained model used to generate heatmaps.
     FEATURE_HEATMAPS: 'feature_heatmaps/'  # Output directory for heatmap videos.
 
-GENERALIZE:
+EXTERNAL_VAL:
   LOCATIONS: ['chile', 'ottawa']  # List of centers involved in the multi-center study.
   REFRESH_FOLDERS: True  # If you want to delete contents of generalizability-related folders before writing, set True.
   NUM_TRIALS: 3  # Specify the number of fine-tuning trials.
