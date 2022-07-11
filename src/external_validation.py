@@ -134,12 +134,13 @@ class TAAFT:
         self.k = k
         self.clip_df = clip_df
 
-    def sample_folds(self, trial_folder):
+    def sample_folds(self, trial_folder, seed):
         '''
         Samples external data in self.clip_df into self.k folds. Preserves ratio of positive to negative classes in each fold.
         Folds are saved in a .txt file, where each fold is identified with an integer index, followed by each patient id
         in the fold on a new line.
         :param trial_folder: full path to folder in which to place patient folds. Corresponds to a particular trial.
+        :param seed: positive integer. Seed for shuffling patient ids.
         '''
         sliding_df = self.clip_df[self.clip_df['pleural_line_findings'] != 'absent_lung_sliding']
         no_sliding_df = self.clip_df[self.clip_df['pleural_line_findings'] == 'absent_lung_sliding']
@@ -152,8 +153,7 @@ class TAAFT:
         print("{} unique no-sliding patient ids found.\n".format(len(no_sliding_ids)))
 
         # Shuffle the patient ids.
-        seed_num = int(trial_folder[-1])
-        np.random.seed(cfg['FOLD_SAMPLE']['SEED'][seed_num - 1])
+        np.random.seed(seed)
         np.random.shuffle(sliding_ids)
         np.random.shuffle(no_sliding_ids)
 
@@ -518,7 +518,7 @@ class TAAFT:
                 os.makedirs(cur_trial_dir)
             else:
                 refresh_folder(cur_trial_dir)
-            self.sample_folds(cur_trial_dir)
+            self.sample_folds(cur_trial_dir, cfg['FOLD_SAMPLE']['SEED'][trial])
             self.finetune_single_trial(cur_trial_dir, lazy=cfg['FINETUNE']['LAZY'])
 
 
