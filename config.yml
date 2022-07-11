@@ -268,6 +268,7 @@ EXPLAINABILITY:
 GENERALIZE:
   LOCATIONS: ['chile', 'ottawa']  # List of centers involved in the multi-center study.
   REFRESH_FOLDERS: True  # If you want to delete contents of generalizability-related folders before writing, set True.
+  NUM_TRIALS: 3  # Specify the number of fine-tuning trials.
   PARAMS:
     OVERWRITE_FOLDS: True  # Set this to True if you want to overwrite existing fold .txt files.
   PATHS:
@@ -297,6 +298,6 @@ GENERALIZE:
       FALSE_NEGATIVES: 1
       FALSE_POSITIVES: 1
     CROSS_VAL:
-      SPLIT: 0.1
+      SPLIT: 0.1  # Specify the train-val data split for each fine-tune run.
       RUNS: 2
       EPOCHS: 1

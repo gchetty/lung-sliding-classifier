@@ -487,13 +487,13 @@ class TAAFT:
         else:
             refresh_folder(trial_path)
         for trial in range(n_trials):
-            CUR_TRIAL_DIR = os.path.join(trial_path, 'trial_{}'.format(trial + 1))
-            if not os.path.exists(CUR_TRIAL_DIR):
-                os.makedirs(CUR_TRIAL_DIR)
+            cur_trial_dir = os.path.join(trial_path, 'trial_{}'.format(trial + 1))
+            if not os.path.exists(cur_trial_dir):
+                os.makedirs(cur_trial_dir)
             else:
-                refresh_folder(CUR_TRIAL_DIR)
-            self.sample_folds(CUR_TRIAL_DIR)
-            self.finetune_single_trial(CUR_TRIAL_DIR)
+                refresh_folder(cur_trial_dir)
+            self.sample_folds(cur_trial_dir)
+            self.finetune_single_trial(cur_trial_dir)
 
 
 if __name__ == '__main__':
@@ -524,4 +524,4 @@ if __name__ == '__main__':
     print("All external clips consolidated into", external_df_path, '\n')
     # Construct a TAAFT instance with the dataframe.
     taaft = TAAFT(external_df, 5)
-    taaft.finetune_multiple_trials(3)
+    taaft.finetune_multiple_trials(cfg['GENERALIZE']['NUM_TRIALS'])
