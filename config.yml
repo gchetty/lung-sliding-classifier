@@ -23,16 +23,18 @@ PREPROCESS:
     WINDOW_SECONDS: 3 # Mini-clip length measured in seconds
     IMG_SIZE: [224, 224]  # (Height, Width) of final miniclips.
     BASE_FR: 30  # Base frame rate - videos are downsampled to this.
+    DB_TABLE: 'clips_chile'  # Name of the table in the database from which to pull clips.
+
 
   # The paths to save files. After running the preprocess pipeline, the npzs and csvs are usually all that are needed to train.
   # You shouldn't *have* to edit these, as they are stored as relative and not absolute paths.
   PATHS:
-    UNMASKED_VIDEOS: 'C:\Users\hsmle\Documents\Deep_Breathe\results/data\raw_videos/'  # Path to the videos that are downloaded from the dataset and stored without transformation.
-    MASKED_VIDEOS: 'C:\Users\hsmle\Documents\Deep_Breathe\lung-sliding-classifier\results/data\masked_videos/'  # Path to the videos that result from running the masking tool on UNMASKED_VIDEOS.
+    UNMASKED_VIDEOS: 'C:\Users\hsmle\Documents\Deep_Breathe\lung-sliding-classifier\generalizability\raw_videos/chile'  # Path to the videos that are downloaded from the dataset and stored without transformation.
+    MASKED_VIDEOS: 'C:\Users\hsmle\Documents\Deep_Breathe\lung-sliding-classifier\generalizability\masked_videos\chile/'  # Path to the videos that result from running the masking tool on UNMASKED_VIDEOS.
     SMOOTHED_VIDEOS: 'C:\Users\hsmle\Documents\Deep_Breathe\lung-sliding-classifier\results/data\smoothed_videos/'  # Path to the videos that result from applying a median filter to MASKED_VIDEOS (optional).
     FLOW_VIDEOS: 'flow_videos/'   # Path to the optical flow video frames (optional).
-    CSVS_OUTPUT: 'C:\Users\hsmle\Documents\Deep_Breathe\lung-sliding-classifier\results/data\csvs\'  # Path to any CSVs that are generated / taken from the database.
-    NPZ: 'C:\Users\hsmle\Documents\Deep_Breathe\lung-sliding-classifier\results/data\npzs\'  # Path to the mini-clip videos.
+    CSVS_OUTPUT: 'C:\Users\hsmle\Documents\Deep_Breathe\lung-sliding-classifier\generalizability\csvs\chile'  # Path to any CSVs that are generated / taken from the database.
+    NPZ: 'C:\Users\hsmle\Documents\Deep_Breathe\lung-sliding-classifier\generalizability\npzs\chile'  # Path to the mini-clip videos.
     FLOW_NPZ: 'flow_npzs/'  # Path to the .npzs containing optical flow mini-clips.
     MASKING_TOOL: 'C:\Users\hsmle\Documents\Deep_Breathe\lung-sliding-classifier\results\data\auto_masking_deeper.h5'  # Path to the masking tool. Currently only works with the older version!!!
 
@@ -189,7 +191,7 @@ TRAIN:
 
   # Path variables involving the training process
   PATHS:
-    CSVS: 'C:/Users/hsmle/Documents/Deep_Breathe/lung-sliding-classifier/results/data/csvs_split/'  # Path for CSVs describing the splits of the dataset
+    CSVS: 'C:/Users/hsmle/Documents/Deep_Breathe/lung-sliding-classifier/generalizability/csvs_split/chile'  # Path for CSVs describing the splits of the dataset
     MODEL_OUT: 'C:/Users/hsmle/Documents/Deep_Breathe/lung-sliding-classifier/results/models/efficientnet/'  # Path where the trained model is saved
     TENSORBOARD: '../results/logs/fit/'  # Path where the tensorboard logs are stored
     EXPERIMENTS: '../results/experiments/'
@@ -265,13 +267,14 @@ EXPLAINABILITY:
     MODEL: 'results/models/efficientnet/20220325-190905'  # Trained model used to generate heatmaps.
     FEATURE_HEATMAPS: 'feature_heatmaps/'  # Output directory for heatmap videos.
 
-GENERALIZE:
+EXTERNAL_VAL:
   LOCATIONS: ['chile', 'ottawa']  # List of centers involved in the multi-center study.
   REFRESH_FOLDERS: True  # If you want to delete contents of generalizability-related folders before writing, set True.
+  NUM_TRIALS: 3  # Specify the number of fine-tuning trials.
   PARAMS:
     OVERWRITE_FOLDS: True  # Set this to True if you want to overwrite existing fold .txt files.
   PATHS:
-    MMODES: 'C:\\Users\\hsmle\\Documents\\Deep_Breathe\\lung-sliding-classifier\\generalizability\\mmodes'  # Path to external data M-mode images.
+    MMODES: 'C:/Users/hsmle/Documents/Deep_Breathe/lung-sliding-classifier/generalizability/mmodes'  # Path to external data M-mode images.
     CSV_OUT: 'C:/Users/hsmle/Documents/Deep_Breathe/lung-sliding-classifier/generalizability/csvs'  # Path to external data csvs.
     MODEL_OUT: 'C:/Users/hsmle/Documents/Deep_Breathe/lung-sliding-classifier/generalizability/results/models'  # Path to fine-tuned models.
     FOLDS: 'C:/Users/hsmle/Documents/Deep_Breathe/lung-sliding-classifier/generalizability/folds'  # Path to external data patient-wise fold .txt files.
@@ -280,22 +283,21 @@ GENERALIZE:
     EXPERIMENTS: 'C:/Users/hsmle/Documents/Deep_Breathe/lung-sliding-classifier/generalizability/results/experiments'
     TRIALS: 'C:/Users/hsmle/Documents/Deep_Breathe/lung-sliding-classifier/generalizability/results/trials'
   FOLD_SAMPLE:
-    SEED: 42069  # Seed number for sampling external patient ids into slices, which are used during fine-tuning to augment training data as necessary.
+    SEED: [42069, 42070, 42071, 42072, 42073]  # Seed numbers for sampling external patient ids into slices, which are used during fine-tuning to augment training data as necessary.
+    # There is one seed for each trial; insert or remove (or change) seeds as necessary/desired.
     OVERWRITE_FOLDER: True  # Set this to True if you want to overwrite existing fold .txt files.
     NUM_FOLDS: 5  # Number of desired external patient slices for augmenting training data during fine-tuning.
   FINETUNE:
     MODEL_DEF: 'efficientnet'  # Set this equal to the model definition string used for the pre-trained model.
     OVERWRITE_MODEL_DIR: True  # Set True if you want to clear existing contents in the model folder.
-    METRIC_THRESHOLDS:  # Thresholds for assessing the performance of a fine-tunend model.
-      ACCURACY: 0.9
-      AUC: 1
-      PRECISION: 1
-      RECALL: 1
-      TRUE_NEGATIVES: 1
-      TRUE_POSITIVES: 1
-      FALSE_NEGATIVES: 1
-      FALSE_POSITIVES: 1
+    METRIC_THRESHOLDS:  # Thresholds for assessing the performance of a fine-tuned model.
+      LOWER_BOUNDS:
+        SENSITIVITY: 90.1
+        SPECIFICITY: 79.3
+      UPPER_BOUNDS:
     CROSS_VAL:
-      SPLIT: 0.1
+      SPLIT: 0.1  # Specify the train-val data split for each fine-tune run.
       RUNS: 2
       EPOCHS: 1
+    LAZY: True # Set this to True if you want fine-tuning trials to terminate once model performance exceeds thresholds.
+    # A value of False will run trials to completion, regardless of whether the model performance exceeds thresholds or not.

@@ -5,10 +5,11 @@ import urllib.request
 import yaml
 import cv2
 from utils import refresh_folder
+from sql_utils import get_clips_from_db
 
 # Load dictionary of constants stored in config.yml & db credentials in database_config.yml
-cfg = yaml.full_load(open(os.path.join(os.getcwd(), "../../config.yml"), 'r'))['PREPROCESS']
-database_cfg = yaml.full_load(open(os.path.join(os.getcwd(), "../../database_config.yml"), 'r'))
+cfg = yaml.full_load(open(os.path.join(os.getcwd(), "config.yml"), 'r'))['PREPROCESS']
+database_cfg = yaml.full_load(open(os.path.join(os.getcwd(), "database_config.yml"), 'r'))
 
 
 def download(df, sliding, fr_rows, video_out_root_folder=cfg['PATHS']['UNMASKED_VIDEOS'],
@@ -62,7 +63,8 @@ def download(df, sliding, fr_rows, video_out_root_folder=cfg['PATHS']['UNMASKED_
     # Iterate through df to download the videos and preserve their id in the name
     for index, row in df.iterrows():
         out_path = video_out_folder + row['id'] + '.mp4'
-        urllib.request.urlretrieve(row['s3_path'], out_path)
+        row_no_whitespace = row['s3_path'].replace(' ', '%20')
+        urllib.request.urlretrieve(row_no_whitespace, out_path)
 
         # Get frame rate
         cap = cv2.VideoCapture(out_path)
@@ -86,37 +88,25 @@ cnx = mysql.connector.connect(user=USERNAME, password=PASSWORD,
 
 # Query Database for sliding and no_sliding labeled data but excluding significant probe movement and B lines
 # and pleural effusion or consolidation
-sliding_df = pd.read_sql('''SELECT * FROM clips WHERE (pleural_line_findings is null OR
-                            pleural_line_findings='thickened') AND (quality NOT LIKE '%significant_probe_movement%' OR
-                            quality is null) AND (a_or_b_lines='a_lines' OR a_or_b_lines='non_a_non_b' 
-                            OR a_or_b_lines is null) AND (pleural_effusion is null) AND (consolidation is null) 
-                            and labelled = 1 and view = 'parenchymal';''', cnx)
-no_sliding_df = pd.read_sql('''SELECT * FROM clips WHERE (pleural_line_findings='absent_lung_sliding' OR
-                               pleural_line_findings='thickened|absent_lung_sliding') AND
-                               (quality NOT LIKE '%significant_probe_movement%' OR quality is null) AND 
-                               (a_or_b_lines='a_lines' OR a_or_b_lines='non_a_non_b' OR a_or_b_lines is null)
-                                AND (pleural_effusion is null) AND (consolidation is null) and 
-                                labelled = 1 and view = 'parenchymal';''', cnx)
+sliding_df = get_clips_from_db(cfg['PARAMS']['DB_TABLE'], sliding=True)
+no_sliding_df = get_clips_from_db(cfg['PARAMS']['DB_TABLE'], sliding=-False)
+
+# sliding_df = pd.read_sql('''select * from clips_chile where view='parenchymal' and a_or_b_lines='a_lines'
+#                               and (quality NOT LIKE '%significant_probe_movement%' or quality is null)
+#  and (pleural_line_findings='' or pleural_line_findings='thickened');''', cnx)
+# no_sliding_df = pd.read_sql('''select * from clips_chile where view='parenchymal' and a_or_b_lines='a_lines'
+#                               and (quality NOT LIKE '%significant_probe_movement%' or quality is null)
+#  and (pleural_line_findings = 'absent_lung_sliding');''', cnx)
 
 # Query database for extra negative examples from sprints
-no_sliding_extra_df = pd.read_sql('''SELECT * FROM clips WHERE (pleural_line_findings='absent_lung_sliding'
+no_sliding_extra_df = pd.read_sql('''SELECT * FROM clips_chile WHERE (pleural_line_findings='absent_lung_sliding'
                                       OR pleural_line_findings='thickened|absent_lung_sliding') AND
-                               (quality NOT LIKE '%significant_probe_movement%' OR quality is null) AND 
-                               (a_or_b_lines='a_lines' OR a_or_b_lines='non_a_non_b' OR a_or_b_lines is null) AND 
-                               (pleural_effusion is null) AND (consolidation is null) AND 
-                               labelbox_project_number LIKE 'Lung sliding sprint%';''', cnx)
+                               (quality NOT LIKE '%significant_probe_movement%' OR quality is null) AND
+                               (a_or_b_lines='a_lines' OR a_or_b_lines='non_a_non_b' OR a_or_b_lines is null) AND
+                               (pleural_effusion is null) AND (consolidation is null);''', cnx)
 
 # load extra infusion of sliding clips
-sliding_extra_df = pd.read_csv(os.path.join(cfg['PATHS']['CSVS_OUTPUT'], 'sliding_extra.csv'))
-
-# Load examples that must be excluded from negative class (bad clips)
-bad_sliding_df = pd.read_csv(os.path.join(cfg['PATHS']['CSVS_OUTPUT'], 'sliding_bad_ids.csv'))
-bad_no_sliding_df = pd.read_csv(os.path.join(cfg['PATHS']['CSVS_OUTPUT'], 'no_sliding_bad_ids.csv'))
-
-no_sliding_df = pd.concat([no_sliding_df, no_sliding_extra_df]).reset_index(drop=True)
-sliding_df = pd.concat([sliding_df, sliding_extra_df]).reset_index(drop=True)
-sliding_df = sliding_df[~sliding_df['id'].isin(bad_sliding_df['id'])]
-no_sliding_df = no_sliding_df[~no_sliding_df['id'].isin(bad_no_sliding_df['id'])]
+# see code block from sliding_clip_infusion.py
 
 # If we're just asking the amount of videos available, the program will terminate after logging this information
 AMOUNT_ONLY = cfg['PARAMS']['AMOUNT_ONLY']

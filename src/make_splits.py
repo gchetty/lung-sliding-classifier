@@ -5,7 +5,7 @@ import yaml
 import random
 from sklearn.model_selection import train_test_split
 
-cfg = yaml.full_load(open(os.path.join(os.getcwd(), '../config.yml'), 'r'))
+cfg = yaml.full_load(open(os.path.join(os.getcwd(), 'config.yml'), 'r'))
 
 
 def df_splits_two_stream(df, flow_df, train, val, test, random_state=cfg['TRAIN']['SPLITS']['RANDOM_SEED']):

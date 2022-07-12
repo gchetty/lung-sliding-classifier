@@ -22,7 +22,7 @@ from tensorflow_addons.losses import SigmoidFocalCrossEntropy
 
 # cfg refers to the subdictionary of the config file pertaining to our fine-tuning experiments. cfg_full is the entire
 # loaded config file.
-cfg = yaml.full_load(open(os.path.join(os.getcwd(), "config.yml"), 'r'))['GENERALIZE']
+cfg = yaml.full_load(open(os.path.join(os.getcwd(), "config.yml"), 'r'))['EXTERNAL_VAL']
 cfg_full = yaml.full_load(open(os.path.join(os.getcwd(), "config.yml"), 'r'))
 
 
@@ -51,6 +51,8 @@ def write_folds_to_txt(folds, file_path):
     Saves patient id folds to .txt file in the following structure:
     -> An integer, n, which indicates the length of the current fold
     -> Followed by n lines, each containing one (unique) patient id
+    :param folds: 2D list of strings. Each row represents a list of folds.
+    :params file_path: path where folds should be stored.
     '''
     txt = open(file_path, "a")
     for i in range(len(folds)):
@@ -75,26 +77,52 @@ def check_performance(df):
     '''
     Returns true if all metrics stored in the supplied results DataFrame meet fine-tuning standards, or False otherwise.
     :param df: DataFrame storing model performance metrics to be evaluated against fine-tune performance thresholds.
-    '''
-    # Return false if values less than these thresholds
-    lower_bounds = ['accuracy', 'auc', 'recall', 'precision', 'true_negatives', 'true_positives']
-    # Return false if values greater than these thresholds
-    upper_bounds = ['false_negatives', 'true_positives']
 
-    for thresh in lower_bounds:
-        if df[thresh].values[0] < cfg['FINETUNE']['METRIC_THRESHOLDS'][thresh.upper()]:
+    :return: Bool, whether metrics in df exceed minimum performance thresholds.
+    '''
+    cfg_thresh = cfg['FINETUNE']['METRIC_THRESHOLDS']
+
+    # Check that metrics exceed lower bounds, if they exist
+    for thresh in cfg_thresh['LOWER_BOUNDS']:
+        if df[thresh.lower()].values[0] < cfg_thresh[thresh]:
             return False
-    for thresh in upper_bounds:
-        if df[thresh].values[0] > cfg['FINETUNE']['METRIC_THRESHOLDS'][thresh.upper()]:
+
+    # Check that metrics do not exceed upper bounds, if they exist
+    for thresh in cfg_thresh['UPPER_BOUNDS']:
+        if df[thresh.lower()].values[0] > cfg_thresh[thresh]:
             return False
 
     return True
 
 
+def get_external_clip_df():
+    # Consolidate all external clip data into a single dataframe.
+    csvs_dir = cfg['PATHS']['CSV_OUT']
+    external_data = []
+    for center in cfg['LOCATIONS']:
+        csv_folder = os.path.join(csvs_dir, center)
+        for input_class in ['sliding', 'no_sliding']:
+            csv_file = os.path.join(csv_folder, input_class + '.csv')
+            external_data.append(pd.read_csv(csv_file))
+    external_df = pd.concat(external_data)
+
+    external_data_dir = os.path.join(cfg['PATHS']['CSV_OUT'], 'combined_external_data')
+    if not os.path.exists(external_data_dir):
+        os.makedirs(external_data_dir)
+    if cfg['REFRESH_FOLDERS']:
+        refresh_folder(external_data_dir)
+    external_df_path = os.path.join(external_data_dir, add_date_to_filename('all_external_clips') + '.csv')
+
+    external_df.to_csv(external_df_path)
+    print("All external clips consolidated into", external_df_path, '\n')
+
+    return external_df
+
+
 # TAAFT stands for: Threshold-Aware Accumulative Fine-Tuner
 class TAAFT:
     '''
-    The CucumberTrainer class encapsulates the implementation of the fine-tuning for generalizability experiments.
+    The TAAFT class encapsulates the implementation of the fine-tuning for generalizability experiments.
     Handles fold sampling and fine-tuning trials.
     '''
     def __init__(self, clip_df, k):
@@ -102,15 +130,17 @@ class TAAFT:
         :param df: DataFrame containing all clip data from external centers
         :param k: Number of folds in which to split data in df by patient id
         '''
-        print("CREATING A NEW CUCUMBER TRAINER (k = {})".format(k))
+        print("CREATING A NEW TAAFT (k = {})".format(k))
         self.k = k
         self.clip_df = clip_df
 
-    def sample_folds(self):
+    def sample_folds(self, trial_folder, seed):
         '''
         Samples external data in self.clip_df into self.k folds. Preserves ratio of positive to negative classes in each fold.
         Folds are saved in a .txt file, where each fold is identified with an integer index, followed by each patient id
         in the fold on a new line.
+        :param trial_folder: full path to folder in which to place patient folds. Corresponds to a particular trial.
+        :param seed: positive integer. Seed for shuffling patient ids.
         '''
         sliding_df = self.clip_df[self.clip_df['pleural_line_findings'] != 'absent_lung_sliding']
         no_sliding_df = self.clip_df[self.clip_df['pleural_line_findings'] == 'absent_lung_sliding']
@@ -123,19 +153,21 @@ class TAAFT:
         print("{} unique no-sliding patient ids found.\n".format(len(no_sliding_ids)))
 
         # Shuffle the patient ids.
-        np.random.seed(cfg_full['GENERALIZE']['FOLD_SAMPLE']['SEED'])
+        np.random.seed(seed)
         np.random.shuffle(sliding_ids)
         np.random.shuffle(no_sliding_ids)
 
         # Specify the path to this file based on the config file.
-        folds_dir = cfg['PATHS']['FOLDS']
+        folds_dir = os.path.join(trial_folder, 'folds')
         if not os.path.exists(folds_dir):
             os.makedirs(folds_dir)
+        else:
+            refresh_folder(folds_dir)
         filename = ('patient_folds_' + str(datetime.datetime.now()) + '.txt').replace(' ', '_')
         str_parts = filename.split('.')
         filename = '.'.join([str_parts[0], str_parts[2]])
         filename = filename.replace(':', '-')
-        folds_path = os.path.join(cfg['PATHS']['FOLDS'], filename)
+        folds_path = os.path.join(folds_dir, filename)
 
         # Make the file that stores ids by fold if it doesn't already exist.
         # Clear the file if user intends to overwrite its contents.
@@ -211,11 +243,13 @@ class TAAFT:
 
         print("Sampling complete with seed = " + str(cfg['FOLD_SAMPLE']['SEED']) + ". Folds saved to " + folds_path + ".")
 
-    def finetune_single_trial(self, hparams=None):
+    def finetune_single_trial(self, trial_folder, hparams=None, lazy=True):
         '''
         Performs a single fine-tuning trial. Fine-tunes a model on external clip data, repeatedly augmenting external
         data slices to a training set until all external data has been used for training.
+        :param trial_folder: full path to folder in which to place metrics for current trial.
         :param hparams: Specifies the set of hyperparameters for fine-tuning the model.
+        :param lazy: When True, trial will terminate once model performance exceeds minimum thresholds.
         '''
 
         print('Reading values from the config file...')
@@ -239,10 +273,9 @@ class TAAFT:
         CSVS_FOLDER = cfg_full['TRAIN']['PATHS']['CSVS']
         EXT_FOLDER = cfg['PATHS']['CSVS_SPLIT']
 
-        FOLDS_PATH = cfg['PATHS']['FOLDS']
-
         # Ensure that the partition path has been created before running this code!
-        folds_file = os.path.join(FOLDS_PATH, os.listdir(FOLDS_PATH)[0])
+        filename = os.listdir(os.path.join(trial_folder, 'folds'))[0]
+        folds_file = os.path.join(trial_folder, 'folds', filename)
         print('Retrieving patient folds from {}...'.format(folds_file))
         folds = open(folds_file, "r")
         cur_fold = []
@@ -272,7 +305,7 @@ class TAAFT:
             for csv in ['train.csv', 'val.csv']:
                 ext_dfs.append(pd.read_csv(os.path.join(center_split_path, csv)))
         ext_df = pd.concat(ext_dfs, ignore_index=True)
-        labelled_ext_df_path = os.path.join(cfg['CSV_OUT'], 'labelled_external_dfs/')
+        labelled_ext_df_path = os.path.join(cfg['PATHS']['CSV_OUT'], 'labelled_external_dfs/')
         if cfg['REFRESH_FOLDERS']:
             refresh_folder(labelled_ext_df_path)
         labelled_ext_df_path += add_date_to_filename('labelled_ext')
@@ -282,7 +315,7 @@ class TAAFT:
 
         print('Setup complete')
 
-        # Cucumber trial starts here.
+        # Fine-tuning trial starts here.
         cur_fold_num = 0
         num_folds_added = 0  # number of external data slices that have been added to the training set
         add_set = []
@@ -329,7 +362,8 @@ class TAAFT:
                 print('Model performance ok. Saving model...')
                 model.save(os.path.join(model_out_dir, add_date_to_filename('finetuned_model') + '.pb'))
                 write_folds_to_txt(add_set, cfg['PATHS']['FOLDS_USED'])
-                continue
+                if lazy:  # if we want trial to end once model performance exceeds thresholds
+                    break
 
             # Set aside some external data to be added to the existing training data.
             add_set = fold_list[num_folds_added]
@@ -347,7 +381,7 @@ class TAAFT:
             train_df.sample(frac=1)
             print('Training clips: {}\nValidation clips: {}'.format(len(train_df), len(ext_df)))
 
-            # Create training and validation sets for fine-tune cross-validation.
+            # Create training and validation sets for fine-tuning.
             k = self.k
             val_num = len(train_df) // k
             train_folds = []
@@ -355,12 +389,12 @@ class TAAFT:
             while i < len(train_df):
                 train_folds.append(train_df[i:i + min(len(train_df) - i, val_num)])
                 i += val_num
-            print("{} folds ready for cross-val.".format(len(train_folds)))
+            print("{} folds ready.".format(len(train_folds)))
 
-            # Cross-validation for model fine-tuning.
-            print('Fine-tune cross-validation commencing...')
+            # Model fine-tuning.
+            print('Fine-tuning...')
             for cv_run in range(k):
-                # pick up training from where it left off at the end of previous cross val run.
+                # pick up training from where it left off at the end of previous fine-tuning run.
                 if cv_run > 0:
                     prev_model_path = os.path.join(cfg['PATHS']['MODEL_OUT'], os.listdir(cfg['PATHS']['MODEL_OUT'])[-1])
                 # for run 0 of cross val, retrieve the model from its location immediately after initial training.
@@ -371,13 +405,13 @@ class TAAFT:
 
                 print('FINE-TUNING MODEL FOR FOLD ' + str(cv_run) + ' OF EXTERNAL CLIP TRAINING SET')
 
-                # Set up the train and holdout for each cross-validation run. Note that both parts are taken from the
+                # Set up the train and holdout. Note that both parts are taken from the
                 # external data set aside for training. We have a separate dataframe to store testing data.
                 df_val_part = train_folds[cv_run]
                 df_train_part = train_df[~train_df.isin(df_val_part['patient_id'].unique())]
 
                 # The following code was borrowed from src/models/models.py.
-                # Fine-tune the model with a cross-validation run
+                # Fine-tune the model
                 model_def_fn, preprocessing_fn = get_model(cfg['FINETUNE']['MODEL_DEF'])
 
                 # Prepare the training and validation sets from the dataframes.
@@ -468,47 +502,35 @@ class TAAFT:
             cur_fold_num += 1
             num_folds_added += 1
 
-    def finetune_multiple_trials(self, n_trials):
+    def finetune_multiple_trials(self, n_trials, trial_path=cfg['PATHS']['TRIALS']):
         '''
         Runs multiple trials.
         :param n_trials: Number of trials to run.
+        :param trial_path: Path to fine-tuning trial results.
         '''
-        pass
+        if not os.path.exists(trial_path):
+            os.makedirs(trial_path)
+        else:
+            refresh_folder(trial_path)
+        for trial in range(n_trials):
+            cur_trial_dir = os.path.join(trial_path, 'trial_{}'.format(trial + 1))
+            if not os.path.exists(cur_trial_dir):
+                os.makedirs(cur_trial_dir)
+            else:
+                refresh_folder(cur_trial_dir)
+            self.sample_folds(cur_trial_dir, cfg['FOLD_SAMPLE']['SEED'][trial])
+            self.finetune_single_trial(cur_trial_dir, lazy=cfg['FINETUNE']['LAZY'])
 
 
 if __name__ == '__main__':
     # If the generalizability folder has not been created, do this first. Create the subdirectories for each of the
-    # required data types (e.g. raw clips, npzs, m-modes, etc).
-    generalize_path = '/'.join(cfg['PATHS']['CSV_OUT'].split('/')[:-1])
-    if not os.path.exists(generalize_path):
-        os.makedirs(generalize_path)
+    # required data types (e.g. raw clips, npzs, m-modes, etc.)
     for path in cfg['PATHS']:
         if not os.path.exists(cfg['PATHS'][path]):
             os.makedirs(cfg['PATHS'][path])
 
-    # Insert code to automatically preprocess everything?
-    os.chdir('\\'.join(os.getcwd().split('\\')[:-1]))
-    os.system('python')
+    external_df = get_external_clip_df()
 
-    # Consolidate all external clip data into a single dataframe.
-    csvs_dir = cfg['PATHS']['CSV_OUT']
-    external_data = []
-    for center in cfg['LOCATIONS']:
-        csv_folder = os.path.join(csvs_dir, center)
-        for input_class in ['sliding', 'no_sliding']:
-            csv_file = os.path.join(csv_folder, input_class + '.csv')
-            external_data.append(pd.read_csv(csv_file))
-    external_df = pd.concat(external_data)
-
-    external_data_dir = os.path.join(cfg['PATHS']['CSV_OUT'], 'combined_external_data')
-    external_df_path = os.path.join(external_data_dir, add_date_to_filename('all_external_clips') + '.csv')
-
-    if cfg['REFRESH_FOLDERS']:
-        refresh_folder(external_data_dir)
-
-    external_df.to_csv(external_df_path)
-    print("All external clips consolidated into", external_df_path, '\n')
-    # Construct a CucumberTrainer instance with the dataframe.
-    taaft = TAAFT(external_df, 5)
-    taaft.sample_folds()
-    taaft.finetune_single_trial()
+    # Construct a TAAFT instance with the dataframe.
+    taaft = TAAFT(external_df, cfg['FOLD_SAMPLE']['NUM_FOLDS'])
+    taaft.finetune_multiple_trials(cfg['NUM_TRIALS'])
