@@ -320,7 +320,7 @@ class TAAFT:
             model = load_model(cfg_full['PREDICT']['MODEL'], compile=False)
             pred_labels, probs = predict_set(model, ext_df)
             # Can change these metrics as necessary
-            metrics = [SensitivityAtSpecificity(0.95, name='sensitivity'), Specificity(name='specificity')]
+            metrics = [Recall(name='sensitivity'), Specificity(name='specificity')]
 
             # Create a DataFrame containing metric results from predictions.
             results = []
