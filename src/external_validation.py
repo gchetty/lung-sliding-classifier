@@ -97,7 +97,7 @@ def check_performance(df):
 
 def get_external_clip_df():
     # Consolidate all external clip data into a single dataframe.
-    csvs_dir = cfg['PATHS']['CSV_OUT']
+    csvs_dir = os.getcwd() + cfg['PATHS']['CSV_OUT']
     external_data = []
     for center in cfg['LOCATIONS']:
         csv_folder = os.path.join(csvs_dir, center)
@@ -106,7 +106,7 @@ def get_external_clip_df():
             external_data.append(pd.read_csv(csv_file))
     external_df = pd.concat(external_data)
 
-    external_data_dir = os.path.join(cfg['PATHS']['CSV_OUT'], 'combined_external_data')
+    external_data_dir = os.path.join(os.getcwd() + cfg['PATHS']['CSV_OUT'], 'combined_external_data')
     if not os.path.exists(external_data_dir):
         os.makedirs(external_data_dir)
     if cfg['REFRESH_FOLDERS']:
@@ -237,7 +237,7 @@ class TAAFT:
 
         # Write the folds to the fold file:
         if cfg['FOLD_SAMPLE']['OVERWRITE_FOLDER']:
-            refresh_folder(cfg['PATHS']['FOLDS'])
+            refresh_folder(os.getcwd() + cfg['PATHS']['FOLDS'])
         write_folds_to_txt(folds, folds_path)
 
         print("Sampling complete with seed = " + str(cfg['FOLD_SAMPLE']['SEED']) + ". Folds saved to " + folds_path + ".")
@@ -253,7 +253,7 @@ class TAAFT:
 
         print('Reading values from the config file...')
 
-        model_out_dir = cfg['PATHS']['MODEL_OUT']
+        model_out_dir = os.getcwd() + cfg['PATHS']['MODEL_OUT']
         if not os.path.exists(model_out_dir):
             os.makedirs(model_out_dir)
 
@@ -263,7 +263,7 @@ class TAAFT:
         model_name = cfg_full['TRAIN']['MODEL_DEF'].lower()
         hparams = cfg_full['TRAIN']['PARAMS'][model_name.upper()] if hparams is None else hparams
 
-        EXT_FOLDER = cfg['PATHS']['CSVS_SPLIT']
+        EXT_FOLDER = os.getcwd() + cfg['PATHS']['CSVS_SPLIT']
 
         # Ensure that the partition path has been created before running this code!
         filename = os.listdir(os.path.join(trial_folder, 'folds'))[0]
@@ -297,7 +297,7 @@ class TAAFT:
             for csv in ['train.csv', 'val.csv']:
                 ext_dfs.append(pd.read_csv(os.path.join(center_split_path, csv)))
         ext_df = pd.concat(ext_dfs, ignore_index=True)
-        labelled_ext_df_path = os.path.join(cfg['PATHS']['CSV_OUT'], 'labelled_external_dfs/')
+        labelled_ext_df_path = os.path.join(os.getcwd() + cfg['PATHS']['CSV_OUT'], 'labelled_external_dfs/')
         if cfg['REFRESH_FOLDERS']:
             refresh_folder(labelled_ext_df_path)
         labelled_ext_df_path += add_date_to_filename('labelled_ext')
@@ -335,7 +335,7 @@ class TAAFT:
                 metric_names += [metric.name]
             res_df = pd.DataFrame([results], columns=metric_names)
 
-            predictions_path = cfg['PATHS']['PREDICTIONS_OUT']
+            predictions_path = os.getcwd() + cfg['PATHS']['PREDICTIONS_OUT']
             if not os.path.exists(predictions_path):
                 os.makedirs(predictions_path)
 
@@ -352,7 +352,7 @@ class TAAFT:
             if check_performance(res_df):
                 print('Model performance ok. Saving model...')
                 model.save(os.path.join(model_out_dir, add_date_to_filename('finetuned_model') + '.pb'))
-                write_folds_to_txt(add_set, cfg['PATHS']['FOLDS_USED'])
+                write_folds_to_txt(add_set, os.getcwd() + cfg['PATHS']['FOLDS_USED'])
                 if lazy:  # if we want trial to end once model performance exceeds thresholds
                     break
 
@@ -374,14 +374,11 @@ class TAAFT:
             print('Train: {}\nTest: {}'.format(len(train_df), len(ext_df)))
 
             # Create training and validation sets for fine-tuning.
-            sub_val_df = train_df.tail(int(len(train_df) * cfg['FINETUNE']['TRAIN_VAL']))
+            sub_val_df = train_df.tail(int(len(train_df) * cfg['FINETUNE']['VAL_SPLIT']))
             sub_train_df = train_df[~train_df.isin(sub_val_df['patient_id'].unique())]
 
             # Model fine-tuning.
             print('Fine-tuning...')
-            prev_model_path = os.path.join(cfg_full['TRAIN']['PATHS']['MODEL_OUT'],
-                                                   os.listdir(cfg_full['TRAIN']['PATHS']['MODEL_OUT'])[-1])
-            model = load_model(prev_model_path, compile=False)
 
             # The following code was borrowed from src/models/models.py.
             # Fine-tune the model
@@ -480,14 +477,14 @@ class TAAFT:
             del model
 
             # Save results
-            file_path = os.path.join(cfg['PATHS']['EXPERIMENTS'], add_date_to_filename('sens_spec_results') + '.csv')
+            file_path = os.path.join(os.getcwd() + cfg['PATHS']['EXPERIMENTS'], add_date_to_filename('sens_spec_results') + '.csv')
             print(metrics_df)
             metrics_df.to_csv(file_path, columns=metrics_df.columns, index_label=False, index=False)
 
             cur_fold_num += 1
             num_folds_added += 1
 
-    def finetune_multiple_trials(self, n_trials, trial_path=cfg['PATHS']['TRIALS']):
+    def finetune_multiple_trials(self, n_trials, trial_path=os.getcwd() + cfg['PATHS']['TRIALS']):
         '''
         Runs multiple trials.
         :param n_trials: Number of trials to run.
@@ -497,7 +494,7 @@ class TAAFT:
             os.makedirs(trial_path)
         elif cfg['REFRESH_FOLDERS']:
             refresh_folder(trial_path)
-            refresh_folder(cfg['PATHS']['EXPERIMENTS'])
+            refresh_folder(os.getcwd() + cfg['PATHS']['EXPERIMENTS'])
         for trial in range(n_trials):
             cur_trial_dir = os.path.join(trial_path, 'trial_{}'.format(trial + 1))
             if not os.path.exists(cur_trial_dir):
@@ -512,8 +509,8 @@ if __name__ == '__main__':
     # If the generalizability folder has not been created, do this first. Create the subdirectories for each of the
     # required data types (e.g. raw clips, npzs, m-modes, etc.)
     for path in cfg['PATHS']:
-        if not os.path.exists(cfg['PATHS'][path]):
-            os.makedirs(cfg['PATHS'][path])
+        if not os.path.exists(os.getcwd() + cfg['PATHS'][path]):
+            os.makedirs(os.getcwd() + cfg['PATHS'][path])
 
     external_df = get_external_clip_df()
 

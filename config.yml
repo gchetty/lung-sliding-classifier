@@ -29,13 +29,13 @@ PREPROCESS:
   # The paths to save files. After running the preprocess pipeline, the npzs and csvs are usually all that are needed to train.
   # You shouldn't *have* to edit these, as they are stored as relative and not absolute paths.
   PATHS:
-    UNMASKED_VIDEOS: '\generalizability\raw_videos/alberta'  # Path to the videos that are downloaded from the dataset and stored without transformation.
+    UNMASKED_VIDEOS: '\generalizability\raw_videos\alberta'  # Path to the videos that are downloaded from the dataset and stored without transformation.
     MASKED_VIDEOS: '\generalizability\masked_videos\alberta'  # Path to the videos that result from running the masking tool on UNMASKED_VIDEOS.
-    SMOOTHED_VIDEOS: '\results/data\smoothed_videos/'  # Path to the videos that result from applying a median filter to MASKED_VIDEOS (optional).
-    FLOW_VIDEOS: 'flow_videos/'   # Path to the optical flow video frames (optional).
+    SMOOTHED_VIDEOS: '\results\data\smoothed_videos\'  # Path to the videos that result from applying a median filter to MASKED_VIDEOS (optional).
+    FLOW_VIDEOS: 'flow_videos\'   # Path to the optical flow video frames (optional).
     CSVS_OUTPUT: '\generalizability\csvs\alberta'  # Path to any CSVs that are generated / taken from the database.
     NPZ: '\generalizability\npzs\alberta'  # Path to the mini-clip videos.
-    FLOW_NPZ: 'flow_npzs/'  # Path to the .npzs containing optical flow mini-clips.
+    FLOW_NPZ: 'flow_npzs\'  # Path to the .npzs containing optical flow mini-clips.
     MASKING_TOOL: '\results\data\auto_masking_deeper.h5'  # Path to the masking tool. Currently only works with the older version!!!
 
     # EXTRA refers to the first infusion of negative additions, which at the time of writing is kept separate
@@ -274,14 +274,14 @@ EXTERNAL_VAL:
   PARAMS:
     OVERWRITE_FOLDS: True  # Set this to True if you want to overwrite existing fold .txt files.
   PATHS:
-    MMODES: '/generalizability/mmodes'  # Path to external data M-mode images.
-    CSV_OUT: '/generalizability/csvs'  # Path to external data csvs.
-    MODEL_OUT: '/generalizability/results/models'  # Path to fine-tuned models.
-    FOLDS: '/generalizability/folds'  # Path to external data patient-wise fold .txt files.
-    CSVS_SPLIT: '/generalizability/csvs_split'  # Path to train-test-val splits for external data.
-    PREDICTIONS_OUT: '/generalizability/predictions'  # Path to predictions from fine-tuning experiments.
-    EXPERIMENTS: '/generalizability/results/experiments'
-    TRIALS: '/generalizability/results/trials'
+    MMODES: '\generalizability\mmodes'  # Path to external data M-mode images.
+    CSV_OUT: '\generalizability\csvs'  # Path to external data csvs.
+    MODEL_OUT: '\generalizability\results\models'  # Path to fine-tuned models.
+    FOLDS: '\generalizability\folds'  # Path to external data patient-wise fold .txt files.
+    CSVS_SPLIT: '\generalizability\csvs_split'  # Path to train-test-val splits for external data.
+    PREDICTIONS_OUT: '\generalizability\predictions'  # Path to predictions from fine-tuning experiments.
+    EXPERIMENTS: '\generalizability\results\experiments'
+    TRIALS: '\generalizability\results\trials'
   FOLD_SAMPLE:
     SEED: 42069  # Seed numbers for sampling external patient ids into slices, which are used during fine-tuning to augment training data as necessary.
     # There is one seed for each trial; insert or remove (or change) seeds as necessary/desired.
