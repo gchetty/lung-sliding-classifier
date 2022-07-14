@@ -8,8 +8,8 @@ from utils import refresh_folder
 from sql_utils import get_clips_from_db
 
 # Load dictionary of constants stored in config.yml & db credentials in database_config.yml
-cfg = yaml.full_load(open(os.path.join(os.getcwd(), "config.yml"), 'r'))['PREPROCESS']
-database_cfg = yaml.full_load(open(os.path.join(os.getcwd(), "database_config.yml"), 'r'))
+cfg = yaml.full_load(open(os.path.join(os.getcwd(), "..\\..\\config.yml"), 'r'))['PREPROCESS']
+database_cfg = yaml.full_load(open(os.path.join(os.getcwd(), "..\\..\\database_config.yml"), 'r'))
 
 
 def download(df, sliding, fr_rows, video_out_root_folder=cfg['PATHS']['UNMASKED_VIDEOS'],
