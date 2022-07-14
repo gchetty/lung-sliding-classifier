@@ -71,7 +71,7 @@ TRAIN:
   # Parameters for augmentation and model-training specifics.
   PARAMS:
     EPOCHS: 40  # Maximum number of epochs to train the model for.
-    BATCH_SIZE: 40  # Integer to set the batch size. If you're running into memory errors, you'll have to lower this. Set this to 1 for GRADCAM.
+    BATCH_SIZE: 25  # Integer to set the batch size. If you're running into memory errors, you'll have to lower this. Set this to 1 for GRADCAM.
     SHUFFLE: True  # Boolean, whether to shuffle the training set or not.
     INCREASE: False  # Boolean, whether to oversample the minority class (assumed to be the negative class) or not.
     AUGMENTATION_CHANCE: 0.8  # Probability to augment an incoming batch.

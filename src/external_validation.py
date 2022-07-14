@@ -463,11 +463,6 @@ class TAAFT:
                         tf.summary.text(name='Early Stopping', data=tf.convert_to_tensor('Training stopped early'),
                                         step=0)
 
-            # for metric in history.history.keys():
-            #     if metric in metrics_df.columns:
-            #         metric_values = history.history[metric]
-            #         metrics_df.loc[metric] = sum(metric_values) / len(metric_values)
-
             test_results = model.evaluate(test_set)
             print(test_results)
 
