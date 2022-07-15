@@ -149,11 +149,11 @@ else:
     sliding_df = df_splits_two_stream(sliding_df, flow_sliding_df, train_prop, val_prop, test_prop)
     no_sliding_df = df_splits_two_stream(no_sliding_df, flow_no_sliding_df, train_prop, val_prop, test_prop)
 
-# Add label to dataframes
-l1 = [1] * len(sliding_df)
-sliding_df['label'] = l1
-l0 = [0] * len(no_sliding_df)
-no_sliding_df['label'] = l0
+# Add label to dataframes. We consider absent lung sliding to be the "positive" class here, hence the label of 1.
+l0 = [0] * len(sliding_df)
+sliding_df['label'] = l0
+l1 = [1] * len(no_sliding_df)
+no_sliding_df['label'] = l1
 
 # Add file path to dataframes
 npz_dir = ''
