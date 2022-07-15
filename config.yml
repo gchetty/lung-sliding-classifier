@@ -270,7 +270,7 @@ EXPLAINABILITY:
 EXTERNAL_VAL:
   LOCATIONS: ['chile', 'ottawa', 'alberta']  # List of centers involved in the multi-center study.
   REFRESH_FOLDERS: True  # If you want to delete contents of generalizability-related folders before writing, set True.
-  NUM_TRIALS: 1  # Specify the number of fine-tuning trials.
+  NUM_TRIALS: 3  # Specify the number of fine-tuning trials.
   PARAMS:
     OVERWRITE_FOLDS: True  # Set this to True if you want to overwrite existing fold .txt files.
   PATHS:
@@ -295,8 +295,8 @@ EXTERNAL_VAL:
         SENSITIVITY: 90.1
         SPECIFICITY: 79.3
       UPPER_BOUNDS:
-    VAL_SPLIT: 0.2 # Specify the train-val data split for each fine-tune run.
-    EPOCHS: 25
+    VAL_SPLIT: 0.1 # Specify the train-val data split for each fine-tune run.
+    EPOCHS: 10
     LAZY: False # Set this to True if you want fine-tuning trials to terminate once model performance exceeds thresholds.
     LR: 0.0000171  # For now, divide the original (efficientnet) lr by 10.
     # A value of False will run trials to completion, regardless of whether the model performance exceeds thresholds or not.
