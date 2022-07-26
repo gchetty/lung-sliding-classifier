@@ -33,8 +33,8 @@ PREPROCESS:
     MASKED_VIDEOS: '\generalizability\masked_videos\alberta'  # Path to the videos that result from running the masking tool on UNMASKED_VIDEOS.
     SMOOTHED_VIDEOS: '\results\data\smoothed_videos\'  # Path to the videos that result from applying a median filter to MASKED_VIDEOS (optional).
     FLOW_VIDEOS: 'flow_videos\'   # Path to the optical flow video frames (optional).
-    CSVS_OUTPUT: '\generalizability\csvs\alberta'  # Path to any CSVs that are generated / taken from the database.
-    NPZ: '\generalizability\npzs\alberta'  # Path to the mini-clip videos.
+    CSVS_OUTPUT: 'generalizability\csvs\alberta'  # Path to any CSVs that are generated / taken from the database.
+    NPZ: 'C:\Users\hsmle\Documents\Deep_Breathe\lung-sliding-classifier\generalizability\npzs\alberta'  # Path to the mini-clip videos.
     FLOW_NPZ: 'flow_npzs\'  # Path to the .npzs containing optical flow mini-clips.
     MASKING_TOOL: '\results\data\auto_masking_deeper.h5'  # Path to the masking tool. Currently only works with the older version!!!
 
@@ -270,7 +270,8 @@ EXPLAINABILITY:
 EXTERNAL_VAL:
   LOCATIONS: ['chile', 'ottawa', 'alberta']  # List of centers involved in the multi-center study.
   REFRESH_FOLDERS: True  # If you want to delete contents of generalizability-related folders before writing, set True.
-  NUM_TRIALS: 1  # Specify the number of fine-tuning trials.
+  NUM_TRIALS: 5  # Specify the number of fine-tuning trials.
+  MIN_TEST_SIZE: 0.5  # Specify the minimum proportion of external data to set aside for testing purposes.
   PARAMS:
     OVERWRITE_FOLDS: True  # Set this to True if you want to overwrite existing fold .txt files.
   PATHS:
@@ -282,6 +283,7 @@ EXTERNAL_VAL:
     PREDICTIONS_OUT: '\generalizability\predictions'  # Path to predictions from fine-tuning experiments.
     EXPERIMENTS: '\generalizability\results\experiments'
     TRIALS: '\generalizability\results\trials'
+    PLOTS: '\generalizability\results\experiments\plots'
   FOLD_SAMPLE:
     SEED: 42069  # Seed numbers for sampling external patient ids into slices, which are used during fine-tuning to augment training data as necessary.
     # There is one seed for each trial; insert or remove (or change) seeds as necessary/desired.
@@ -295,8 +297,9 @@ EXTERNAL_VAL:
         SENSITIVITY: 90.1
         SPECIFICITY: 79.3
       UPPER_BOUNDS:
-    VAL_SPLIT: 0.2 # Specify the train-val data split for each fine-tune run.
-    EPOCHS: 25
+    VAL_SPLIT: 0.1 # Specify the train-val data split for each fine-tune run.
+    EPOCHS: 50
     LAZY: False # Set this to True if you want fine-tuning trials to terminate once model performance exceeds thresholds.
     LR: 0.0000171  # For now, divide the original (efficientnet) lr by 10.
     # A value of False will run trials to completion, regardless of whether the model performance exceeds thresholds or not.
+  PLOT_METRICS: ['loss', 'sensitivity', 'specificity']  # Specify metrics for which to generate plots (for each trial and trial-wise average).

@@ -19,6 +19,7 @@ from tensorflow.keras.metrics import Precision, Recall, AUC, TrueNegatives, True
     FalsePositives, Accuracy, SensitivityAtSpecificity
 from tensorflow_addons.metrics.f_scores import F1Score
 from tensorflow_addons.losses import SigmoidFocalCrossEntropy
+from src.data.sql_utils import add_date_to_filename
 
 # cfg refers to the subdictionary of the config file pertaining to our fine-tuning experiments. cfg_full is the entire
 # loaded config file.
@@ -60,17 +61,6 @@ def write_folds_to_txt(folds, file_path):
         for id in folds[i]:
             txt.write(str(id) + '\n')
     txt.close()
-
-
-def add_date_to_filename(file):
-    '''
-    Labels a file name with useful information about date and time.
-    :param file: name of file as string
-    :return labelled_filename: name of file joined with date and time info.
-    '''
-    cur_date = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-    labelled_filename = file + '_' + cur_date
-    return labelled_filename
 
 
 def check_performance(df):
@@ -311,8 +301,9 @@ class TAAFT:
         cur_fold_num = 0
         num_folds_added = 0  # number of external data slices that have been added to the training set
         add_set = []
-        # Loop until all external data has been used up.
-        while num_folds_added < cfg['FOLD_SAMPLE']['NUM_FOLDS']:
+        min_test_size = int(len(ext_df) * cfg['MIN_TEST_SIZE'])
+        # Loop until external testing set has reached minimum size.
+        while len(ext_df) >= min_test_size:
             print('\n======================= FINE-TUNING ON {} OF {} SLICES OF EXTERNAL DATA ========================\n'
                   .format(str(num_folds_added + 1), len(fold_list)))
             # Evaluate the model on the external test set. Note that we load the original pre-finetuned model at each
@@ -339,8 +330,8 @@ class TAAFT:
             if not os.path.exists(predictions_path):
                 os.makedirs(predictions_path)
 
-            if cfg['REFRESH_FOLDERS']:
-                refresh_folder(predictions_path)
+            # if cfg['REFRESH_FOLDERS']:
+            #     refresh_folder(predictions_path)
 
             # Save the metric result DataFrame.
             csv_name = add_date_to_filename('') + '_metrics.csv'
@@ -412,7 +403,7 @@ class TAAFT:
                 os.makedirs(tensorboard_path)
 
             # Log metrics
-            log_dir = add_date_to_filename(cfg_full['TRAIN']['PATHS']['TENSORBOARD'])
+            log_dir = add_date_to_filename(os.getcwd() + cfg_full['TRAIN']['PATHS']['TENSORBOARD'])
 
             # uncomment line below to include tensorboard profiler in callbacks
             # basic_call = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1, profile_batch=1)
@@ -471,6 +462,10 @@ class TAAFT:
                 for t in cfg_thresh[bound_set]:
                     metrics.append(t.lower())
             metrics_df = pd.DataFrame([test_results], columns=metrics)
+
+            # If the fine-tuned model now performs well on the test set, terminate the trial early.
+            if check_performance(metrics_df) and lazy:
+                break
 
             gc.collect()
             tf.keras.backend.clear_session()
