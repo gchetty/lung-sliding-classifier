@@ -150,7 +150,7 @@ elif flow == 'Yes':
 else:
     sliding_df = df_splits_two_stream(sliding_df, flow_sliding_df, train_prop, val_prop, test_prop)
     no_sliding_df = df_splits_two_stream(no_sliding_df, flow_no_sliding_df, train_prop, val_prop, test_prop)
-
+    
 # Add label to dataframes.
 l1 = [1] * len(sliding_df)
 sliding_df['label'] = l1
