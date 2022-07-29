@@ -56,7 +56,7 @@ TRAIN:
   M_MODE_SLICE_SAMPLE: 15 # for 'brightest_vertical_sum_sampled', number of slices to randomly sample (top k brightest sums)
   MIXED_PRECISION: False
   OUTPUT_BIAS: False  # A class imbalance technique - whether or not to bias the model (output head) prior to training.
-  PATIENCE: 12  # The number of consecutive epochs with val_loss not improving, after which the model halts training.
+  PATIENCE: 6  # The number of consecutive epochs with val_loss not improving, after which the model halts training.
   MODEL_DEF: 'efficientnet'  # Check models.py for the current list of possible values (which is also where you would create a custom one).
   SAVE_BEST_ONLY: True  # Whether or not to only save the 'best' model, according to validation loss.
 
@@ -282,7 +282,7 @@ EXTERNAL_VAL:
     CSVS_SPLIT: '\generalizability\csvs_split'  # Path to train-test-val splits for external data.
     PREDICTIONS_OUT: '\generalizability\predictions'  # Path to predictions from fine-tuning experiments.
     EXPERIMENTS: '\generalizability\results\experiments'
-    TRIALS: '\generalizability\results\trials'
+    TRIALS: '\generalizability\results\experiments\trials'
     PLOTS: '\generalizability\results\experiments\plots'
   FOLD_SAMPLE:
     SEED: 42069  # Seed numbers for sampling external patient ids into slices, which are used during fine-tuning to augment training data as necessary.
@@ -298,7 +298,7 @@ EXTERNAL_VAL:
         SPECIFICITY: 79.3
       UPPER_BOUNDS:
     VAL_SPLIT: 0.1 # Specify the train-val data split for each fine-tune run.
-    EPOCHS: 50
+    EPOCHS: 100
     LAZY: False # Set this to True if you want fine-tuning trials to terminate once model performance exceeds thresholds.
     LR: 0.0000171  # For now, divide the original (efficientnet) lr by 10.
     # A value of False will run trials to completion, regardless of whether the model performance exceeds thresholds or not.
