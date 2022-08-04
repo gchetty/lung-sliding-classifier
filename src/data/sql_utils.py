@@ -3,13 +3,15 @@ import os
 import yaml
 import pandas as pd
 import datetime
+import time
 
 database_cfg = yaml.full_load(open(os.path.join(os.getcwd(), "database_config.yml"), 'r'))
 
 
 def get_clips_from_db(table_name, sliding=True):
     '''
-    Pulls clips from database using specified MySQL query.
+    Pulls clips from table specified by table_name. Specify whether to pull present or absent sliding clips using the
+    sliding parameter.
     :param table_name: Str, indicates location from the multi-center study for which to pull clips.
     :param sliding: Bool, set to True to pull present lung sliding clips. Set to False to pull absent lung sliding clips.
     '''
@@ -54,10 +56,11 @@ def get_clips_from_db(table_name, sliding=True):
 
 def add_date_to_filename(file):
     '''
-    Labels a file name with useful information about date and time.
+    Labels a file name with a Unix timestamp.
     :param file: name of file as string
-    :return labelled_filename: name of file joined with date and time info.
+    :return labelled_filename: name of file joined with date and time info (Unix format).
     '''
-    cur_date = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-    labelled_filename = file + '_' + cur_date
+    cur_date = datetime.datetime.now()
+    cur_date = time.mktime(cur_date.timetuple())
+    labelled_filename = file + '_' + str(cur_date)
     return labelled_filename
