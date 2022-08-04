@@ -1,33 +1,37 @@
-import os
-import sys
-import yaml
 import gc
-import datetime
-import tensorflow as tf
+import glob
+import os
+import yaml
 import numpy as np
 import pandas as pd
-from src.preprocessor import MModePreprocessor
-from models.models import get_model
-from train import log_train_params
-from predict import predict_set
-from src.custom.metrics import Specificity, PhiCoefficient
-from src.data.utils import refresh_folder
+import tensorflow as tf
+from sklearn.metrics import confusion_matrix
+from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
+from tensorflow.keras.metrics import Recall
 from tensorflow.keras.models import load_model
-from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
 from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.metrics import Precision, Recall, AUC, TrueNegatives, TruePositives, FalseNegatives, \
-    FalsePositives, Accuracy, SensitivityAtSpecificity
-from tensorflow_addons.metrics.f_scores import F1Score
 from tensorflow_addons.losses import SigmoidFocalCrossEntropy, sigmoid_focal_crossentropy
+from models.models import get_model
+from predict import predict_set
+from src.custom.metrics import Specificity
 from src.data.sql_utils import add_date_to_filename
+from src.data.results.finetune_results_utils import finetune_results_to_csv, plot_finetune_results
+from src.data.utils import refresh_folder
+from src.preprocessor import MModePreprocessor
+from train import log_train_params
 
-# cfg refers to the subdictionary of the config file pertaining to our fine-tuning experiments. cfg_full is the entire
-# loaded config file.
+# cfg is the sub-dictionary of the config file pertaining to fine-tuning experiments. cfg_full is the full config file.
 cfg = yaml.full_load(open(os.path.join(os.getcwd(), "config.yml"), 'r'))['EXTERNAL_VAL']
 cfg_full = yaml.full_load(open(os.path.join(os.getcwd(), "config.yml"), 'r'))
 
 
 def make_scheduler(writer, hparams):
+    '''
+    Creates a scheduler function that takes in two arguments: epoch and learning rate.
+    :param writer:
+    :param hparams: Set of hyperparameters to use in the created scheduler.
+    :returns: Function. A new scheduler is created.
+    '''
     def scheduler(epoch, lr):
         '''
         Returns learning rate for the upcoming epoch based on a set schedule
@@ -49,11 +53,11 @@ def make_scheduler(writer, hparams):
 
 def write_folds_to_txt(folds, file_path):
     '''
-    Saves patient id folds to .txt file in the following structure:
+    Saves clip id folds to .txt file in the following structure:
     -> An integer, n, which indicates the length of the current fold
-    -> Followed by n lines, each containing one (unique) patient id
+    -> Followed by n lines, each containing one (unique) clip id
     :param folds: 2D list of strings. Each row represents a list of folds.
-    :params file_path: path where folds should be stored.
+    :param file_path: Absolute path where folds should be stored.
     '''
     txt = open(file_path, "a")
     for i in range(len(folds)):
@@ -67,8 +71,7 @@ def check_performance(df):
     '''
     Returns true if all metrics stored in the supplied results DataFrame meet fine-tuning standards, or False otherwise.
     :param df: DataFrame storing model performance metrics to be evaluated against fine-tune performance thresholds.
-
-    :return: Bool, whether metrics in df exceed minimum performance thresholds.
+    :returns: Bool, whether metrics in df satisfy performance threshold conditions.
     '''
     cfg_thresh = cfg['FINETUNE']['METRIC_THRESHOLDS']
 
@@ -82,13 +85,19 @@ def check_performance(df):
         if df[thresh.lower()].values[0] > cfg_thresh['UPPER_BOUNDS'][thresh]:
             return False
 
+    # If all metric conditions are satisfied, return True.
     return True
 
 
 def get_external_clip_df():
-    # Consolidate all external clip data into a single dataframe.
+    '''
+    Returns combined df containing results from raw external db pulls for all multi-center study locations.
+    :returns: pd.DataFrame. Stores combined clip information as shown in external db.
+    '''
     csvs_dir = os.getcwd() + cfg['PATHS']['CSV_OUT']
     external_data = []
+
+    # Combined clip info for all multi-center study locations.
     for center in cfg['LOCATIONS']:
         csv_folder = os.path.join(csvs_dir, center)
         for input_class in ['sliding', 'no_sliding']:
@@ -96,6 +105,7 @@ def get_external_clip_df():
             external_data.append(pd.read_csv(csv_file))
     external_df = pd.concat(external_data)
 
+    # Set up folder to store the external clip df.
     external_data_dir = os.path.join(os.getcwd() + cfg['PATHS']['CSV_OUT'], 'combined_external_data')
     if not os.path.exists(external_data_dir):
         os.makedirs(external_data_dir)
@@ -103,51 +113,79 @@ def get_external_clip_df():
         refresh_folder(external_data_dir)
     external_df_path = os.path.join(external_data_dir, add_date_to_filename('all_external_clips') + '.csv')
 
+    # Save the external clip df as a .csv file.
     external_df.to_csv(external_df_path)
     print("All external clips consolidated into", external_df_path, '\n')
 
     return external_df
 
 
-def save_eval_results(model_path, test_set, trial_folder, metrics, verbose=True):
+def get_eval_results(model_path, test_df, metrics, verbose=True):
     '''
-    Evaluates the model at model_path on test_set, saves results into .csv format.
-    :param model_path: Full path to evaluate on test_set.
-    :param test_set: TF DataSet on which to evaluate model.
-    :param trial_folder: Full path to folder in which to save metric results.
-    :param metrics: List of metrics to report.
-    :param verbose: Boolean. Specifies whether to print metric results.
-    :return: Pandas DataFrame. Contains metric results for model evaluation on test set.
+    Returns a df containing evaluation results of the model stored at model_path on test_set, using specified metrics.
+    :param model_path: Absolute path to model.
+    :param test_df: DataFrame on which to evaluate the model.
+    :param metrics: List of metrics for which to report evaluation results.
+    :param verbose: Boolean. If True, prints out test results in list and df form (default value is True).
     '''
+    # Load and compile model from model_path.
     model = load_model(model_path, compile=False)
+
+    # Read values from the config file.
     model_config = cfg_full['TRAIN']['PARAMS']['EFFICIENTNET']
     lr = cfg['FINETUNE']['LR']
     optimizer = Adam(learning_rate=lr)
+
+    # Compile the model using specified list of metrics.
     model.compile(loss=SigmoidFocalCrossEntropy(reduction=tf.keras.losses.Reduction.AUTO,
                                                 alpha=model_config['ALPHA'],
                                                 gamma=model_config['GAMMA']),
                   optimizer=optimizer, metrics=metrics)
-    test_results = model.evaluate(test_set)
-    if verbose:
-        print('TEST RESULTS:')
-        print(test_results)
+    pred_labels, probs = predict_set(model, test_df)
+    conf_mtrx = confusion_matrix(y_true=pred_labels, y_pred=np.rint(probs))
 
-    metrics = ['loss']
-    cfg_thresh = cfg['FINETUNE']['METRIC_THRESHOLDS']
-    for bound_set in cfg_thresh:
-        if cfg_thresh[bound_set] is None:
-            continue
-        for t in cfg_thresh[bound_set]:
-            metrics.append(t.lower())
-    metrics_df = pd.DataFrame([test_results], columns=metrics)
+    results = []
+    metric_names = []
 
-    file_path = os.path.join(trial_folder, add_date_to_filename('sens_spec_results') + '.csv')
+    for metric in metrics:
+        # Probabilities are stored as floats, while Accuracy metric compares integer values for labels and
+        # probs. Round probabilities to the closer value of 0 or 1.
+        if metric.name == 'Accuracy':
+            probs = np.rint(probs)
+        metric.update_state(test_df['label'], probs)
+        results += [metric.result().numpy()]
+        metric_names += [metric.name]
 
-    if verbose:
-        print(metrics_df)
+    # Flatten the confusion matrix into a list storing: [tn, fp, fn, tp].
+    results += [conf_mtrx.ravel()]
+    metric_names += ['confusion_matrix']
 
-    metrics_df.to_csv(file_path, columns=metrics_df.columns, index_label=False, index=False)
-    return metrics_df
+    # Create df storing evaluation results.
+    res_df = pd.DataFrame([results], columns=metric_names)
+
+    # Record loss value on external test set.
+    true_labels = np.array(test_df['label']).astype(np.float)
+    loss_value = np.array(sigmoid_focal_crossentropy(y_true=true_labels, y_pred=probs))
+    loss_value = loss_value / len(probs)
+    loss_value = pd.DataFrame([loss_value], columns=['loss'])
+    res_df = pd.concat([loss_value, res_df], axis=1)
+
+    return res_df
+
+
+def setup_experiment(experiment_path=None):
+    if experiment_path is None:
+        experiment_folder = os.getcwd() + cfg['PATHS']['EXPERIMENTS']
+        experiment_path = os.path.join(experiment_folder, add_date_to_filename('experiment'))
+
+    os.makedirs(experiment_path)
+
+    # Create trial folders
+    for trial_num in range(cfg['NUM_TRIALS']):
+        trial_path = os.path.join(experiment_path, 'trial_' + str(trial_num + 1))
+        os.makedirs(trial_path)
+
+    return experiment_path
 
 
 # TAAFT stands for: Threshold-Aware Accumulative Fine-Tuner
@@ -158,8 +196,9 @@ class TAAFT:
     '''
     def __init__(self, clip_df, k):
         '''
-        :param df: DataFrame containing all clip data from external centers
-        :param k: Number of folds in which to split data in df by patient id
+        :param clip_df: DataFrame containing all clip data from external centers.
+        :param k: Number of folds in which to sample data in df by patient id. Note that these folds, while sampled by
+        patient id, are stored by clip id.
         '''
         print("CREATING A NEW TAAFT (k = {})".format(k))
         self.k = k
@@ -168,10 +207,10 @@ class TAAFT:
 
     def sample_folds(self, trial_folder):
         '''
-        Samples external data in self.clip_df into self.k folds. Preserves ratio of positive to negative classes in each fold.
-        Folds are saved in a .txt file, where each fold is identified with an integer index, followed by each patient id
-        in the fold on a new line.
-        :param trial_folder: full path to folder in which to place patient folds. Corresponds to a particular trial.
+        Samples external data in self.clip_df into self.k folds. Preserves ratio of positive to negative classes in each
+        fold. Folds are saved in a .txt file, where each fold is identified with an integer index, followed by each clip
+        id in the fold on a new line.
+        :param trial_folder: Absolute path to folder in which to place patient folds. Corresponds to a particular trial.
         '''
         sliding_df = self.clip_df[self.clip_df['pleural_line_findings'] != 'absent_lung_sliding']
         no_sliding_df = self.clip_df[self.clip_df['pleural_line_findings'] == 'absent_lung_sliding']
@@ -187,17 +226,8 @@ class TAAFT:
         np.random.shuffle(sliding_ids)
         np.random.shuffle(no_sliding_ids)
 
-        # Specify the path to this file based on the config file.
-        folds_dir = os.path.join(trial_folder, 'folds')
-        if not os.path.exists(folds_dir):
-            os.makedirs(folds_dir)
-        else:
-            refresh_folder(folds_dir)
-        filename = ('patient_folds_' + str(datetime.datetime.now()) + '.txt').replace(' ', '_')
-        str_parts = filename.split('.')
-        filename = '.'.join([str_parts[0], str_parts[2]])
-        filename = filename.replace(':', '-')
-        folds_path = os.path.join(folds_dir, filename)
+        trial_name = trial_folder.split('\\')[-1]
+        folds_path = os.path.join(trial_folder, add_date_to_filename('folds_' + trial_name) + '.txt')
 
         # Make the file that stores ids by fold if it doesn't already exist.
         # Clear the file if user intends to overwrite its contents.
@@ -260,7 +290,7 @@ class TAAFT:
                 no_sliding[i % num_folds] += no_sliding_count
             i += 1
         for i in range(num_folds):
-            print("Fold {}: There are {} clips with lung sliding, and {} clips without lung sliding. Negative:Positive ~ {}"
+            print("Fold {}: {} clips with lung sliding, {} clips without lung sliding. Negative:Positive ~ {}"
                   .format(i + 1, sliding[i], no_sliding[i], round(sliding[i] / no_sliding[i], 3)))
 
         avg_neg_to_pos_ratio = sum([sliding[i] / no_sliding[i] for i in range(len(folds))]) / len(folds)
@@ -271,35 +301,30 @@ class TAAFT:
             refresh_folder(os.getcwd() + cfg['PATHS']['FOLDS'])
         write_folds_to_txt(folds, folds_path)
 
-        print("Sampling complete with seed = " + str(cfg['FOLD_SAMPLE']['SEED']) + ". Folds saved to " + folds_path + ".")
+        print("Sampling complete with seed = " + str(cfg['FOLD_SAMPLE']['SEED']) +
+              ". Folds saved to " + folds_path + ".")
 
     def finetune_single_trial(self, trial_folder, hparams=None, lazy=True):
         '''
         Performs a single fine-tuning trial. Fine-tunes a model on external clip data, repeatedly augmenting external
         data slices to a training set until all external data has been used for training.
-        :param trial_folder: full path to folder in which to place metrics for current trial.
+        :param trial_folder: Absolute path to folder in which to place metrics for current trial.
         :param hparams: Specifies the set of hyperparameters for fine-tuning the model.
         :param lazy: When True, trial will terminate once model performance exceeds minimum thresholds.
         '''
 
-        print('Reading values from the config file...')
-
-        model_out_dir = os.getcwd() + cfg['PATHS']['MODEL_OUT']
+        # Set up result directories for given trial; read values from config file.
+        model_out_dir = os.path.join(trial_folder, 'models')
         if not os.path.exists(model_out_dir):
             os.makedirs(model_out_dir)
 
-        if cfg['FINETUNE']['OVERWRITE_MODEL_DIR']:
-            refresh_folder(model_out_dir)
-
         model_name = cfg_full['TRAIN']['MODEL_DEF'].lower()
         hparams = cfg_full['TRAIN']['PARAMS'][model_name.upper()] if hparams is None else hparams
+        ext_folder = os.getcwd() + cfg['PATHS']['CSVS_SPLIT']
 
-        EXT_FOLDER = os.getcwd() + cfg['PATHS']['CSVS_SPLIT']
-
-        # Ensure that the partition path has been created before running this code!
-        filename = os.listdir(os.path.join(trial_folder, 'folds'))[0]
-        folds_file = os.path.join(trial_folder, 'folds', filename)
-        print('Retrieving patient folds from {}...'.format(folds_file))
+        # Retrieve patient folds (stored by clip ids).
+        filename = glob.glob(os.path.join(trial_folder, '*.txt'))[0]
+        folds_file = os.path.join(trial_folder, filename)
         folds = open(folds_file, "r")
         cur_fold = []
         # stores the folds extracted from the txt file.
@@ -319,19 +344,18 @@ class TAAFT:
 
         print("Retrieved {} external patient folds. The lengths of each fold are: ".format(len(fold_list)),
               [len(fold) for fold in fold_list])
-        print('Reading external clip filenames and labels into dataframe...')
 
         # set up the labelled external dataframe for augmenting the training data
         ext_dfs = []
         for center in cfg['LOCATIONS']:
-            center_split_path = os.path.join(EXT_FOLDER, center)
+            center_split_path = os.path.join(ext_folder, center)
             for csv in ['train.csv', 'val.csv']:
                 ext_dfs.append(pd.read_csv(os.path.join(center_split_path, csv)))
         ext_df = pd.concat(ext_dfs, ignore_index=True)
         labelled_ext_df_path = os.path.join(os.getcwd() + cfg['PATHS']['CSV_OUT'], 'labelled_external_dfs/')
         if cfg['REFRESH_FOLDERS']:
             refresh_folder(labelled_ext_df_path)
-        labelled_ext_df_path += add_date_to_filename('labelled_ext')
+        labelled_ext_df_path += add_date_to_filename('labelled_ext') + '.csv'
         ext_df.to_csv(labelled_ext_df_path)
 
         train_df = pd.DataFrame([])
@@ -341,16 +365,20 @@ class TAAFT:
         # Fine-tuning trial starts here.
         cur_fold_num = 0
         num_folds_added = 0  # number of external data slices that have been added to the training set
-        add_set = []
         min_test_size = int(len(ext_df) * cfg['MIN_TEST_SIZE'])
 
         # After .npz conversion, clip ids are followed by indices. Ignore these indices for patient id retrieval by
         # clip id.
         original_clip_ids = pd.DataFrame(ext_df['id'].str[:-2], columns=['id'])
-        clip_id_count = original_clip_ids.groupby(['id']).transform('count')
+        clip_id_count = original_clip_ids.groupby('id').transform('count')
         original_clip_ids = pd.concat([original_clip_ids, clip_id_count], axis=1)
         ext_df = ext_df.drop(columns=['id'])
         ext_df = pd.concat([original_clip_ids, ext_df], axis=1)
+        
+        trial_results_df = pd.DataFrame([])
+
+        # This will later become a column for external data proportions in the trial result df.
+        props = [0]
 
         # Loop until external testing set has reached minimum size.
         while len(ext_df) >= min_test_size:
@@ -359,54 +387,27 @@ class TAAFT:
             # Evaluate the model on the external test set. Note that we load the original pre-finetuned model at each
             # iteration to minimize co-dependence between runs of a given trial.
             print('Evaluating model performance before fine-tuning...')
-            model = load_model(cfg_full['PREDICT']['MODEL'], compile=False)
-            pred_labels, probs = predict_set(model, ext_df)
             # Can change these metrics as necessary
             metrics = [Recall(name='sensitivity'), Specificity(name='specificity')]
 
-            # Create a DataFrame containing metric results from predictions.
-            results = []
-            metric_names = []
-            for metric in metrics:
-                # Probabilities are stored as floats, while Accuracy metric compares integer values for labels and
-                # probs. Round probabilities to the closer value of 0 or 1.
-                if metric.name == 'Accuracy':
-                    probs = np.rint(probs)
-                metric.update_state(ext_df['label'], probs)
-                results += [metric.result().numpy()]
-                metric_names += [metric.name]
-            res_df = pd.DataFrame([results], columns=metric_names)
+            # Get evaluation results on model before fine-tuning.
+            original_model_path = os.path.join(os.getcwd(), cfg_full['PREDICT']['MODEL'])
+            res_df = get_eval_results(original_model_path, ext_df, metrics)
 
-            predictions_path = os.getcwd() + cfg['PATHS']['PREDICTIONS_OUT']
+            model = load_model(original_model_path, compile=False)
 
-            # Save the metric result DataFrame.
-            csv_name = add_date_to_filename('') + '_metrics.csv'
-            res_df.to_csv(os.path.join(predictions_path, csv_name), index=False)
-            print("Pre-finetune metric results saved to", predictions_path)
-
-            # Load the original model from scratch (without any fine-tuning).
+            # Read original model params from config file. Store into model_config.
             model_config = cfg_full['TRAIN']['PARAMS']['EFFICIENTNET']
 
-            # Record loss value on external test set before fine-tuning.
-            true_labels = np.array(ext_df['label']).astype(np.float)
-            loss_value = np.array(sigmoid_focal_crossentropy(y_true=true_labels, y_pred=probs))
-            loss_value = loss_value / len(probs)
-            loss_value = pd.DataFrame([loss_value], columns=['loss'])
-            res_df = pd.concat([loss_value, res_df], axis=1)
-            print(res_df)
-
-            # Save the model's loss/sens/spec results for 0% external data
+            # Save the model's loss/sens/spec results from before fine-tuning.
             if num_folds_added == 0:
-                file_path = os.path.join(trial_folder, add_date_to_filename('sens_spec_results') + '.csv')
-                res_df.to_csv(file_path, columns=res_df.columns, index_label=False, index=False)
-
-            # If the model performs well on the external test set, save it! (Stop the trial here.)
-            if check_performance(res_df):
-                print('Model performance ok. Saving model...')
-                model.save(os.path.join(model_out_dir, add_date_to_filename('finetuned_model') + '.pb'))
-                write_folds_to_txt(add_set, os.getcwd() + cfg['PATHS']['FOLDS_USED'])
-                if lazy:  # if we want trial to end once model performance exceeds thresholds
-                    break
+                trial_results_df = pd.concat([trial_results_df, res_df])
+                # Save the original model in the trial's model directory
+                if not lazy or check_performance(res_df):
+                    print('Saving original model...')
+                    model.save(os.path.join(model_out_dir, 'model_0.0_percent_train'))
+                    if lazy:
+                        return
 
             # Set aside some external data to be added to the existing training data.
             add_set = fold_list[num_folds_added]
@@ -476,26 +477,26 @@ class TAAFT:
             lr_callback = tf.keras.callbacks.LearningRateScheduler(scheduler)
 
             # Creating a ModelCheckpoint for saving the model
-            save_cp = ModelCheckpoint(os.path.join(model_out_dir, add_date_to_filename('models')),
+            save_cp = ModelCheckpoint(os.path.join(model_out_dir, 'model_'
+                                                   + str((num_folds_added + 1) / cfg['FOLD_SAMPLE']['NUM_FOLDS'])
+                                                   + '_percent_train'),
                                       save_best_only=cfg_full['TRAIN']['SAVE_BEST_ONLY'])
 
             # Early stopping
             early_stopping = EarlyStopping(monitor='val_loss', verbose=1, patience=cfg_full['TRAIN']['PATIENCE'],
                                            mode='min',
-                                           restore_best_weights=True, min_delta=0.0001)
+                                           restore_best_weights=True, min_delta=cfg['FINETUNE']['MIN_DELTA'])
 
             # Log model params to tensorboard
             writer2 = tf.summary.create_file_writer(log_dir + '/test')
             if log_dir is not None:
                 log_train_params(writer1, hparams)
 
-
             lr = cfg['FINETUNE']['LR']
 
             optimizer = Adam(learning_rate=lr)
             model.compile(loss=SigmoidFocalCrossEntropy(reduction=tf.keras.losses.Reduction.AUTO,
-                                     alpha=model_config['ALPHA'],
-                                     gamma=model_config['GAMMA']),
+                                                        alpha=model_config['ALPHA'], gamma=model_config['GAMMA']),
                           optimizer=optimizer, metrics=metrics)
 
             # Train and save the model
@@ -511,65 +512,72 @@ class TAAFT:
                         tf.summary.text(name='Early Stopping', data=tf.convert_to_tensor('Training stopped early'),
                                         step=0)
 
+            # Add evaluation results for the current model on the current test set to the trial results df.
             current_model_path = os.path.join(model_out_dir, os.listdir(model_out_dir)[-1])
-            metrics_df = save_eval_results(current_model_path, test_set, trial_folder, metrics)
+            current_results = get_eval_results(current_model_path, ext_df, metrics)
+            trial_results_df = pd.concat([trial_results_df, current_results])
+            props.append((num_folds_added + 1) / cfg['FOLD_SAMPLE']['NUM_FOLDS'])
 
             # If the fine-tuned model now performs well on the test set, terminate the trial early.
-            if check_performance(metrics_df) and lazy:
+            perf_check = check_performance(current_results)
+            if perf_check and lazy:
                 break
+
+            # # Remove model if performance not satisfactory.
+            # elif not perf_check:
+            #     rmtree(current_model_path)
 
             gc.collect()
             tf.keras.backend.clear_session()
             del model
 
             if len(ext_df) < min_test_size:
-                print('BRINGING BACK PREVIOUS MODELS...')
-                # Folder to save evaluation results of previous models on minimum size test set.
-                bonus_eval_folder = os.path.join(os.getcwd() + cfg['PATHS']['TRIALS'], 'bonus_eval')
-                if not os.path.exists(bonus_eval_folder):
-                    os.makedirs(bonus_eval_folder)
-                for model_info in os.listdir(model_out_dir)[:-1]:
-                    model_path = os.path.join(model_out_dir, model_info)
-                    _ = save_eval_results(model_path, test_set, bonus_eval_folder, metrics)
+                print('EVALUATING PREVIOUS MODELS ON MINIMUM SIZED TEST SET...')
 
+                # Set up column in trial results df to specify whether results are for fixed or variable sized test set.
+                var_size_test_set = [1] * (num_folds_added + 1)
+                # Add an extra 1 in the test set size column. This is for when we evaluated the original (non finetuned)
+                # model on the external dataset.
+                var_size_test_set.append(1)
+
+                # For each previous model, get results on minimum (fixed) size test set.
+                for prev_model in os.listdir(model_out_dir):
+                    prev_model_path = os.path.join(model_out_dir, prev_model)
+                    fixed_test_set_eval = get_eval_results(prev_model_path, ext_df, metrics)
+                    trial_results_df = pd.concat([trial_results_df, fixed_test_set_eval])
+                    var_size_test_set.append(0)
+
+                # Concatenate fixed/variable size test set column with the trial result df.
+                var_size_test_set = pd.DataFrame(var_size_test_set, columns=['variable_sized_test_set'])\
+                    .reset_index(drop=True)
+                props.extend(props)
+                props = pd.DataFrame(props, columns=['ext_data_prop']).reset_index(drop=True)
+                trial_results_df = trial_results_df.reset_index(drop=True)
+                trial_results_df = pd.concat([var_size_test_set, props, trial_results_df], axis=1)
+                trial_results_df.to_csv(os.path.join(trial_folder, 'sens_spec_results.csv'))
+
+            # Update loop counters.
             cur_fold_num += 1
             num_folds_added += 1
 
-    def finetune_multiple_trials(self, n_trials, trial_path=os.getcwd() + cfg['PATHS']['TRIALS']):
+    def finetune_multiple_trials(self):
         '''
-        Runs multiple trials.
-        :param n_trials: Number of trials to run.
-        :param trial_path: Path to fine-tuning trial results.
+        Runs an experiment consisting of multiple trials. Saves results into .csv format and generates plots for the
+        relevant metric results (by default: loss, sensitivity, and specificity) for each trial.
         '''
-        if not os.path.exists(trial_path):
-            os.makedirs(trial_path)
-        elif cfg['REFRESH_FOLDERS']:
-            refresh_folder(trial_path)
-            refresh_folder(os.getcwd() + cfg['PATHS']['EXPERIMENTS'])
-
-        predictions_path = os.getcwd() + cfg['PATHS']['PREDICTIONS_OUT']
-        if not os.path.exists(predictions_path):
-            os.makedirs(predictions_path)
-
-        bonus_eval_folder = os.path.join(os.getcwd() + cfg['PATHS']['TRIALS'], 'bonus_eval')
-        if not os.path.exists(bonus_eval_folder):
-            os.makedirs(bonus_eval_folder)
-        elif cfg['REFRESH_FOLDERS']:
-            refresh_folder(bonus_eval_folder)
-
-        for trial in range(n_trials):
-            cur_trial_dir = os.path.join(trial_path, 'trial_{}'.format(trial + 1))
-            if not os.path.exists(cur_trial_dir):
-                os.makedirs(cur_trial_dir)
-            else:
-                refresh_folder(cur_trial_dir)
+        experiment_path = setup_experiment()
+        for trial in os.listdir(experiment_path):
+            cur_trial_dir = os.path.join(experiment_path, trial)
             self.sample_folds(cur_trial_dir)
             self.finetune_single_trial(cur_trial_dir, lazy=cfg['FINETUNE']['LAZY'])
+
+        # Save finetune results to combined result .csv file.
+        finetune_results_to_csv(experiment_path)
 
 
 if __name__ == '__main__':
     # If the generalizability folder has not been created, do this first. Create the subdirectories for each of the
-    # required data types (e.g. raw clips, npzs, m-modes, etc.)
+    # required data types (e.g. raw clips, .npzs, m-modes, etc.)
     for path in cfg['PATHS']:
         if not os.path.exists(os.getcwd() + cfg['PATHS'][path]):
             os.makedirs(os.getcwd() + cfg['PATHS'][path])
@@ -578,4 +586,5 @@ if __name__ == '__main__':
 
     # Construct a TAAFT instance with the dataframe.
     taaft = TAAFT(external_df, cfg['FOLD_SAMPLE']['NUM_FOLDS'])
-    taaft.finetune_multiple_trials(cfg['NUM_TRIALS'])
+    taaft.finetune_multiple_trials()
+
