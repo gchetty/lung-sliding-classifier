@@ -34,7 +34,7 @@ PREPROCESS:
     SMOOTHED_VIDEOS: '\results\data\smoothed_videos\'  # Path to the videos that result from applying a median filter to MASKED_VIDEOS (optional).
     FLOW_VIDEOS: 'flow_videos\'   # Path to the optical flow video frames (optional).
     CSVS_OUTPUT: 'generalizability\csvs\alberta'  # Path to any CSVs that are generated / taken from the database.
-    NPZ: 'C:\Users\hsmle\Documents\Deep_Breathe\lung-sliding-classifier\generalizability\npzs\alberta'  # Path to the mini-clip videos.
+    NPZ: 'generalizability\npzs\alberta'  # Path to the mini-clip videos.
     FLOW_NPZ: 'flow_npzs\'  # Path to the .npzs containing optical flow mini-clips.
     MASKING_TOOL: '\results\data\auto_masking_deeper.h5'  # Path to the masking tool. Currently only works with the older version!!!
 
@@ -297,8 +297,9 @@ EXTERNAL_VAL:
         SENSITIVITY: 90.1
         SPECIFICITY: 79.3
       UPPER_BOUNDS:
+    MIN_DELTA: 0.0001
     VAL_SPLIT: 0.1 # Specify the train-val data split for each fine-tune run.
-    EPOCHS: 100
+    EPOCHS: 1
     LAZY: False # Set this to True if you want fine-tuning trials to terminate once model performance exceeds thresholds.
     LR: 0.0000171  # For now, divide the original (efficientnet) lr by 10.
     # A value of False will run trials to completion, regardless of whether the model performance exceeds thresholds or not.
