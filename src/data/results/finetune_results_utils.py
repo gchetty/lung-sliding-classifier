@@ -119,8 +119,8 @@ def plot_finetune_results(results_csv):
         legend_labels = []
 
 
-experiment_path = os.getcwd() + cfg['PATHS']['EXPERIMENTS']
-experiment_path = os.path.join(experiment_path, os.listdir(experiment_path)[-1])
-res_df = finetune_results_to_csv(experiment_path)
-
-plot_finetune_results(res_df)
+# experiment_path = os.getcwd() + cfg['PATHS']['EXPERIMENTS']
+# experiment_path = os.path.join(experiment_path, os.listdir(experiment_path)[-1])
+# res_df = finetune_results_to_csv(experiment_path)
+#
+# plot_finetune_results(res_df)

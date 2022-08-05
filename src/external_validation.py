@@ -51,20 +51,29 @@ def make_scheduler(writer, hparams):
     return scheduler
 
 
-def write_folds_to_txt(folds, file_path):
+def write_folds_to_csv(folds, file_path):
     '''
-    Saves clip id folds to .txt file in the following structure:
-    -> An integer, n, which indicates the length of the current fold
-    -> Followed by n lines, each containing one (unique) clip id
-    :param folds: 2D list of strings. Each row represents a list of folds.
+    Saves clip id folds to .csv file in the following structure:
+    -> Contains all columns from the db for the given clip ids in specified fold.
+    -> Columns preceded by an additional column, which specifies fold number.
+    :param folds: List of pd.DataFrames. Each DataFrame is a fold.
     :param file_path: Absolute path where folds should be stored.
     '''
-    txt = open(file_path, "a")
-    for i in range(len(folds)):
-        txt.write(str(len(folds[i])) + '\n')
-        for id in folds[i]:
-            txt.write(str(id) + '\n')
-    txt.close()
+    # Set up the folds csv.
+    folds_csv = pd.DataFrame([])
+    fold_nums = []
+    i = 1
+    for fold in folds:
+        folds_csv = pd.concat([folds_csv, fold], ignore_index=True)
+        fold_nums.extend([i] * len(fold))
+        i += 1
+
+    # Append to the folds df a column for specifying fold number.
+    fold_nums = pd.DataFrame(fold_nums, columns=['fold_number']).reset_index(drop=True)
+    folds_csv = folds_csv.reset_index(drop=True)
+    folds_csv.columns = ['id']
+    folds_csv = pd.concat([fold_nums, folds_csv], axis=1)
+    folds_csv.to_csv(file_path)
 
 
 def check_performance(df):
@@ -142,7 +151,7 @@ def get_eval_results(model_path, test_df, metrics, verbose=True):
                                                 gamma=model_config['GAMMA']),
                   optimizer=optimizer, metrics=metrics)
     pred_labels, probs = predict_set(model, test_df)
-    conf_mtrx = confusion_matrix(y_true=pred_labels, y_pred=np.rint(probs))
+    conf_mtrx = confusion_matrix(y_true=pred_labels, y_pred=np.rint(probs).astype(np.int))
 
     results = []
     metric_names = []
@@ -174,6 +183,12 @@ def get_eval_results(model_path, test_df, metrics, verbose=True):
 
 
 def setup_experiment(experiment_path=None):
+    '''
+    Creates a new experiment folder which contains one subdirectory for each trial in the experiment. The newly
+    created experiment folder is labelled with a Unix timestamp. Returns the path to the newly created experiment.
+    :param experiment_path: Absolute path to folder storing experiments.
+    :returns: Absolute path to newly created experiment.
+    '''
     if experiment_path is None:
         experiment_folder = os.getcwd() + cfg['PATHS']['EXPERIMENTS']
         experiment_path = os.path.join(experiment_folder, add_date_to_filename('experiment'))
@@ -227,7 +242,7 @@ class TAAFT:
         np.random.shuffle(no_sliding_ids)
 
         trial_name = trial_folder.split('\\')[-1]
-        folds_path = os.path.join(trial_folder, add_date_to_filename('folds_' + trial_name) + '.txt')
+        folds_path = os.path.join(trial_folder, add_date_to_filename('folds_' + trial_name) + '.csv')
 
         # Make the file that stores ids by fold if it doesn't already exist.
         # Clear the file if user intends to overwrite its contents.
@@ -262,9 +277,12 @@ class TAAFT:
             for i in range(size):
                 cur_id = sliding_ids[-1]
                 sliding_ids = sliding_ids[:-1]
-                clips_by_id = sliding_df[sliding_df['patient_id'] == cur_id]['id'].values
+                # Save the portion of the sliding df that contains these patient ids.
+                clips_by_id = sliding_df[sliding_df['patient_id'] == cur_id]['id']
                 sliding_count += len(clips_by_id)
-                cur_fold.extend(clips_by_id)
+                cur_fold.append(clips_by_id)
+            # Each fold is represented as a separate DataFrame. The folds variable is a list of pd.DataFrames.
+            cur_fold = pd.concat(cur_fold)
             folds.append(cur_fold)
             cur_fold = []
             cur_fold_num += 1
@@ -281,9 +299,10 @@ class TAAFT:
                 break
             cur_id = no_sliding_ids[-1]
             no_sliding_ids = no_sliding_ids[:-1]
-            clips_by_id = no_sliding_df[no_sliding_df['patient_id'] == cur_id]['id'].values
+            clips_by_id = no_sliding_df[no_sliding_df['patient_id'] == cur_id]['id']
             no_sliding_count = len(clips_by_id)
-            folds[i % num_folds].extend(clips_by_id)
+            temp = folds[i % num_folds]
+            folds[i % num_folds] = pd.concat([temp, clips_by_id])
             if i < num_folds:
                 no_sliding.append(no_sliding_count)
             else:
@@ -299,7 +318,7 @@ class TAAFT:
         # Write the folds to the fold file:
         if cfg['FOLD_SAMPLE']['OVERWRITE_FOLDER']:
             refresh_folder(os.getcwd() + cfg['PATHS']['FOLDS'])
-        write_folds_to_txt(folds, folds_path)
+        write_folds_to_csv(folds, folds_path)
 
         print("Sampling complete with seed = " + str(cfg['FOLD_SAMPLE']['SEED']) +
               ". Folds saved to " + folds_path + ".")
@@ -323,24 +342,15 @@ class TAAFT:
         ext_folder = os.getcwd() + cfg['PATHS']['CSVS_SPLIT']
 
         # Retrieve patient folds (stored by clip ids).
-        filename = glob.glob(os.path.join(trial_folder, '*.txt'))[0]
+        filename = glob.glob(os.path.join(trial_folder, 'folds*.csv'))[0]
         folds_file = os.path.join(trial_folder, filename)
-        folds = open(folds_file, "r")
+        folds = pd.read_csv(folds_file)
         cur_fold = []
-        # stores the folds extracted from the txt file.
+        # stores the folds extracted from the txt file. Each fold is a pd.DataFrame.
         fold_list = []
 
-        # Extract the folds from the folds txt
-        while True:
-            fold_len = folds.readline()
-            # Reached end of file.
-            if fold_len == '':
-                break
-            fold_len = int(fold_len)
-            for i in range(fold_len):
-                cur_fold.append(folds.readline()[:-1])
-            fold_list.append(cur_fold)
-            cur_fold = []
+        for i in range(1, cfg['FOLD_SAMPLE']['NUM_FOLDS'] + 1):
+            fold_list.append(folds[folds['fold_number'] == i])
 
         print("Retrieved {} external patient folds. The lengths of each fold are: ".format(len(fold_list)),
               [len(fold) for fold in fold_list])
@@ -397,7 +407,8 @@ class TAAFT:
             model = load_model(original_model_path, compile=False)
 
             # Read original model params from config file. Store into model_config.
-            model_config = cfg_full['TRAIN']['PARAMS']['EFFICIENTNET']
+            model_def = cfg_full['TRAIN']['MODEL_DEF'].upper()
+            model_config = cfg_full['TRAIN']['PARAMS'][model_def]
 
             # Save the model's loss/sens/spec results from before fine-tuning.
             if num_folds_added == 0:
@@ -411,9 +422,9 @@ class TAAFT:
 
             # Set aside some external data to be added to the existing training data.
             add_set = fold_list[num_folds_added]
-            add_df = ext_df[ext_df['id'].isin(add_set)]
+            add_df = ext_df[ext_df['id'].isin(add_set['id'])]
 
-            # Remove the augmentation data from the external dataset. Becomes the new testing set.
+            # Remove the newly-added training data from the external dataset. Becomes the new testing set.
             ext_df = ext_df[~ext_df['id'].isin(add_df['id'])]
 
             # Augment the training data.
@@ -464,7 +475,10 @@ class TAAFT:
                 os.makedirs(tensorboard_path)
 
             # Log metrics
-            log_dir = add_date_to_filename(os.getcwd() + cfg_full['TRAIN']['PATHS']['TENSORBOARD'])
+            log_dir_path = os.getcwd() + tensorboard_path
+            if os.path.isabs(tensorboard_path):
+                log_dir_path = tensorboard_path
+            log_dir = add_date_to_filename(log_dir_path)
 
             # uncomment line below to include tensorboard profiler in callbacks
             # basic_call = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1, profile_batch=1)
@@ -572,7 +586,8 @@ class TAAFT:
             self.finetune_single_trial(cur_trial_dir, lazy=cfg['FINETUNE']['LAZY'])
 
         # Save finetune results to combined result .csv file.
-        finetune_results_to_csv(experiment_path)
+        results_path = finetune_results_to_csv(experiment_path)
+        plot_finetune_results(results_path)
 
 
 if __name__ == '__main__':
