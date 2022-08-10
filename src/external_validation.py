@@ -151,7 +151,7 @@ def get_eval_results(model_path, test_df, metrics, verbose=True):
                                                 gamma=model_config['GAMMA']),
                   optimizer=optimizer, metrics=metrics)
     pred_labels, probs = predict_set(model, test_df)
-    conf_mtrx = confusion_matrix(y_true=pred_labels, y_pred=np.rint(probs).astype(np.int))
+    conf_mtrx = confusion_matrix(y_true=test_df['label'], y_pred=np.rint(probs).astype(np.int))
 
     results = []
     metric_names = []
@@ -528,6 +528,7 @@ class TAAFT:
 
             # Add evaluation results for the current model on the current test set to the trial results df.
             current_model_path = os.path.join(model_out_dir, os.listdir(model_out_dir)[-1])
+            metrics = [Recall(name='sensitivity'), Specificity(name='specificity')]
             current_results = get_eval_results(current_model_path, ext_df, metrics)
             trial_results_df = pd.concat([trial_results_df, current_results])
             props.append((num_folds_added + 1) / cfg['FOLD_SAMPLE']['NUM_FOLDS'])
@@ -557,6 +558,7 @@ class TAAFT:
                 # For each previous model, get results on minimum (fixed) size test set.
                 for prev_model in os.listdir(model_out_dir):
                     prev_model_path = os.path.join(model_out_dir, prev_model)
+                    metrics = [Recall(name='sensitivity'), Specificity(name='specificity')]
                     fixed_test_set_eval = get_eval_results(prev_model_path, ext_df, metrics)
                     trial_results_df = pd.concat([trial_results_df, fixed_test_set_eval])
                     var_size_test_set.append(0)
@@ -568,7 +570,7 @@ class TAAFT:
                 props = pd.DataFrame(props, columns=['ext_data_prop']).reset_index(drop=True)
                 trial_results_df = trial_results_df.reset_index(drop=True)
                 trial_results_df = pd.concat([var_size_test_set, props, trial_results_df], axis=1)
-                trial_results_df.to_csv(os.path.join(trial_folder, 'sens_spec_results.csv'))
+                trial_results_df.to_csv(os.path.join(trial_folder, 'sens_spec_results_trial_1.csv'))
 
             # Update loop counters.
             cur_fold_num += 1
