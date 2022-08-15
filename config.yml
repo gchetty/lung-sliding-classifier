@@ -97,7 +97,7 @@ TRAIN:
       LR_DECAY_VAL: 0.05642  # Learning rate decay
       LR_DECAY_EPOCH: 15 # Epoch to start lr decay
       DROPOUT: 0.2151 # Dropout probability
-      BLOCKS_FROZEN: 30 # Number of blocks to freeze - MUST be 0 or positive
+      BLOCKS_FROZEN: 161 # Number of blocks to freeze - MUST be 0 or positive
       L2_REG: 0.008629 # L2 regularization penalty
       WEIGHT_INITIALIZER: 'he_normal'  # Method to initialize weights for convolutional and FC layers - see https://www.tensorflow.org/api_docs/python/tf/keras/initializers
       ALPHA: 0.105 # focal loss parameter
@@ -275,6 +275,7 @@ EXTERNAL_VAL:
   PARAMS:
     OVERWRITE_FOLDS: True  # Set this to True if you want to overwrite existing fold .txt files.
   PATHS:
+    NPZS: '\generalizability\npzs'
     MMODES: '\generalizability\mmodes'  # Path to external data M-mode images.
     CSV_OUT: '\generalizability\csvs'  # Path to external data csvs.
     MODEL_OUT: '\generalizability\results\models'  # Path to fine-tuned models.
@@ -300,6 +301,8 @@ EXTERNAL_VAL:
     MIN_DELTA: 0.0001
     VAL_SPLIT: 0.1 # Specify the train-val data split for each fine-tune run.
     EPOCHS: 100
+    PRED_PROBS:
+      SAVE_PRED_PROBABILITIES: True # Set to True to save prediction labels for each clip when evaluating fine-tuned models.
     LAZY: False # Set this to True if you want fine-tuning trials to terminate once model performance exceeds thresholds.
     LR: 0.0000171  # For now, divide the original (efficientnet) lr by 10.
     # A value of False will run trials to completion, regardless of whether the model performance exceeds thresholds or not.

@@ -129,7 +129,7 @@ def get_external_clip_df():
     return external_df
 
 
-def get_eval_results(model_path, test_df, metrics, verbose=True):
+def get_eval_results(model_path, test_df, metrics, save_pred_labels=True, verbose=True):
     '''
     Returns a df containing evaluation results of the model stored at model_path on test_set, using specified metrics.
     :param model_path: Absolute path to model.
@@ -151,6 +151,15 @@ def get_eval_results(model_path, test_df, metrics, verbose=True):
                                                 gamma=model_config['GAMMA']),
                   optimizer=optimizer, metrics=metrics)
     pred_labels, probs = predict_set(model, test_df)
+
+    # Saving prediction labels and probabilities.
+    pred_label_df = None
+    if save_pred_labels:
+        pred_labels_col = pd.DataFrame(pred_labels, columns=['pred_label']).reset_index(drop=True)
+        probs_col = pd.DataFrame(probs, columns=['prob']).reset_index(drop=True)
+        ids = pd.DataFrame(test_df['id'], columns=['id']).reset_index(drop=True)
+        pred_label_df = pd.concat([ids, pred_labels_col, probs_col], axis=1)
+
     conf_mtrx = confusion_matrix(y_true=test_df['label'], y_pred=np.rint(probs).astype(np.int))
 
     results = []
@@ -179,7 +188,9 @@ def get_eval_results(model_path, test_df, metrics, verbose=True):
     loss_value = pd.DataFrame([loss_value], columns=['loss'])
     res_df = pd.concat([loss_value, res_df], axis=1)
 
-    return res_df
+    if save_pred_labels == 1:
+        return res_df, pred_label_df
+    return res_df, None
 
 
 def setup_experiment(experiment_path=None):
@@ -201,6 +212,39 @@ def setup_experiment(experiment_path=None):
         os.makedirs(trial_path)
 
     return experiment_path
+
+
+def upsample_absent_sliding_data(train_df, absent_pct, method='gaussian_noise'):
+    '''
+    Upsamples the absent lung sliding M-Modes in the given training dataset, train_df.
+    :param train_df: Training dataset for which to upsample minority.
+    :param absent_pct: Percentage of training dataset that should be from the absent lung sliding class after the
+    upsampling.
+    :returns: pd.DataFrame. Same training dataset, but with more minority (absent lung sliding) clips.
+    '''
+
+    # Get sliding and no-sliding subsets of train_df.
+    sliding_df = train_df[train_df['label'] == 1]
+    no_sliding_df = train_df[train_df['label'] == 0]
+
+    # Shuffle no_sliding_df. We do this to facilitate random duplicate upsampling from the no-sliding dataframe.
+    # I.e we draw miniclips to duplicate from a shuffled no-sliding df.
+    no_sliding_df = no_sliding_df.sample(frac=1)
+
+    # n = the approximate number of absent lung sliding clips we require.
+    n = int(absent_pct * len(train_df))
+
+    upsample_set = pd.DataFrame([])
+    i = 0
+
+    while len(no_sliding_df) < n:
+        upsample_set = pd.concat([upsample_set, no_sliding_df.iloc[i]])
+        i += 1
+
+    no_sliding_df = pd.concat([no_sliding_df, upsample_set])
+    train_df = pd.concat([sliding_df, no_sliding_df])
+
+    return train_df
 
 
 # TAAFT stands for: Threshold-Aware Accumulative Fine-Tuner
@@ -402,13 +446,22 @@ class TAAFT:
 
             # Get evaluation results on model before fine-tuning.
             original_model_path = os.path.join(os.getcwd(), cfg_full['PREDICT']['MODEL'])
-            res_df = get_eval_results(original_model_path, ext_df, metrics)
+            res_df, _ = get_eval_results(original_model_path, ext_df, metrics)
 
             model = load_model(original_model_path, compile=False)
 
             # Read original model params from config file. Store into model_config.
             model_def = cfg_full['TRAIN']['MODEL_DEF'].upper()
             model_config = cfg_full['TRAIN']['PARAMS'][model_def]
+
+            # Freeze layers
+            freeze_cutoff = -1 if model_config['BLOCKS_FROZEN'] == 0 else model_config['BLOCKS_FROZEN']
+            for i in range(len(model.layers)):
+                if i <= freeze_cutoff:
+                    model.layers[i].trainable = False
+                # Freeze all batch norm layers
+                elif ('batch' in model.layers[i].name) or ('bn' in model.layers[i].name):
+                    model.layers[i].trainable = False
 
             # Save the model's loss/sens/spec results from before fine-tuning.
             if num_folds_added == 0:
@@ -427,8 +480,9 @@ class TAAFT:
             # Remove the newly-added training data from the external dataset. Becomes the new testing set.
             ext_df = ext_df[~ext_df['id'].isin(add_df['id'])]
 
-            # Augment the training data.
+            # Update the training dataset with the new patient-wise fold. Upsample as necessary
             train_df = pd.concat([train_df, add_df])
+            # train_df = upsample_absent_sliding_data(train_df, 0.25)
 
             # Shuffle the training data.
             train_df.sample(frac=1)
@@ -529,7 +583,7 @@ class TAAFT:
             # Add evaluation results for the current model on the current test set to the trial results df.
             current_model_path = os.path.join(model_out_dir, os.listdir(model_out_dir)[-1])
             metrics = [Recall(name='sensitivity'), Specificity(name='specificity')]
-            current_results = get_eval_results(current_model_path, ext_df, metrics)
+            current_results, _ = get_eval_results(current_model_path, ext_df, metrics)
             trial_results_df = pd.concat([trial_results_df, current_results])
             props.append((num_folds_added + 1) / cfg['FOLD_SAMPLE']['NUM_FOLDS'])
 
@@ -559,7 +613,7 @@ class TAAFT:
                 for prev_model in os.listdir(model_out_dir):
                     prev_model_path = os.path.join(model_out_dir, prev_model)
                     metrics = [Recall(name='sensitivity'), Specificity(name='specificity')]
-                    fixed_test_set_eval = get_eval_results(prev_model_path, ext_df, metrics)
+                    fixed_test_set_eval, _ = get_eval_results(prev_model_path, ext_df, metrics)
                     trial_results_df = pd.concat([trial_results_df, fixed_test_set_eval])
                     var_size_test_set.append(0)
 
@@ -570,7 +624,7 @@ class TAAFT:
                 props = pd.DataFrame(props, columns=['ext_data_prop']).reset_index(drop=True)
                 trial_results_df = trial_results_df.reset_index(drop=True)
                 trial_results_df = pd.concat([var_size_test_set, props, trial_results_df], axis=1)
-                trial_results_df.to_csv(os.path.join(trial_folder, 'sens_spec_results_trial_1.csv'))
+                trial_results_df.to_csv(os.path.join(trial_folder, 'freeze_till_block_5.csv'))
 
             # Update loop counters.
             cur_fold_num += 1
