@@ -270,7 +270,7 @@ EXPLAINABILITY:
 EXTERNAL_VAL:
   LOCATIONS: ['chile', 'ottawa', 'alberta']  # List of centers involved in the multi-center study.
   REFRESH_FOLDERS: True  # If you want to delete contents of generalizability-related folders before writing, set True.
-  NUM_TRIALS: 5  # Specify the number of fine-tuning trials.
+  NUM_TRIALS: 1  # Specify the number of fine-tuning trials.
   MIN_TEST_SIZE: 0.5  # Specify the minimum proportion of external data to set aside for testing purposes.
   PARAMS:
     OVERWRITE_FOLDS: True  # Set this to True if you want to overwrite existing fold .txt files.

@@ -103,30 +103,19 @@ def get_external_clip_df():
     Returns combined df containing results from raw external db pulls for all multi-center study locations.
     :returns: pd.DataFrame. Stores combined clip information as shown in external db.
     '''
-    csvs_dir = os.getcwd() + cfg['PATHS']['CSV_OUT']
-    external_data = []
-
-    # Combined clip info for all multi-center study locations.
+    ext_dfs = []
     for center in cfg['LOCATIONS']:
-        csv_folder = os.path.join(csvs_dir, center)
-        for input_class in ['sliding', 'no_sliding']:
-            csv_file = os.path.join(csv_folder, input_class + '.csv')
-            external_data.append(pd.read_csv(csv_file))
-    external_df = pd.concat(external_data)
-
-    # Set up folder to store the external clip df.
-    external_data_dir = os.path.join(os.getcwd() + cfg['PATHS']['CSV_OUT'], 'combined_external_data')
-    if not os.path.exists(external_data_dir):
-        os.makedirs(external_data_dir)
+        center_split_path = os.path.join(os.getcwd() + cfg['PATHS']['CSVS_SPLIT'], center)
+        for csv in ['train.csv', 'val.csv']:
+            ext_dfs.append(pd.read_csv(os.path.join(center_split_path, csv)))
+    ext_df = pd.concat(ext_dfs, ignore_index=True)
+    labelled_ext_df_path = os.path.join(os.getcwd() + cfg['PATHS']['CSV_OUT'], 'labelled_external_dfs/')
     if cfg['REFRESH_FOLDERS']:
-        refresh_folder(external_data_dir)
-    external_df_path = os.path.join(external_data_dir, add_date_to_filename('all_external_clips') + '.csv')
+        refresh_folder(labelled_ext_df_path)
+    labelled_ext_df_path += add_date_to_filename('labelled_ext') + '.csv'
+    ext_df.to_csv(labelled_ext_df_path)
 
-    # Save the external clip df as a .csv file.
-    external_df.to_csv(external_df_path)
-    print("All external clips consolidated into", external_df_path, '\n')
-
-    return external_df
+    return ext_df
 
 
 def get_eval_results(model_path, test_df, metrics, save_pred_labels=True, verbose=True):
@@ -214,37 +203,55 @@ def setup_experiment(experiment_path=None):
     return experiment_path
 
 
-def upsample_absent_sliding_data(train_df, absent_pct, method='gaussian_noise'):
+def upsample_absent_sliding_data(train_df, upsample_df, prop, absent_pct, method='gaussian_noise'):
     '''
     Upsamples the absent lung sliding M-Modes in the given training dataset, train_df.
     :param train_df: Training dataset for which to upsample minority.
+    :param upsample_df: DataFrame indicating which M-Modes have already been upsampled.
+    :param prop: Proportion of external dataset used for training.
     :param absent_pct: Percentage of training dataset that should be from the absent lung sliding class after the
     upsampling.
-    :returns: pd.DataFrame. Same training dataset, but with more minority (absent lung sliding) clips.
+    :returns: Returns two pd.DataFrames: upsampled train set, and updated upsample set.
     '''
 
+    no_upsampled_train_df = train_df
+    if len(upsample_df) != 0:
+        no_upsampled_train_df = train_df[~train_df['id'].isin(upsample_df['miniclip_id'])]
+
     # Get sliding and no-sliding subsets of train_df.
-    sliding_df = train_df[train_df['label'] == 1]
-    no_sliding_df = train_df[train_df['label'] == 0]
+    sliding_df = no_upsampled_train_df[no_upsampled_train_df['label'] == 1]
+    no_sliding_df = no_upsampled_train_df[no_upsampled_train_df['label'] == 0]
 
-    # Shuffle no_sliding_df. We do this to facilitate random duplicate upsampling from the no-sliding dataframe.
+    sliding_df = sliding_df.reset_index(drop=True)
+    no_sliding_df = no_sliding_df
+
+    # Shuffle no_sliding_df. We do this to facilitate random duplicate up-sampling from the no-sliding dataframe.
     # I.e we draw miniclips to duplicate from a shuffled no-sliding df.
-    no_sliding_df = no_sliding_df.sample(frac=1)
+    no_sliding_df = no_sliding_df.sample(frac=1).reset_index(drop=True)
 
-    # n = the approximate number of absent lung sliding clips we require.
-    n = int(absent_pct * len(train_df))
+    # number of absent sliding clips after upsampling.
+    num_upsampled = int(absent_pct * (len(sliding_df) / (1 - absent_pct)))
 
-    upsample_set = pd.DataFrame([])
-    i = 0
+    upsample_set = no_sliding_df.iloc[:(num_upsampled - len(no_sliding_df))]
 
-    while len(no_sliding_df) < n:
-        upsample_set = pd.concat([upsample_set, no_sliding_df.iloc[i]])
-        i += 1
+    # Put new upsample col and new ext data prop col here.
+    upsample_col = pd.DataFrame([1] * len(upsample_set), columns=['upsampled']).reset_index(drop=True)
+    ext_data_props = pd.DataFrame([prop] * len(upsample_set), columns=['ext_data_prop']).reset_index(drop=True)
+
+    upsample_ids = upsample_set['id']
+    upsample_ids = pd.DataFrame({'miniclip_id': upsample_ids})
+    upsample_ids = upsample_ids.reset_index(drop=True)
+    new_upsampled = pd.concat([ext_data_props, upsample_ids, upsample_col], axis=1)
+
+    new_upsampled_df = pd.concat([upsample_df, new_upsampled])
 
     no_sliding_df = pd.concat([no_sliding_df, upsample_set])
-    train_df = pd.concat([sliding_df, no_sliding_df])
+    no_sliding_df.update(pd.DataFrame(upsample_col))
+    print('Sliding: {}'.format(len(sliding_df)))
+    print('No Sliding: {}'.format(len(no_sliding_df)))
+    new_train_df = pd.concat([sliding_df, no_sliding_df])
 
-    return train_df
+    return new_train_df, new_upsampled_df
 
 
 # TAAFT stands for: Threshold-Aware Accumulative Fine-Tuner
@@ -253,7 +260,7 @@ class TAAFT:
     The TAAFT class encapsulates the implementation of the fine-tuning for generalizability experiments.
     Handles fold sampling and fine-tuning trials.
     '''
-    def __init__(self, clip_df, k):
+    def __init__(self, mini_clip_df, k):
         '''
         :param clip_df: DataFrame containing all clip data from external centers.
         :param k: Number of folds in which to sample data in df by patient id. Note that these folds, while sampled by
@@ -261,7 +268,7 @@ class TAAFT:
         '''
         print("CREATING A NEW TAAFT (k = {})".format(k))
         self.k = k
-        self.clip_df = clip_df
+        self.mini_clip_df = mini_clip_df
         np.random.seed(cfg['FOLD_SAMPLE']['SEED'])
 
     def sample_folds(self, trial_folder):
@@ -271,8 +278,8 @@ class TAAFT:
         id in the fold on a new line.
         :param trial_folder: Absolute path to folder in which to place patient folds. Corresponds to a particular trial.
         '''
-        sliding_df = self.clip_df[self.clip_df['pleural_line_findings'] != 'absent_lung_sliding']
-        no_sliding_df = self.clip_df[self.clip_df['pleural_line_findings'] == 'absent_lung_sliding']
+        sliding_df = self.mini_clip_df[self.mini_clip_df['label'] == 1]
+        no_sliding_df = self.mini_clip_df[self.mini_clip_df['label'] == 0]
 
         # Get unique patient ids.
         sliding_ids = sliding_df['patient_id'].unique()
@@ -321,7 +328,7 @@ class TAAFT:
             for i in range(size):
                 cur_id = sliding_ids[-1]
                 sliding_ids = sliding_ids[:-1]
-                # Save the portion of the sliding df that contains these patient ids.
+                # Save the portion of the sliding df that contains these patient ids. Save by mini-clip id.
                 clips_by_id = sliding_df[sliding_df['patient_id'] == cur_id]['id']
                 sliding_count += len(clips_by_id)
                 cur_fold.append(clips_by_id)
@@ -352,6 +359,7 @@ class TAAFT:
             else:
                 no_sliding[i % num_folds] += no_sliding_count
             i += 1
+
         for i in range(num_folds):
             print("Fold {}: {} clips with lung sliding, {} clips without lung sliding. Negative:Positive ~ {}"
                   .format(i + 1, sliding[i], no_sliding[i], round(sliding[i] / no_sliding[i], 3)))
@@ -383,7 +391,9 @@ class TAAFT:
 
         model_name = cfg_full['TRAIN']['MODEL_DEF'].lower()
         hparams = cfg_full['TRAIN']['PARAMS'][model_name.upper()] if hparams is None else hparams
-        ext_folder = os.getcwd() + cfg['PATHS']['CSVS_SPLIT']
+
+        upsample_miniclips_path = os.path.join(trial_folder, 'upsample_miniclips.csv')
+        upsample_df = pd.DataFrame([], columns=['ext_data_prop', 'miniclip_id', 'upsampled'])
 
         # Retrieve patient folds (stored by clip ids).
         filename = glob.glob(os.path.join(trial_folder, 'folds*.csv'))[0]
@@ -400,17 +410,8 @@ class TAAFT:
               [len(fold) for fold in fold_list])
 
         # set up the labelled external dataframe for augmenting the training data
-        ext_dfs = []
-        for center in cfg['LOCATIONS']:
-            center_split_path = os.path.join(ext_folder, center)
-            for csv in ['train.csv', 'val.csv']:
-                ext_dfs.append(pd.read_csv(os.path.join(center_split_path, csv)))
-        ext_df = pd.concat(ext_dfs, ignore_index=True)
-        labelled_ext_df_path = os.path.join(os.getcwd() + cfg['PATHS']['CSV_OUT'], 'labelled_external_dfs/')
-        if cfg['REFRESH_FOLDERS']:
-            refresh_folder(labelled_ext_df_path)
-        labelled_ext_df_path += add_date_to_filename('labelled_ext') + '.csv'
-        ext_df.to_csv(labelled_ext_df_path)
+        labelled_ext_df_dir = os.path.join(os.getcwd() + cfg['PATHS']['CSV_OUT'], 'labelled_external_dfs')
+        ext_df = pd.read_csv(glob.glob(os.path.join(labelled_ext_df_dir, '*.csv'))[0])
 
         train_df = pd.DataFrame([])
 
@@ -421,13 +422,13 @@ class TAAFT:
         num_folds_added = 0  # number of external data slices that have been added to the training set
         min_test_size = int(len(ext_df) * cfg['MIN_TEST_SIZE'])
 
-        # After .npz conversion, clip ids are followed by indices. Ignore these indices for patient id retrieval by
-        # clip id.
-        original_clip_ids = pd.DataFrame(ext_df['id'].str[:-2], columns=['id'])
-        clip_id_count = original_clip_ids.groupby('id').transform('count')
-        original_clip_ids = pd.concat([original_clip_ids, clip_id_count], axis=1)
-        ext_df = ext_df.drop(columns=['id'])
-        ext_df = pd.concat([original_clip_ids, ext_df], axis=1)
+        # # After .npz conversion, clip ids are followed by indices. Ignore these indices for patient id retrieval by
+        # # clip id.
+        # original_clip_ids = pd.DataFrame(ext_df['id'].str[:-2], columns=['id'])
+        # clip_id_count = original_clip_ids.groupby('id').transform('count')
+        # original_clip_ids = pd.concat([original_clip_ids, clip_id_count], axis=1)
+        # ext_df = ext_df.rename(columns={'id': 'miniclip_id'})
+        # ext_df = pd.concat([original_clip_ids, ext_df], axis=1)
         
         trial_results_df = pd.DataFrame([])
 
@@ -480,19 +481,25 @@ class TAAFT:
             # Remove the newly-added training data from the external dataset. Becomes the new testing set.
             ext_df = ext_df[~ext_df['id'].isin(add_df['id'])]
 
-            # Update the training dataset with the new patient-wise fold. Upsample as necessary
+            # Update the training dataset with the new patient-wise fold. Up-sample as necessary.
             train_df = pd.concat([train_df, add_df])
-            # train_df = upsample_absent_sliding_data(train_df, 0.25)
+
+            train_df, upsample_df = upsample_absent_sliding_data(train_df, upsample_df,
+                                                                 (num_folds_added + 1) / len(fold_list), 0.25)
+
+            if os.path.exists(upsample_miniclips_path):
+                os.remove(upsample_miniclips_path)
+            upsample_df.to_csv(upsample_miniclips_path)
 
             # Shuffle the training data.
-            train_df.sample(frac=1)
+            train_df.sample(frac=1).reset_index(drop=True)
 
             # Print the ratio of external train vs external test data
             print('Train: {}\nTest: {}'.format(len(train_df), len(ext_df)))
 
             # Create training and validation sets for fine-tuning.
             sub_val_df = train_df.tail(int(len(train_df) * cfg['FINETUNE']['VAL_SPLIT']))
-            sub_train_df = train_df[~train_df.isin(sub_val_df['id'])]
+            sub_train_df = train_df[~train_df['id'].isin(sub_val_df['id'])]
 
             # Model fine-tuning.
             print('Fine-tuning...')
@@ -624,7 +631,7 @@ class TAAFT:
                 props = pd.DataFrame(props, columns=['ext_data_prop']).reset_index(drop=True)
                 trial_results_df = trial_results_df.reset_index(drop=True)
                 trial_results_df = pd.concat([var_size_test_set, props, trial_results_df], axis=1)
-                trial_results_df.to_csv(os.path.join(trial_folder, 'freeze_till_block_5.csv'))
+                trial_results_df.to_csv(os.path.join(trial_folder, 'results.csv'))
 
             # Update loop counters.
             cur_fold_num += 1
@@ -642,8 +649,8 @@ class TAAFT:
             self.finetune_single_trial(cur_trial_dir, lazy=cfg['FINETUNE']['LAZY'])
 
         # Save finetune results to combined result .csv file.
-        results_path = finetune_results_to_csv(experiment_path)
-        plot_finetune_results(results_path)
+        # results_path = finetune_results_to_csv(experiment_path)
+        # plot_finetune_results(results_path)
 
 
 if __name__ == '__main__':
