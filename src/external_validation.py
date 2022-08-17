@@ -213,39 +213,82 @@ def upsample_absent_sliding_data(train_df, upsample_df, prop, absent_pct, method
     upsampling.
     :returns: Returns two pd.DataFrames: upsampled train set, and updated upsample set.
     '''
+    sliding_df = train_df[train_df['label'] == 1]
+    no_sliding_df = train_df[train_df['label'] == 0]
 
-    no_upsampled_train_df = train_df
+    if len(no_sliding_df) / len(train_df) < absent_pct:
+        # Upsample
+        print('No sliding before upsampling:', len(no_sliding_df))
+        print('Upsampling...')
+        no_sliding_df = no_sliding_df.sample(frac=1).reset_index(drop=True)
+        num_upsampled = int(absent_pct * (len(sliding_df) / (1 - absent_pct)))
+
+        # Clips in no_sliding_df that are not in upsample_df
+        clips_for_upsample = no_sliding_df[~no_sliding_df['id'].isin(list(upsample_df['miniclip_id']))].copy()
+        clips_for_upsample = clips_for_upsample.reset_index(drop=True)
+        print('Number of clips available for upsampling:', len(clips_for_upsample))
+        print('Number of clips needed:', num_upsampled - len(no_sliding_df))
+
+        new_upsample_clips = clips_for_upsample.iloc[:(num_upsampled - len(no_sliding_df))]
+
+        # If run out of clips that have not been upsampled already, can upsample remaining clips needed from clips
+        # already upsampled
+        n_extra_upsample = (num_upsampled - len(no_sliding_df)) - len(clips_for_upsample)
+        if n_extra_upsample > 0:
+            temp_df = no_sliding_df.copy().sample(frac=1).reset_index(drop=True)
+            extra_upsample_clips = temp_df.iloc[:n_extra_upsample]
+            # extra_upsample_clips.rename(columns={'id': 'miniclip_id'}, inplace=True)
+            new_upsample_clips = pd.concat([new_upsample_clips, extra_upsample_clips]).reset_index(drop=True)
+
+        print('Number of clips upsampled:', len(new_upsample_clips))
+        no_sliding_df = pd.concat([no_sliding_df, new_upsample_clips])
+        print('No sliding after upsampling:', len(no_sliding_df))
+        new_train_df = pd.concat([sliding_df, no_sliding_df])
+
+        # Update the upsample df.
+        ext_data_props = pd.DataFrame([prop] * len(new_upsample_clips), columns=['ext_data_prop']).reset_index(
+            drop=True)
+        new_upsample_clips.rename(columns={'id': 'miniclip_id'}, inplace=True)
+        upsample_df_addition = pd.concat([ext_data_props, new_upsample_clips[['miniclip_id']]], axis=1)
+        new_upsample_df = pd.concat([upsample_df, upsample_df_addition])
+
+        print('Sliding: {}'.format(len(sliding_df) / len(new_train_df)))
+        print('No Sliding: {}'.format(len(no_sliding_df) / len(new_train_df)))
+
+        return new_train_df, new_upsample_df
+
+    else:
+        return train_df, upsample_df
+
+
+    # # If there are upsampled mini-clips already
     # if len(upsample_df) != 0:
-    #     no_upsampled_train_df = train_df[~train_df['id'].isin(upsample_df['miniclip_id'])]
+    #     no_upsampled_train_df = train_df[~train_df['id'].isin(upsample_df['miniclip_id'])].copy()
+    #     print('Number of clips that can be upsampled:', len(no_upsampled_train_df))
+    # else:
+    #     no_upsampled_train_df = train_df.copy()
+    #
+    # # Get sliding and no-sliding subsets of train_df.
+    # sliding_df = no_upsampled_train_df[no_upsampled_train_df['label'] == 1]
+    # no_sliding_df = no_upsampled_train_df[no_upsampled_train_df['label'] == 0]
+    #
+    # sliding_df = sliding_df.reset_index(drop=True)
+    #
+    # # Shuffle no_sliding_df. We do this to facilitate random duplicate up-sampling from the no-sliding dataframe.
+    # # I.e we draw miniclips to duplicate from a shuffled no-sliding df.
+    #
+    #
+    # # number of absent sliding clips after upsampling.
+    #
+    #
 
-    # Get sliding and no-sliding subsets of train_df.
-    sliding_df = no_upsampled_train_df[no_upsampled_train_df['label'] == 1]
-    no_sliding_df = no_upsampled_train_df[no_upsampled_train_df['label'] == 0]
-
-    sliding_df = sliding_df.reset_index(drop=True)
-
-    # Shuffle no_sliding_df. We do this to facilitate random duplicate up-sampling from the no-sliding dataframe.
-    # I.e we draw miniclips to duplicate from a shuffled no-sliding df.
-    no_sliding_df = no_sliding_df.sample(frac=1).reset_index(drop=True)
-
-    # number of absent sliding clips after upsampling.
-    num_upsampled = int(absent_pct * (len(sliding_df) / (1 - absent_pct)))
-
-    upsample_set = no_sliding_df.iloc[:(num_upsampled - len(no_sliding_df))]
-    ext_data_props = pd.DataFrame([prop] * len(upsample_set), columns=['ext_data_prop']).reset_index(drop=True)
-
-    upsample_ids = upsample_set['id']
-    upsample_ids = pd.DataFrame({'miniclip_id': upsample_ids})
-    upsample_ids = upsample_ids.reset_index(drop=True)
-    new_upsampled = pd.concat([ext_data_props, upsample_ids], axis=1).reset_index(drop=True)
-    new_upsampled_df = pd.concat([upsample_df, new_upsampled])
-
-    no_sliding_df = pd.concat([no_sliding_df, upsample_set])
-    print('Sliding: {}'.format(len(sliding_df)))
-    print('No Sliding: {}'.format(len(no_sliding_df)))
-    new_train_df = pd.concat([sliding_df, no_sliding_df])
-
-    return new_train_df, new_upsampled_df
+    #
+    # no_sliding_df = pd.concat([no_sliding_df, upsample_set])
+    # new_train_df = pd.concat([sliding_df, no_sliding_df])
+    # print('Sliding: {}'.format(len(sliding_df) / len(new_train_df)))
+    # print('No Sliding: {}'.format(len(no_sliding_df) / len(new_train_df)))
+    #
+    # return new_train_df, new_upsampled_df
 
 
 # TAAFT stands for: Threshold-Aware Accumulative Fine-Tuner
@@ -390,7 +433,7 @@ class TAAFT:
         train_df = pd.DataFrame([])
 
         # If absent sliding mini-clips are to be upsampled, create a df for saving these upsampled mini-clips.
-        upsample_df = pd.DataFrame([])
+        upsample_df = pd.DataFrame([], columns=['ext_data_prop', 'miniclip_id'])
         upsample_miniclips_path = os.path.join(trial_folder, 'upsample_miniclips.csv')
 
         min_test_size = int(len(ext_df) * cfg['MIN_TEST_SIZE'])
@@ -417,10 +460,21 @@ class TAAFT:
                 elif ('batch' in model.layers[i].name) or ('bn' in model.layers[i].name):
                     model.layers[i].trainable = False
 
+            # Create training and validation sets for fine-tuning.
+            clips_not_upsampled = train_df[~train_df['id'].isin(upsample_df['miniclip_id'])]
+            val_num = int(len(clips_not_upsampled) * cfg['FINETUNE']['VAL_SPLIT'])
+            sub_val_df = clips_not_upsampled.tail(val_num)
+            sub_train_df = train_df[~train_df['id'].isin(list(sub_val_df['id']))]
+            print(len(sub_val_df[sub_val_df['label'] == 0]), len(sub_train_df[sub_train_df['label'] == 0]))
+            print(len(sub_val_df[sub_val_df['label'] == 1]), len(sub_train_df[sub_train_df['label'] == 1]))
+            print(len(set(sub_train_df['id']) - set(sub_val_df['id'])) == len(sub_train_df['id'].unique()))
+            print(len(set(sub_val_df['id']) - set(sub_train_df['id'])) == len(sub_val_df['id'].unique()))
+
             if upsample:
                 # cur_ext_prop is the current external data proportion used for training
                 cur_ext_prop = (cur_fold_num + 1) / cfg['FOLD_SAMPLE']['NUM_FOLDS']
-                train_df, upsample_df = upsample_absent_sliding_data(train_df, upsample_df, cur_ext_prop, 0.25)
+                sub_train_df, upsample_df = upsample_absent_sliding_data(sub_train_df, upsample_df, cur_ext_prop, 0.25)
+                train_df = pd.concat([sub_train_df, sub_val_df])
 
                 # Update the upsampled mini-clips .csv file.
                 if os.path.exists(upsample_miniclips_path):
@@ -429,10 +483,6 @@ class TAAFT:
 
             # Shuffle the training data.
             train_df.sample(frac=1)
-
-            # Create training and validation sets for fine-tuning.
-            sub_val_df = train_df.tail(int(len(train_df) * cfg['FINETUNE']['VAL_SPLIT']))
-            sub_train_df = train_df[~train_df['id'].isin(sub_val_df['id'])]
 
             print('Train: {}\nTest: {}'.format(len(train_df), len(ext_df)))
 
@@ -463,22 +513,16 @@ class TAAFT:
             class_weight = {0: weight_for_0, 1: weight_for_1}
 
             # Refresh the TensorBoard directory
-            tensorboard_path = os.path.join(cfg_full['TRAIN']['PATHS']['TENSORBOARD'], add_date_to_filename('log'))
+            tensorboard_path = os.getcwd() + os.path.join(cfg_full['TRAIN']['PATHS']['TENSORBOARD'], add_date_to_filename('log'))
             if not os.path.exists(tensorboard_path):
                 os.makedirs(tensorboard_path)
 
-            # Log metrics
-            log_dir_path = os.getcwd() + tensorboard_path
-            if os.path.isabs(tensorboard_path):
-                log_dir_path = tensorboard_path
-            log_dir = add_date_to_filename(log_dir_path)
-
             # uncomment line below to include tensorboard profiler in callbacks
             # basic_call = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1, profile_batch=1)
-            basic_call = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
+            basic_call = tf.keras.callbacks.TensorBoard(log_dir=tensorboard_path, histogram_freq=1)
 
             # Learning rate scheduler & logging LR
-            writer1 = tf.summary.create_file_writer(log_dir + '/train')
+            writer1 = tf.summary.create_file_writer(tensorboard_path + '/train')
 
             scheduler = make_scheduler(writer1, hparams)
             lr_callback = tf.keras.callbacks.LearningRateScheduler(scheduler)
@@ -495,8 +539,8 @@ class TAAFT:
                                            restore_best_weights=True, min_delta=cfg['FINETUNE']['MIN_DELTA'])
 
             # Log model params to tensorboard
-            writer2 = tf.summary.create_file_writer(log_dir + '/test')
-            if log_dir is not None:
+            writer2 = tf.summary.create_file_writer(tensorboard_path + '/test')
+            if tensorboard_path is not None:
                 log_train_params(writer1, hparams)
 
             lr = cfg['FINETUNE']['LR']
@@ -524,7 +568,6 @@ class TAAFT:
             metrics = [Recall(name='sensitivity'), Specificity(name='specificity')]
             current_results, _ = get_eval_results(current_model_path, ext_df, metrics)
             trial_results_df = pd.concat([trial_results_df, current_results])
-            props.append((cur_fold_num + 1) / cfg['FOLD_SAMPLE']['NUM_FOLDS'])
 
             # If the fine-tuned model now performs well on the test set, terminate the trial early.
             perf_check = check_performance(current_results)
