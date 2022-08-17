@@ -283,8 +283,6 @@ EXTERNAL_VAL:
     CSVS_SPLIT: '\generalizability\csvs_split'  # Path to train-test-val splits for external data.
     PREDICTIONS_OUT: '\generalizability\predictions'  # Path to predictions from fine-tuning experiments.
     EXPERIMENTS: '\generalizability\results\experiments'
-    TRIALS: '\generalizability\results\experiments\trials'
-    PLOTS: '\generalizability\results\experiments\plots'
   FOLD_SAMPLE:
     SEED: 42069  # Seed numbers for sampling external patient ids into slices, which are used during fine-tuning to augment training data as necessary.
     # There is one seed for each trial; insert or remove (or change) seeds as necessary/desired.
