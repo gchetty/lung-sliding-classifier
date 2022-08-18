@@ -125,18 +125,3 @@ def plot_finetune_results(results_csv):
 #
 # plot_finetune_results(res_df)
 
-if __name__ == '__main__':
-    import keras
-    experiments_dir = os.getcwd() + cfg['PATHS']['EXPERIMENTS']
-    experiment_path = os.path.join(experiments_dir, os.listdir(experiments_dir)[-3])
-    exp_path_2 = os.path.join(experiments_dir, os.listdir(experiments_dir)[-8])
-    model = keras.models.load_model(os.path.join(experiment_path, 'trial_1', 'models', 'model_0.2_percent_train'), compile=False)
-    model_2 = keras.models.load_model(os.path.join(exp_path_2, 'trial_1', 'models', 'model_0.2_percent_train'), compile=False)
-    # count = 0
-    # for layer in model.layers:
-    #     print(layer.get_config())
-    #     if not layer.get_config()['trainable']:
-    #         count += 1
-    # print('Frozen layers:', count)
-    print(model.summary())
-    print(model_2.summary())

@@ -177,6 +177,10 @@ def get_eval_results(model_path, test_df, metrics, save_pred_labels=True, verbos
     loss_value = pd.DataFrame([loss_value], columns=['loss'])
     res_df = pd.concat([loss_value, res_df], axis=1)
 
+    gc.collect()
+    tf.keras.backend.clear_session()
+    del model
+
     if save_pred_labels == 1:
         return res_df, pred_label_df
     return res_df, None
@@ -261,36 +265,6 @@ def upsample_absent_sliding_data(train_df, upsample_df, prop, absent_pct, method
         return train_df, upsample_df
 
 
-    # # If there are upsampled mini-clips already
-    # if len(upsample_df) != 0:
-    #     no_upsampled_train_df = train_df[~train_df['id'].isin(upsample_df['miniclip_id'])].copy()
-    #     print('Number of clips that can be upsampled:', len(no_upsampled_train_df))
-    # else:
-    #     no_upsampled_train_df = train_df.copy()
-    #
-    # # Get sliding and no-sliding subsets of train_df.
-    # sliding_df = no_upsampled_train_df[no_upsampled_train_df['label'] == 1]
-    # no_sliding_df = no_upsampled_train_df[no_upsampled_train_df['label'] == 0]
-    #
-    # sliding_df = sliding_df.reset_index(drop=True)
-    #
-    # # Shuffle no_sliding_df. We do this to facilitate random duplicate up-sampling from the no-sliding dataframe.
-    # # I.e we draw miniclips to duplicate from a shuffled no-sliding df.
-    #
-    #
-    # # number of absent sliding clips after upsampling.
-    #
-    #
-
-    #
-    # no_sliding_df = pd.concat([no_sliding_df, upsample_set])
-    # new_train_df = pd.concat([sliding_df, no_sliding_df])
-    # print('Sliding: {}'.format(len(sliding_df) / len(new_train_df)))
-    # print('No Sliding: {}'.format(len(no_sliding_df) / len(new_train_df)))
-    #
-    # return new_train_df, new_upsampled_df
-
-
 # TAAFT stands for: Threshold-Aware Accumulative Fine-Tuner
 class TAAFT:
     '''
@@ -351,8 +325,6 @@ class TAAFT:
         sliding_count = [0] * n_folds
         no_sliding_count = [0] * n_folds
 
-        folds_to_supply = []
-
         for i in range(n_folds):
             fold_end = min(fold_sizes[i], len(sliding_ids))
             cur_ids = sliding_ids[:fold_end]
@@ -361,20 +333,19 @@ class TAAFT:
             cur_fold_no_sliding = no_sliding_df[no_sliding_df['patient_id'].isin(cur_ids)]['id']
             sliding_count[i] += len(cur_fold_sliding)
             no_sliding_count[i] += len(cur_fold_no_sliding)
-            if len(cur_fold_no_sliding) == 0:
-                folds_to_supply.append(i)
             no_sliding_df = no_sliding_df[~no_sliding_df['patient_id'].isin(cur_ids)]
             folds.append(pd.concat([cur_fold_sliding, cur_fold_no_sliding]))
 
         no_sliding_ids = no_sliding_df['patient_id'].values
-        folds_with_all_sliding = len(folds_to_supply) if len(folds_to_supply) > 0 else n_folds
-        no_sliding_to_add = [len(no_sliding_ids) // folds_with_all_sliding] * folds_with_all_sliding
-        for i in range(len(no_sliding_ids) % folds_with_all_sliding):
-            no_sliding_to_add[i] += 1
+        no_sliding_to_add = [0] * n_folds
+        for i in range(len(no_sliding_ids)):
+            no_sliding_to_add[i % n_folds] += 1
 
-        for i, j in zip(no_sliding_to_add, folds_to_supply):
-            folds[j] = pd.concat([folds[j], no_sliding_df.head(i)])
-            no_sliding_df = no_sliding_df.tail(len(no_sliding_df) - i)
+        for i in range(n_folds):
+            n_add = no_sliding_to_add[i]
+            folds[i] = pd.concat([folds[i], no_sliding_df.head(n_add)['id']])
+            no_sliding_df = no_sliding_df.tail(len(no_sliding_df) - n_add)
+            no_sliding_count[i] += len(no_sliding_df.head(n_add))
 
         ratios = []
         for i in range(n_folds):
@@ -455,7 +426,7 @@ class TAAFT:
             ext_df = ext_df[~ext_df['id'].isin(fold_to_add['id'])]
 
             # Model starts out as the original model, but then gets fine-tuned.
-            model = original_model
+            model = load_model(original_model_path, compile=False)
             metrics = [Recall(name='sensitivity'), Specificity(name='specificity')]
 
             # Freeze some layers.
@@ -531,12 +502,6 @@ class TAAFT:
             scheduler = make_scheduler(writer1, hparams)
             lr_callback = tf.keras.callbacks.LearningRateScheduler(scheduler)
 
-            # Creating a ModelCheckpoint for saving the model
-            save_cp = ModelCheckpoint(os.path.join(model_out_dir, 'model_'
-                                                   + str((cur_fold_num + 1) / cfg['FOLD_SAMPLE']['NUM_FOLDS'])
-                                                   + '_percent_train'),
-                                      save_best_only=cfg_full['TRAIN']['SAVE_BEST_ONLY'])
-
             # Early stopping
             early_stopping = EarlyStopping(monitor='val_loss', verbose=1, patience=cfg_full['TRAIN']['PATIENCE'],
                                            mode='min',
@@ -558,7 +523,10 @@ class TAAFT:
             epochs = cfg['FINETUNE']['EPOCHS']
             history = model.fit(train_set, epochs=epochs, validation_data=val_set,
                                 class_weight=class_weight,
-                                callbacks=[save_cp, basic_call, early_stopping, lr_callback], verbose=1)
+                                callbacks=[basic_call, early_stopping, lr_callback], verbose=1)
+
+            model.save(os.path.join(model_out_dir, 'model_' + str((cur_fold_num + 1) / cfg['FOLD_SAMPLE']['NUM_FOLDS'])
+                                    + '_percent_train'))
 
             # Log early stopping to tensorboard
             if history is not None:
@@ -612,7 +580,7 @@ class TAAFT:
         props = pd.DataFrame(props, columns=['ext_data_prop']).reset_index(drop=True)
         trial_results_df = trial_results_df.reset_index(drop=True)
         trial_results_df = pd.concat([var_size_test_set, props, trial_results_df], axis=1)
-        trial_results_df.to_csv(os.path.join(trial_folder, 'unfreeze_last_block_upsample_results.csv'))
+        trial_results_df.to_csv(os.path.join(trial_folder, 'unfreeze_last_block_upsample_2.csv'))
 
 
     def finetune_multiple_trials(self):
