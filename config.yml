@@ -297,7 +297,7 @@ EXTERNAL_VAL:
         SPECIFICITY: 79.3
       UPPER_BOUNDS:
     MIN_DELTA: 0.0001
-    VAL_SPLIT: 0.1 # Specify the train-val data split for each fine-tune run.
+    VAL_SPLIT: 0.2 # Specify the train-val data split for each fine-tune run.
     EPOCHS: 100
     PRED_PROBS:
       SAVE_PRED_PROBABILITIES: True # Set to True to save prediction labels for each clip when evaluating fine-tuned models.

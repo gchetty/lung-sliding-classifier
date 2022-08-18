@@ -440,6 +440,13 @@ class TAAFT:
 
         cur_fold_num = 0
         props = [0]
+
+        # Refresh the TensorBoard directory
+        tensorboard_path = os.getcwd() + os.path.join(cfg_full['TRAIN']['PATHS']['TENSORBOARD'],
+                                                      add_date_to_filename('log'))
+        if not os.path.exists(tensorboard_path):
+            os.makedirs(tensorboard_path)
+
         while len(ext_df) > min_test_size:
             print('Fine-tuning: {} of {} external data slices...'
                   .format(cur_fold_num + 1, cfg['FOLD_SAMPLE']['NUM_FOLDS']))
@@ -505,21 +512,18 @@ class TAAFT:
             test_set = preprocessor.prepare(test_set, ext_df, shuffle=False, augment=False)
 
             # Create dictionary for class weights like in src/train.py.
-            num_no_sliding = len(train_df[train_df['label'] == 0])
-            num_sliding = len(train_df[train_df['label'] == 1])
+            num_no_sliding = len(sub_train_df[sub_train_df['label'] == 0])
+            num_sliding = len(sub_train_df[sub_train_df['label'] == 1])
             total = num_no_sliding + num_sliding
             weight_for_0 = (1 / num_no_sliding) * (total / 2.0)
             weight_for_1 = (1 / num_sliding) * (total / 2.0)
             class_weight = {0: weight_for_0, 1: weight_for_1}
 
-            # Refresh the TensorBoard directory
-            tensorboard_path = os.getcwd() + os.path.join(cfg_full['TRAIN']['PATHS']['TENSORBOARD'], add_date_to_filename('log'))
-            if not os.path.exists(tensorboard_path):
-                os.makedirs(tensorboard_path)
+            log_dir = os.path.join(tensorboard_path, 'log_' + str((cur_fold_num + 1) / cfg['FOLD_SAMPLE']['NUM_FOLDS']))
 
             # uncomment line below to include tensorboard profiler in callbacks
             # basic_call = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1, profile_batch=1)
-            basic_call = tf.keras.callbacks.TensorBoard(log_dir=tensorboard_path, histogram_freq=1)
+            basic_call = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
 
             # Learning rate scheduler & logging LR
             writer1 = tf.summary.create_file_writer(tensorboard_path + '/train')
@@ -608,7 +612,7 @@ class TAAFT:
         props = pd.DataFrame(props, columns=['ext_data_prop']).reset_index(drop=True)
         trial_results_df = trial_results_df.reset_index(drop=True)
         trial_results_df = pd.concat([var_size_test_set, props, trial_results_df], axis=1)
-        trial_results_df.to_csv(os.path.join(trial_folder, 'results.csv'))
+        trial_results_df.to_csv(os.path.join(trial_folder, 'unfreeze_last_block_upsample_results.csv'))
 
 
     def finetune_multiple_trials(self):
