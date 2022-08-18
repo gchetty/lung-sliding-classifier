@@ -25,7 +25,7 @@ def finetune_results_to_csv(experiment_path):
 
     # Combine results across all trials.
     for trial in trial_folders:
-        metric_results_csv_path = glob.glob(os.path.join(trial, '*.csv'))[0]
+        metric_results_csv_path = glob.glob(os.path.join(trial, '*.csv'))[1]
         metric_results_csv = pd.read_csv(metric_results_csv_path, index_col=0)
         trial_numbers.extend([cur_trial_num] * len(metric_results_csv))
         trial_results = pd.concat([trial_results, metric_results_csv])
@@ -119,9 +119,9 @@ def plot_finetune_results(results_csv):
         legend_labels = []
 
 
-# experiment_path = os.getcwd() + cfg['PATHS']['EXPERIMENTS']
-# experiment_path = os.path.join(experiment_path, os.listdir(experiment_path)[-1])
-# res_df = finetune_results_to_csv(experiment_path)
-#
-# plot_finetune_results(res_df)
+experiment_path = os.getcwd() + cfg['PATHS']['EXPERIMENTS']
+experiment_path = os.path.join(experiment_path, os.listdir(experiment_path)[-1])
+res_df = finetune_results_to_csv(experiment_path)
+
+plot_finetune_results(res_df)
 
