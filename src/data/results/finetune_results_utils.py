@@ -25,7 +25,7 @@ def finetune_results_to_csv(experiment_path):
 
     # Combine results across all trials.
     for trial in trial_folders:
-        metric_results_csv_path = glob.glob(os.path.join(trial, '*.csv'))[0]
+        metric_results_csv_path = glob.glob(os.path.join(trial, '*.csv'))[1]
         metric_results_csv = pd.read_csv(metric_results_csv_path, index_col=0)
         trial_numbers.extend([cur_trial_num] * len(metric_results_csv))
         trial_results = pd.concat([trial_results, metric_results_csv])
@@ -118,10 +118,16 @@ def plot_finetune_results(results_csv):
         plot_ind += 1
         legend_labels = []
 
-
+#
 # experiment_path = os.getcwd() + cfg['PATHS']['EXPERIMENTS']
 # experiment_path = os.path.join(experiment_path, os.listdir(experiment_path)[-1])
 # res_df = finetune_results_to_csv(experiment_path)
 #
 # plot_finetune_results(res_df)
 
+# if __name__ == '__main__':
+#     exp_dir = os.path.join(os.getcwd() + cfg['PATHS']['EXPERIMENTS'])
+#     exp_path = glob.glob(os.path.join(exp_dir, 'experiment_1660921548.0\\trial_1\\upsample_miniclips.csv'))[0]
+#     upsample_csv = pd.read_csv(exp_path)
+#     print(len(upsample_csv))
+#     print(upsample_csv.loc[upsample_csv.duplicated(subset=['miniclip_id'])])

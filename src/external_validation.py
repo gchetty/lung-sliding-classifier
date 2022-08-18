@@ -239,9 +239,17 @@ def upsample_absent_sliding_data(train_df, upsample_df, prop, absent_pct, method
         # already upsampled
         n_extra_upsample = (num_upsampled - len(no_sliding_df)) - len(clips_for_upsample)
         if n_extra_upsample > 0:
-            temp_df = no_sliding_df.copy().sample(frac=1).reset_index(drop=True)
+            grouped_ids = no_sliding_df[['id']].groupby(by=['id']).size().reset_index().rename(columns={0: 'count'})
+            min_num_duplicates = grouped_ids['count'].min()
+            ids_available_for_upsample = []
+            while len(ids_available_for_upsample) < n_extra_upsample:
+                ids_available_for_upsample += list(grouped_ids.loc[grouped_ids['count'] == min_num_duplicates, 'id'])
+                min_num_duplicates += 1
+            temp_df = no_sliding_df.copy()
+            temp_df = temp_df.drop_duplicates(subset=['id'], keep='first')
+            temp_df = temp_df.loc[temp_df['id'].isin(ids_available_for_upsample)]
+            temp_df = temp_df.sample(frac=1).reset_index(drop=True)
             extra_upsample_clips = temp_df.iloc[:n_extra_upsample]
-            # extra_upsample_clips.rename(columns={'id': 'miniclip_id'}, inplace=True)
             new_upsample_clips = pd.concat([new_upsample_clips, extra_upsample_clips]).reset_index(drop=True)
 
         print('Number of clips upsampled:', len(new_upsample_clips))

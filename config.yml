@@ -270,7 +270,7 @@ EXPLAINABILITY:
 EXTERNAL_VAL:
   LOCATIONS: ['chile', 'ottawa', 'alberta']  # List of centers involved in the multi-center study.
   REFRESH_FOLDERS: True  # If you want to delete contents of generalizability-related folders before writing, set True.
-  NUM_TRIALS: 5  # Specify the number of fine-tuning trials.
+  NUM_TRIALS: 1  # Specify the number of fine-tuning trials.
   MIN_TEST_SIZE: 0.5  # Specify the minimum proportion of external data to set aside for testing purposes.
   PARAMS:
     OVERWRITE_FOLDS: True  # Set this to True if you want to overwrite existing fold .txt files.
@@ -293,12 +293,12 @@ EXTERNAL_VAL:
     OVERWRITE_MODEL_DIR: True  # Set True if you want to clear existing contents in the model folder.
     METRIC_THRESHOLDS:  # Thresholds for assessing the performance of a fine-tuned model.
       LOWER_BOUNDS:
-        SENSITIVITY: 90.1
-        SPECIFICITY: 79.3
+        SENSITIVITY: 79.3
+        SPECIFICITY: 90.1
       UPPER_BOUNDS:
     MIN_DELTA: 0.0001
     VAL_SPLIT: 0.2 # Specify the train-val data split for each fine-tune run.
-    EPOCHS: 1
+    EPOCHS: 100
     PRED_PROBS:
       SAVE_PRED_PROBABILITIES: True # Set to True to save prediction labels for each clip when evaluating fine-tuned models.
     LAZY: False # Set this to True if you want fine-tuning trials to terminate once model performance exceeds thresholds.
