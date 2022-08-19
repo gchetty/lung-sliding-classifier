@@ -284,7 +284,7 @@ EXTERNAL_VAL:
     PREDICTIONS_OUT: '\generalizability\predictions'  # Path to predictions from fine-tuning experiments.
     EXPERIMENTS: '\generalizability\results\experiments'
   FOLD_SAMPLE:
-    SEED: 123  # Seed numbers for sampling external patient ids into slices, which are used during fine-tuning to augment training data as necessary.
+    SEED: 1738  # Seed numbers for sampling external patient ids into slices, which are used during fine-tuning to augment training data as necessary.
     # There is one seed for each trial; insert or remove (or change) seeds as necessary/desired.
     OVERWRITE_FOLDER: True  # Set this to True if you want to overwrite existing fold .txt files.
     NUM_FOLDS: 5  # Number of desired external patient slices for augmenting training data during fine-tuning.
