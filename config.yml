@@ -97,7 +97,7 @@ TRAIN:
       LR_DECAY_VAL: 0.05642  # Learning rate decay
       LR_DECAY_EPOCH: 15 # Epoch to start lr decay
       DROPOUT: 0.2151 # Dropout probability
-      BLOCKS_FROZEN: 220 # Number of blocks to freeze - MUST be 0 or positive
+      LAYERS_FROZEN: 220 # Number of blocks to freeze - MUST be 0 or positive
       L2_REG: 0.008629 # L2 regularization penalty
       WEIGHT_INITIALIZER: 'he_normal'  # Method to initialize weights for convolutional and FC layers - see https://www.tensorflow.org/api_docs/python/tf/keras/initializers
       ALPHA: 0.105 # focal loss parameter
@@ -252,7 +252,7 @@ CROSS_VAL:
             'false_positives', 'false_negatives'] # metrics to store in output csv
 
 PREDICT:
-  MODEL: 'results/models/efficientnet/20220325-190905/'  # Trained model used to generate predictions
+  MODEL: 'results/models/final_holdout_model/20220325-190905/'  # Trained model used to generate predictions
   TEST_DF: 'csvs_split/test.csv' # table of NPZs to generate predictions for
   PREDICTIONS_OUT: '../results/predictions'
 
@@ -264,14 +264,14 @@ EXPLAINABILITY:
   PATHS:
     NPZ: 'data/npzs/'  # Directory holding NPZs that heatmaps can be generated for.
     NPZ_DF: 'csvs_split/test.csv'  # Table of mini-clips that heatmaps can be generated for.
-    MODEL: 'results/models/efficientnet/20220325-190905'  # Trained model used to generate heatmaps.
+    MODEL: 'results/models/final_holdout_model/20220325-190905'  # Trained model used to generate heatmaps.
     FEATURE_HEATMAPS: 'feature_heatmaps/'  # Output directory for heatmap videos.
 
 EXTERNAL_VAL:
   LOCATIONS: ['chile', 'ottawa', 'alberta']  # List of centers involved in the multi-center study.
   REFRESH_FOLDERS: True  # If you want to delete contents of generalizability-related folders before writing, set True.
-  NUM_TRIALS: 1  # Specify the number of fine-tuning trials.
-  MIN_TEST_SIZE: 0.5  # Specify the minimum proportion of external data to set aside for testing purposes.
+  NEW_EXPERIMENT: True   # If set to True, creates a new folder for trial artefacts.
+  FIXED_TEST_SIZE: 0.4  # Specify the minimum proportion of external data to set aside for testing purposes.
   PARAMS:
     OVERWRITE_FOLDS: True  # Set this to True if you want to overwrite existing fold .txt files.
   PATHS:
@@ -284,9 +284,7 @@ EXTERNAL_VAL:
     PREDICTIONS_OUT: '\generalizability\predictions'  # Path to predictions from fine-tuning experiments.
     EXPERIMENTS: '\generalizability\results\experiments'
   FOLD_SAMPLE:
-    SEED: 1738  # Seed numbers for sampling external patient ids into slices, which are used during fine-tuning to augment training data as necessary.
-    # There is one seed for each trial; insert or remove (or change) seeds as necessary/desired.
-    OVERWRITE_FOLDER: True  # Set this to True if you want to overwrite existing fold .txt files.
+    SEED: 3431  # Seed numbers for sampling external patient ids into slices, which are used during fine-tuning to augment training data as necessary.
     NUM_FOLDS: 5  # Number of desired external patient slices for augmenting training data during fine-tuning.
   FINETUNE:
     MODEL_DEF: 'efficientnet'  # Set this equal to the model definition string used for the pre-trained model.
@@ -303,5 +301,6 @@ EXTERNAL_VAL:
       SAVE_PRED_PROBABILITIES: True # Set to True to save prediction labels for each clip when evaluating fine-tuned models.
     LAZY: False # Set this to True if you want fine-tuning trials to terminate once model performance exceeds thresholds.
     LR: 0.0000171  # For now, divide the original (efficientnet) lr by 10.
+    MINORITY_FRAC: 0.25 # If minority upsampling, this is the desired fraction of the minority class in the training set
     # A value of False will run trials to completion, regardless of whether the model performance exceeds thresholds or not.
   PLOT_METRICS: ['loss', 'sensitivity', 'specificity']  # Specify metrics for which to generate plots (for each trial and trial-wise average).
