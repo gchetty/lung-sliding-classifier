@@ -26,7 +26,7 @@ def finetune_results_to_csv(experiment_path):
     # Combine results across all trials.
     for trial in trial_folders:
         metric_results_csv_path = glob.glob(os.path.join(trial, '*.csv'))[1]
-        metric_results_csv = pd.read_csv(metric_results_csv_path, index_col=0)
+        metric_results_csv = pd.read_csv(metric_results_csv_path)
         trial_numbers.extend([cur_trial_num] * len(metric_results_csv))
         trial_results = pd.concat([trial_results, metric_results_csv])
         cur_trial_num += 1
@@ -49,6 +49,7 @@ def plot_finetune_results(results_csv):
     :param results_csv: Absolute path to .csv file containing fine-tuning results.
     '''
     results_df = pd.read_csv(results_csv)
+    num_trials = len(glob.glob(os.path.split(results_csv)[0] + '/trial_*'))
 
     # The absolute path to the corresponding experiment is the parent directory for the results .csv file.
     experiment_path = '\\'.join(results_csv.split('\\')[:-1])
@@ -64,10 +65,9 @@ def plot_finetune_results(results_csv):
 
     # Get list of external data proportions used for training in the experiment.
     first_trial_results = results_df[results_df['trial'] == 1]
-    ext_data_props = first_trial_results[first_trial_results['variable_sized_test_set'] == 1]['ext_data_prop'].values
+    ext_data_props = first_trial_results[first_trial_results['variable_size_test_set'] == 1]['train_data_prop'].values
 
     metrics = cfg['PLOT_METRICS']
-    num_trials = cfg['NUM_TRIALS']
     plot_ind = 0
     legend_labels = []
 
@@ -83,7 +83,7 @@ def plot_finetune_results(results_csv):
             style = 'solid'
             if test_set_type == 0:
                 style = 'dashed'
-            results_for_test_set_type = results_df[results_df['variable_sized_test_set'] == test_set_type]
+            results_for_test_set_type = results_df[results_df['variable_size_test_set'] == test_set_type]
             test_set_size_label = '({} Test Set Size)'.format('Variable' if test_set_type == 1 else 'Fixed')
 
             # Plot results for each trial.
@@ -99,7 +99,7 @@ def plot_finetune_results(results_csv):
             # Plot average metric value across trials.
             trial_avgs = []
             for prop in ext_data_props:
-                avg_for_prop = np.mean(results_for_test_set_type[results_for_test_set_type['variable_sized_test_set'] ==
+                avg_for_prop = np.mean(results_for_test_set_type[results_for_test_set_type['variable_size_test_set'] ==
                                                                  test_set_type][metric])
                 trial_avgs.append(avg_for_prop)
 
@@ -119,11 +119,11 @@ def plot_finetune_results(results_csv):
         legend_labels = []
 
 #
-# experiment_path = os.getcwd() + cfg['PATHS']['EXPERIMENTS']
-# experiment_path = os.path.join(experiment_path, os.listdir(experiment_path)[-1])
-# res_df = finetune_results_to_csv(experiment_path)
-#
-# plot_finetune_results(res_df)
+experiment_path = os.getcwd() + cfg['PATHS']['EXPERIMENTS']
+experiment_path = os.path.join(experiment_path, os.listdir(experiment_path)[-1])
+res_df = finetune_results_to_csv(experiment_path)
+
+plot_finetune_results(res_df)
 
 # if __name__ == '__main__':
 #     exp_dir = os.path.join(os.getcwd() + cfg['PATHS']['EXPERIMENTS'])

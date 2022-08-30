@@ -3,13 +3,14 @@ import glob
 import math
 import os
 import argparse
+import random
 
 import yaml
 import numpy as np
 import pandas as pd
 import tensorflow as tf
 from sklearn.metrics import confusion_matrix
-from sklearn.model_selection import StratifiedGroupKFold
+from sklearn.model_selection import StratifiedGroupKFold, GroupShuffleSplit
 from imblearn.over_sampling import RandomOverSampler
 from tensorflow.keras.callbacks import EarlyStopping
 from tensorflow.keras.metrics import Recall
@@ -18,10 +19,8 @@ from tensorflow.keras.optimizers import Adam
 from tensorflow_addons.losses import SigmoidFocalCrossEntropy, sigmoid_focal_crossentropy
 
 from models.models import get_model
-from predict import predict_set
 from src.custom.metrics import Specificity
 from src.data.sql_utils import add_date_to_filename
-from src.data.results.finetune_results_utils import finetune_results_to_csv, plot_finetune_results
 from src.data.utils import refresh_folder
 from src.preprocessor import MModePreprocessor
 from train import log_train_params
@@ -130,18 +129,19 @@ def evaluate_model(model, test_df, preprocessor, base_folder):
     test_set = tf.data.Dataset.from_tensor_slices((test_df['filename'].tolist(), test_df['label'].tolist()))
     preprocessed_test_set = preprocessor.prepare(test_set, test_df, shuffle=False, augment=False)
 
+    # Determine results for metrics
+    test_results = model.evaluate(preprocessed_test_set, return_dict=True)
+
     test_pred_probs = model.predict(preprocessed_test_set)
     test_pred_class = np.round(test_pred_probs)
+    test_results['confusion_matrix'] = str(confusion_matrix(y_true=test_df['label'], y_pred=test_pred_class).ravel())
 
     # Save predictions
-    test_preds_df = test_df[['filename', 'label']]
+    test_preds_df = test_df[['filename', 'label']].copy(deep=True)
     test_preds_df['pred_prob'] = test_pred_probs
     test_preds_df['pred_class'] = test_pred_class
     test_preds_df.to_csv(os.path.join(base_folder, 'test_set_preds.csv'), index=False)
 
-    # Determine results for metrics
-    test_results = model.evaluate(preprocessed_test_set, return_dict=True)
-    test_results['confusion_matrix'] = str(confusion_matrix(y_true=test_df['label'], y_pred=test_pred_class).ravel())
     return test_results
 
 
@@ -168,72 +168,6 @@ def setup_experiment(experiment_path=None):
     return trial_path
 
 
-def upsample_absent_sliding_data(train_df, upsample_df, prop, absent_pct, method='gaussian_noise'):
-    '''
-    Upsamples the absent lung sliding M-Modes in the given training dataset, train_df.
-    :param train_df: Training dataset for which to upsample minority.
-    :param upsample_df: DataFrame indicating which M-Modes have already been upsampled.
-    :param prop: Proportion of external dataset used for training.
-    :param absent_pct: Percentage of training dataset that should be from the absent lung sliding class after the
-    upsampling.
-    :returns: Returns two pd.DataFrames: upsampled train set, and updated upsample set.
-    '''
-    sliding_df = train_df[train_df['label'] == 1]
-    no_sliding_df = train_df[train_df['label'] == 0]
-
-    if len(no_sliding_df) / len(train_df) < absent_pct:
-        # Upsample
-        print('No sliding before upsampling:', len(no_sliding_df))
-        print('Upsampling...')
-        no_sliding_df = no_sliding_df.sample(frac=1).reset_index(drop=True)
-        num_upsampled = int(absent_pct * (len(sliding_df) / (1 - absent_pct)))
-
-        # Clips in no_sliding_df that are not in upsample_df
-        clips_for_upsample = no_sliding_df[~no_sliding_df['id'].isin(list(upsample_df['miniclip_id']))].copy()
-        clips_for_upsample = clips_for_upsample.reset_index(drop=True)
-        print('Number of clips available for upsampling:', len(clips_for_upsample))
-        print('Number of clips needed:', num_upsampled - len(no_sliding_df))
-
-        new_upsample_clips = clips_for_upsample.iloc[:(num_upsampled - len(no_sliding_df))]
-
-        # If run out of clips that have not been upsampled already, can upsample remaining clips needed from clips
-        # already upsampled
-        n_extra_upsample = (num_upsampled - len(no_sliding_df)) - len(clips_for_upsample)
-        if n_extra_upsample > 0:
-            grouped_ids = no_sliding_df[['id']].groupby(by=['id']).size().reset_index().rename(columns={0: 'count'})
-            min_num_duplicates = grouped_ids['count'].min()
-            ids_available_for_upsample = []
-            while len(ids_available_for_upsample) < n_extra_upsample:
-                ids_available_for_upsample += list(grouped_ids.loc[grouped_ids['count'] == min_num_duplicates, 'id'])
-                min_num_duplicates += 1
-            temp_df = no_sliding_df.copy()
-            temp_df = temp_df.drop_duplicates(subset=['id'], keep='first')
-            temp_df = temp_df.loc[temp_df['id'].isin(ids_available_for_upsample)]
-            temp_df = temp_df.sample(frac=1).reset_index(drop=True)
-            extra_upsample_clips = temp_df.iloc[:n_extra_upsample]
-            new_upsample_clips = pd.concat([new_upsample_clips, extra_upsample_clips]).reset_index(drop=True)
-
-        print('Number of clips upsampled:', len(new_upsample_clips))
-        no_sliding_df = pd.concat([no_sliding_df, new_upsample_clips])
-        print('No sliding after upsampling:', len(no_sliding_df))
-        new_train_df = pd.concat([sliding_df, no_sliding_df])
-
-        # Update the upsample df.
-        ext_data_props = pd.DataFrame([prop] * len(new_upsample_clips), columns=['ext_data_prop']).reset_index(
-            drop=True)
-        new_upsample_clips.rename(columns={'id': 'miniclip_id'}, inplace=True)
-        upsample_df_addition = pd.concat([ext_data_props, new_upsample_clips[['miniclip_id']]], axis=1)
-        new_upsample_df = pd.concat([upsample_df, upsample_df_addition])
-
-        print('Sliding: {}'.format(len(sliding_df) / len(new_train_df)))
-        print('No Sliding: {}'.format(len(no_sliding_df) / len(new_train_df)))
-
-        return new_train_df, new_upsample_df
-
-    else:
-        return train_df, upsample_df
-
-
 def sample_folds(clip_df, trial_folder, k, seed=None):
     '''
     Samples external data in clip_df into k folds. Attempts to preserve ratio of positive to negative classes in each
@@ -250,8 +184,12 @@ def sample_folds(clip_df, trial_folder, k, seed=None):
     for _, fold_idxs in sgkfold.split(clip_df, clip_df['label'], clip_df['patient_id'].astype(str)):
         next_fold = clip_df.iloc[fold_idxs]
         folds.append(next_fold)
-        counts = next_fold['label'].value_counts()
-        print(f"Fold {len(folds)}: {counts[1]} sliding, {counts[0]} absent sliding, Fraction of absent = {counts[0]/next_fold.shape[0]}")
+    random.shuffle(folds)
+
+    # Print fold characteristics
+    for i in range(len(folds)):
+        counts = folds[i]['label'].value_counts()
+        print(f"Fold {i}: {counts[1]} sliding. {counts[0]} absent sliding. absent/total = {counts[0] / folds[i].shape[0]}")
 
     # Save folds for current trial
     folds_path = os.path.join(trial_folder, 'folds.csv')
@@ -281,6 +219,22 @@ def restore_model(original_model_path):
     return original_model
 
 
+def freeze_model_layers(model, last_frozen_layer):
+    '''
+    Freeze all layers in the model up until a specified layer index. Ensure that all batch norm layers are
+    in inference mode (i.e. training=False).
+    :param model: A tf.keras model object
+    :param last_frozen_layer: The index of the last layer to freeze in the model
+    :return: A tf.keras model object with some layers frozen
+    '''
+    for i in range(len(model.layers)):
+        if i <= last_frozen_layer:
+            model.layers[i].trainable = False
+        elif ('batch' in model.layers[i].name) or ('bn' in model.layers[i].name):
+            model.layers[i].trainable = False           # Ensure all batch norm layers are frozen
+    return model
+
+
 def finetune_model(original_model_path, base_folder, full_train_df, mmode_preprocessor, hparams, upsample=True, seed=None):
     '''
     Fine-tunes the model on a training set.
@@ -295,14 +249,15 @@ def finetune_model(original_model_path, base_folder, full_train_df, mmode_prepro
 
     # Split dataset into training and validation sets
     val_split = cfg['EXTERNAL_VAL']['FINETUNE']['VAL_SPLIT']
-    val_strat_group_kfold = StratifiedGroupKFold(n_splits=math.ceil(1. / val_split), shuffle=True, random_state=seed)
-    train_idx, val_idx = val_strat_group_kfold.split(full_train_df, full_train_df['label'], full_train_df['patient_id'].astype(str)).__next__()
+    splitter = GroupShuffleSplit(n_splits=1, test_size=val_split, random_state=seed)
+    train_idx, val_idx = splitter.split(full_train_df, full_train_df['label'], full_train_df['patient_id'].astype(str)).__next__()
     train_df = full_train_df.iloc[train_idx]
     val_df = full_train_df.iloc[val_idx]
 
     # Oversample the minority class in the training set
-    if upsample:
-        minority_ratio = 1. / (1. - cfg['EXTERNAL_VAL']['FINETUNE']['MINORITY_FRAC']) - 1
+    minority_frac = cfg['EXTERNAL_VAL']['FINETUNE']['MINORITY_FRAC']
+    if upsample and (train_df['label'].value_counts().min() / train_df.shape[0] < minority_frac):
+        minority_ratio = 1. / (1. - minority_frac) - 1
         oversampler = RandomOverSampler(sampling_strategy=minority_ratio, random_state=seed)
         train_df, _ = oversampler.fit_resample(train_df, train_df['label'])
 
@@ -321,8 +276,8 @@ def finetune_model(original_model_path, base_folder, full_train_df, mmode_prepro
     val_set = mmode_preprocessor.prepare(val_set, val_df, shuffle=False, augment=False)
 
     # Get class weights for loss weighting
-    counts = train_df['label'].value_counts().to_numpy()
-    weights = train_df.shape[0] / (2.0 * counts)
+    counts = train_df['label'].value_counts()
+    weights = train_df.shape[0] / (2.0 * np.array([counts[0], counts[1]]))
     class_weight = {0: weights[0], 1: weights[1]}
 
     # Set up TensorBoard logs
@@ -346,9 +301,7 @@ def finetune_model(original_model_path, base_folder, full_train_df, mmode_prepro
     model = restore_model(original_model_path)
 
     # Freeze model layers
-    freeze_cutoff = -1 if hparams['LAYERS_FROZEN'] == 0 else hparams['LAYERS_FROZEN']
-    for i in range(freeze_cutoff + 1):
-        model.layers[i].trainable = False
+    model = freeze_model_layers(model, 220)
 
     # Initialize optimizer, metrics, and compile model
     optimizer = Adam(learning_rate=cfg['EXTERNAL_VAL']['FINETUNE']['LR'])
@@ -357,9 +310,21 @@ def finetune_model(original_model_path, base_folder, full_train_df, mmode_prepro
                                                 alpha=hparams['ALPHA'], gamma=hparams['GAMMA']),
                   optimizer=optimizer, metrics=metrics)
 
-    # Fine-tune the model
-    model.fit(train_set, epochs=cfg['EXTERNAL_VAL']['FINETUNE']['EPOCHS'], validation_data=val_set,
+    # Train top layer
+    model.fit(train_set, epochs=10, validation_data=val_set,
                 class_weight=class_weight,
+                callbacks=[tensorboard, early_stopping, lr_callback], verbose=1)
+
+    print("Unfreezing part of base model")
+    freeze_cutoff = -1 if hparams['LAYERS_FROZEN'] == 0 else hparams['LAYERS_FROZEN']
+    if freeze_cutoff > 0:
+        model = freeze_model_layers(model, freeze_cutoff)
+    optimizer = Adam(learning_rate=cfg['EXTERNAL_VAL']['FINETUNE']['LR'] / 10.)
+    model.compile(loss=SigmoidFocalCrossEntropy(reduction=tf.keras.losses.Reduction.AUTO,
+                                                alpha=hparams['ALPHA'], gamma=hparams['GAMMA']),
+                  optimizer=optimizer, metrics=metrics)
+    model.fit(train_set, epochs=cfg['EXTERNAL_VAL']['FINETUNE']['EPOCHS'], validation_data=val_set,
+                class_weight=class_weight, initial_epoch=10,
                 callbacks=[tensorboard, early_stopping, lr_callback], verbose=1)
 
     # Save and return best model's weights
@@ -381,12 +346,13 @@ def TAAFT(clip_df, n_folds, experiment_path=None, seed=None, hparams=None, lazy=
     :param upsample: When True, upsamples absent sliding mini-clips in each training set during fine-tuning.
     '''
 
+    # Set random seeds
+    if seed is not None:
+        random.seed(seed)
+        tf.random.set_seed(seed)
+
     trial_folder = setup_experiment(experiment_path)                    # Set up folder for this trial
     folds = sample_folds(clip_df, trial_folder, n_folds, seed=seed)     # Randomly sample folds
-
-    # Set global random seed
-    if seed is not None:
-        tf.random.set_seed(seed)
 
     original_model_path = cfg['PREDICT']['MODEL']
 
@@ -404,6 +370,7 @@ def TAAFT(clip_df, n_folds, experiment_path=None, seed=None, hparams=None, lazy=
 
     # Get model hyperparameters
     hparams = cfg['TRAIN']['PARAMS'][cfg['TRAIN']['MODEL_DEF'].upper()] if hparams is None else hparams
+    hparams['seed'] = seed
 
     # Conduct fine tuning experiments for progressively larger training sets
     for i in range(0, n_folds - n_folds_fixed_test_set + 1):
@@ -425,16 +392,16 @@ def TAAFT(clip_df, n_folds, experiment_path=None, seed=None, hparams=None, lazy=
                                    upsample=upsample, seed=seed)
 
         # Evaluate model on fixed test set
-        results_row = {'variable_sized_test_set': 1, 'train_data_prop': i / n_folds}
+        results_row = {'variable_size_test_set': 1, 'train_data_prop': i / n_folds}
         results_dict = evaluate_model(model, variable_test_df, mmode_preprocessor, base_folder)
         results_row.update(results_dict)
         trial_results_df = trial_results_df.append(results_row, ignore_index=True)
 
         # Evaluate model on variable test set
-        results_row = {'variable_sized_test_set': 0, 'train_data_prop': i / n_folds}
+        results_row = {'variable_size_test_set': 0, 'train_data_prop': i / n_folds}
         results_dict = evaluate_model(model, fixed_test_df, mmode_preprocessor, base_folder)
         results_row.update(results_dict)
-        trial_results_df = trial_results_df.append(results_dict, ignore_index=True)
+        trial_results_df = trial_results_df.append(results_row, ignore_index=True)
 
         # Relase unused memory and reset the TF session
         gc.collect()

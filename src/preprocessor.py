@@ -470,8 +470,8 @@ class MModePreprocessor:
     From which m-mode reconstructions will be assembled and used as inputs
     '''
 
-    def __init__(self, preprocessing_fn):
-        self.batch_size = cfg['TRAIN']['PARAMS']['BATCH_SIZE']
+    def __init__(self, preprocessing_fn, batch_size=None):
+        self.batch_size = cfg['TRAIN']['PARAMS']['BATCH_SIZE'] if batch_size is None else batch_size
         self.autotune = tf.data.AUTOTUNE
         self.preprocessing_fn = preprocessing_fn
 

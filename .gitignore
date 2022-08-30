@@ -23,6 +23,7 @@ results/
 !results/experiments/.gitkeep
 !results/metrics/.gitkeep
 !results/predictions/.gitkeep
+data/
 
 img/
 !img/heatmaps/.gitkeep
