@@ -99,7 +99,7 @@ no_sliding_df = get_clips_from_db(cfg['PARAMS']['DB_TABLE'], sliding=-False)
 #  and (pleural_line_findings = 'absent_lung_sliding');''', cnx)
 
 # Query database for extra negative examples from sprints
-no_sliding_extra_df = pd.read_sql('''SELECT * FROM clips_chile WHERE (pleural_line_findings='absent_lung_sliding'
+no_sliding_extra_df = pd.read_sql('''SELECT * FROM clips_ottawa WHERE (pleural_line_findings='absent_lung_sliding'
                                       OR pleural_line_findings='thickened|absent_lung_sliding') AND
                                (quality NOT LIKE '%significant_probe_movement%' OR quality is null) AND
                                (a_or_b_lines='a_lines' OR a_or_b_lines='non_a_non_b' OR a_or_b_lines is null) AND

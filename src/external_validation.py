@@ -257,9 +257,18 @@ def finetune_model(original_model_path, base_folder, full_train_df, mmode_prepro
     # Oversample the minority class in the training set
     minority_frac = cfg['EXTERNAL_VAL']['FINETUNE']['MINORITY_FRAC']
     if upsample and (train_df['label'].value_counts().min() / train_df.shape[0] < minority_frac):
-        minority_ratio = 1. / (1. - minority_frac) - 1
-        oversampler = RandomOverSampler(sampling_strategy=minority_ratio, random_state=seed)
-        train_df, _ = oversampler.fit_resample(train_df, train_df['label'])
+        # minority_ratio = 1. / (1. - minority_frac) - 1
+        # oversampler = RandomOverSampler(sampling_strategy=minority_ratio, random_state=seed)
+        # train_df, _ = oversampler.fit_resample(train_df, train_df['label'])
+        n_additional = math.ceil((minority_frac - train_df['label'].value_counts().min() / train_df.shape[0]) * train_df.shape[0])
+        absent_train_df = train_df.loc[train_df['label'] == 0]
+        extra_idx = 1
+        for i in range(n_additional):
+            if i % absent_train_df.shape[0] == 0:
+                extra_idx += 1
+            extra_absent_example = absent_train_df[i]
+            extra_absent_example['filename'] = os.path.splitext(extra_absent_example['filename'])[0] + f'_{extra_idx}.npz'
+            train_df.append(extra_absent_example)
 
     # Save training and validation sets
     splits_dir = os.path.join(base_folder, 'splits')
@@ -431,4 +440,4 @@ if __name__ == '__main__':
     # Conduct fine-tuning experiment
     seed = args.seed if args.seed is not None else cfg['EXTERNAL_VAL']['FOLD_SAMPLE']['SEED']
     experiment_path = args.experiment
-    TAAFT(external_df, cfg['EXTERNAL_VAL']['FOLD_SAMPLE']['NUM_FOLDS'], experiment_path, seed)
+    TAAFT(external_df, cfg['EXTERNAL_VAL']['FOLD_SAMPLE']['NUM_FOLDS'], experiment_path, seed, upsample=True)

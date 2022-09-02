@@ -284,7 +284,7 @@ EXTERNAL_VAL:
     PREDICTIONS_OUT: '\generalizability\predictions'  # Path to predictions from fine-tuning experiments.
     EXPERIMENTS: '\generalizability\results\experiments'
   FOLD_SAMPLE:
-    SEED: 4  # Seed for sampling external patient ids into slices, which are used during fine-tuning to augment training data as necessary.
+    SEED: 3  # Seed for sampling external patient ids into slices, which are used during fine-tuning to augment training data as necessary.
     NUM_FOLDS: 5  # Number of desired external patient slices for augmenting training data during fine-tuning.
   FINETUNE:
     MODEL_DEF: 'efficientnet'  # Set this equal to the model definition string used for the pre-trained model.

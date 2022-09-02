@@ -101,7 +101,7 @@ def miniclip_to_mmode(clip, bounding_box, height_width):
 
 
 def video_to_frames_contig(orig_id, patient_id, df_rows, cap, seq_length=cfg['PARAMS']['WINDOW_SECONDS'],
-                           resize=cfg['PARAMS']['IMG_SIZE'], write_path='', box=None):
+                           resize=cfg['PARAMS']['IMG_SIZE'], write_path='', box=None, n_mmodes=1):
 
     '''
     Converts a LUS video file to contiguous-frame mini-clips with specified sequence length
@@ -114,6 +114,7 @@ def video_to_frames_contig(orig_id, patient_id, df_rows, cap, seq_length=cfg['PA
     :param resize: [width, height], dimensions to resize frames to before saving
     :param write_path: Path to directory where output mini-clips are saved
     :param box: Tuple of (ymin, xmin, ymax, xmax) of pleural line ROI
+    :param n_mmodes: Number of M-Mode images to sample
     '''
 
     fr = round(cap.get(cv2.CAP_PROP_FPS))
@@ -136,8 +137,12 @@ def video_to_frames_contig(orig_id, patient_id, df_rows, cap, seq_length=cfg['PA
             if counter == 0:
                 # append to what will make output dataframes
                 df_rows.append([orig_id + '_' + str(mini_clip_num), patient_id])
-                mmode = miniclip_to_mmode(np.array(frames), box, (cap_height, cap_width))
-                np.savez_compressed(write_path + '_' + str(mini_clip_num), mmode=mmode)  # output
+                for i in range(1, n_mmodes + 1):
+                    mmode = miniclip_to_mmode(np.array(frames), box, (cap_height, cap_width))
+                    npz_path = write_path + '_' + str(mini_clip_num)
+                    if i > 1:
+                        npz_path = npz_path + f"_{i}"
+                    np.savez_compressed(npz_path, mmode=mmode)  # output
                 counter = seq_length
                 mini_clip_num += 1
                 frames = []
