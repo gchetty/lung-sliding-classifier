@@ -16,7 +16,7 @@ PREPROCESS:
     SMOOTHING: False  # Optional Median filter applied.
     SMOOTHING_KERNEL_SIZE: 5  # Integer, kernel size of square smoothing kernel filter - MUST be odd.
     SHUFFLE: True # If you want to randomize the videos downloaded.
-    RANDOM_SEED: 1 # If SHUFFLE=False, this does nothing. Otherwise, this is the seed for shuffling.
+    RANDOM_SEED: 4 # If SHUFFLE=False, this does nothing. Otherwise, this is the seed for shuffling.
     SLIDING_PROPORTION: 1  # Proportion of sliding clips from database to obtain.
     NO_SLIDING_PROPORTION: 1  # Proportion of absent sliding clips from database to obtain.
     M_MODE_WIDTH: 180 # width of m-mode image
@@ -36,7 +36,7 @@ PREPROCESS:
     CSVS_OUTPUT: 'generalizability\csvs\alberta'  # Path to any CSVs that are generated / taken from the database.
     NPZ: 'generalizability\npzs\alberta'  # Path to the mini-clip videos.
     FLOW_NPZ: 'flow_npzs\'  # Path to the .npzs containing optical flow mini-clips.
-    MASKING_TOOL: '\results\data\auto_masking_deeper.h5'  # Path to the masking tool. Currently only works with the older version!!!
+    MASKING_TOOL: 'auto_masking_deeper.h5'  # Path to the masking tool. Currently only works with the older version!!!
 
     # EXTRA refers to the first infusion of negative additions, which at the time of writing is kept separate
     # from the main resources from the dataset - this could change at any time. We only sometimes use them.
@@ -97,7 +97,7 @@ TRAIN:
       LR_DECAY_VAL: 0.05642  # Learning rate decay
       LR_DECAY_EPOCH: 15 # Epoch to start lr decay
       DROPOUT: 0.2151 # Dropout probability
-      LAYERS_FROZEN: 118 #161 # Number of blocks to freeze - MUST be 0 or positive
+      LAYERS_FROZEN: 161 #118 #161 # Number of blocks to freeze - MUST be 0 or positive
       L2_REG: 0.008629 # L2 regularization penalty
       WEIGHT_INITIALIZER: 'he_normal'  # Method to initialize weights for convolutional and FC layers - see https://www.tensorflow.org/api_docs/python/tf/keras/initializers
       ALPHA: 0.105 # focal loss parameter
@@ -275,7 +275,7 @@ EXTERNAL_VAL:
   PARAMS:
     OVERWRITE_FOLDS: True  # Set this to True if you want to overwrite existing fold .txt files.
   PATHS:
-    NPZS: '\generalizability\npzs'
+    NPZS: 'src\data\generalizability\npzs'
     MMODES: '\generalizability\mmodes'  # Path to external data M-mode images.
     CSV_OUT: '\generalizability\csvs'  # Path to external data csvs.
     MODEL_OUT: '\generalizability\results\models'  # Path to fine-tuned models.
@@ -284,7 +284,7 @@ EXTERNAL_VAL:
     PREDICTIONS_OUT: '\generalizability\predictions'  # Path to predictions from fine-tuning experiments.
     EXPERIMENTS: '\generalizability\results\experiments'
   FOLD_SAMPLE:
-    SEED: 3  # Seed for sampling external patient ids into slices, which are used during fine-tuning to augment training data as necessary.
+    SEED: 4  # Seed for sampling external patient ids into slices, which are used during fine-tuning to augment training data as necessary.
     NUM_FOLDS: 5  # Number of desired external patient slices for augmenting training data during fine-tuning.
   FINETUNE:
     MODEL_DEF: 'efficientnet'  # Set this equal to the model definition string used for the pre-trained model.

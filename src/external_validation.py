@@ -260,15 +260,16 @@ def finetune_model(original_model_path, base_folder, full_train_df, mmode_prepro
         # minority_ratio = 1. / (1. - minority_frac) - 1
         # oversampler = RandomOverSampler(sampling_strategy=minority_ratio, random_state=seed)
         # train_df, _ = oversampler.fit_resample(train_df, train_df['label'])
-        n_additional = math.ceil((minority_frac - train_df['label'].value_counts().min() / train_df.shape[0]) * train_df.shape[0])
-        absent_train_df = train_df.loc[train_df['label'] == 0]
+        counts = train_df['label'].value_counts()
+        n_additional = math.ceil((1. / (1. - minority_frac) - 1) * counts.max()) - counts.min()
+        absent_train_df = train_df.loc[train_df['label'] == 0].copy().sample(frac=1, random_state=seed)
         extra_idx = 1
         for i in range(n_additional):
             if i % absent_train_df.shape[0] == 0:
                 extra_idx += 1
-            extra_absent_example = absent_train_df[i]
+            extra_absent_example = absent_train_df.iloc[i % absent_train_df.shape[0]]
             extra_absent_example['filename'] = os.path.splitext(extra_absent_example['filename'])[0] + f'_{extra_idx}.npz'
-            train_df.append(extra_absent_example)
+            train_df = train_df.append(extra_absent_example)
 
     # Save training and validation sets
     splits_dir = os.path.join(base_folder, 'splits')
@@ -322,7 +323,7 @@ def finetune_model(original_model_path, base_folder, full_train_df, mmode_prepro
     # Train top layer
     model.fit(train_set, epochs=10, validation_data=val_set,
                 class_weight=class_weight,
-                callbacks=[tensorboard, early_stopping, lr_callback], verbose=1)
+                callbacks=[tensorboard, lr_callback], verbose=1)
 
     print("Unfreezing part of base model")
     freeze_cutoff = -1 if hparams['LAYERS_FROZEN'] == 0 else hparams['LAYERS_FROZEN']

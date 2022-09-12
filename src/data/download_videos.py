@@ -4,6 +4,7 @@ import os
 import urllib.request
 import yaml
 import cv2
+import tqdm
 from utils import refresh_folder
 from sql_utils import get_clips_from_db
 
@@ -61,7 +62,7 @@ def download(df, sliding, fr_rows, video_out_root_folder=cfg['PATHS']['UNMASKED_
     print('Writing ' + str(num_rows) + ' videos to ' + video_out_folder + '...')
 
     # Iterate through df to download the videos and preserve their id in the name
-    for index, row in df.iterrows():
+    for index, row in tqdm.tqdm(df.iterrows()):
         out_path = video_out_folder + row['id'] + '.mp4'
         row_no_whitespace = row['s3_path'].replace(' ', '%20')
         urllib.request.urlretrieve(row_no_whitespace, out_path)
@@ -76,20 +77,23 @@ def download(df, sliding, fr_rows, video_out_root_folder=cfg['PATHS']['UNMASKED_
 
 
 # Get database configs
-USERNAME = database_cfg['USERNAME']
-PASSWORD = database_cfg['PASSWORD']
-HOST = database_cfg['HOST']
-DATABASE = database_cfg['DATABASE']
+# USERNAME = database_cfg['USERNAME']
+# PASSWORD = database_cfg['PASSWORD']
+# HOST = database_cfg['HOST']
+# DATABASE = database_cfg['DATABASE']
+#
+# # Establish connection to database
+# cnx = mysql.connector.connect(user=USERNAME, password=PASSWORD,
+#                               host=HOST,
+#                               database=DATABASE)
+#
+# # Query Database for sliding and no_sliding labeled data but excluding significant probe movement and B lines
+# # and pleural effusion or consolidation
+# sliding_df = get_clips_from_db(cfg['PARAMS']['DB_TABLE'], sliding=True)
+# no_sliding_df = get_clips_from_db(cfg['PARAMS']['DB_TABLE'], sliding=-False)
 
-# Establish connection to database
-cnx = mysql.connector.connect(user=USERNAME, password=PASSWORD,
-                              host=HOST,
-                              database=DATABASE)
-
-# Query Database for sliding and no_sliding labeled data but excluding significant probe movement and B lines
-# and pleural effusion or consolidation
-sliding_df = get_clips_from_db(cfg['PARAMS']['DB_TABLE'], sliding=True)
-no_sliding_df = get_clips_from_db(cfg['PARAMS']['DB_TABLE'], sliding=-False)
+sliding_df = pd.read_csv('../../generalizability/csvs/ottawa/sliding.csv')
+no_sliding_df = pd.read_csv('../../generalizability/csvs/ottawa/no_sliding.csv')
 
 # sliding_df = pd.read_sql('''select * from clips_chile where view='parenchymal' and a_or_b_lines='a_lines'
 #                               and (quality NOT LIKE '%significant_probe_movement%' or quality is null)
@@ -99,11 +103,11 @@ no_sliding_df = get_clips_from_db(cfg['PARAMS']['DB_TABLE'], sliding=-False)
 #  and (pleural_line_findings = 'absent_lung_sliding');''', cnx)
 
 # Query database for extra negative examples from sprints
-no_sliding_extra_df = pd.read_sql('''SELECT * FROM clips_ottawa WHERE (pleural_line_findings='absent_lung_sliding'
-                                      OR pleural_line_findings='thickened|absent_lung_sliding') AND
-                               (quality NOT LIKE '%significant_probe_movement%' OR quality is null) AND
-                               (a_or_b_lines='a_lines' OR a_or_b_lines='non_a_non_b' OR a_or_b_lines is null) AND
-                               (pleural_effusion is null) AND (consolidation is null);''', cnx)
+# no_sliding_extra_df = pd.read_sql('''SELECT * FROM clips_ottawa WHERE (pleural_line_findings='absent_lung_sliding'
+#                                       OR pleural_line_findings='thickened|absent_lung_sliding') AND
+#                                (quality NOT LIKE '%significant_probe_movement%' OR quality is null) AND
+#                                (a_or_b_lines='a_lines' OR a_or_b_lines='non_a_non_b' OR a_or_b_lines is null) AND
+#                                (pleural_effusion is null) AND (consolidation is null);''', cnx)
 
 # load extra infusion of sliding clips
 # see code block from sliding_clip_infusion.py

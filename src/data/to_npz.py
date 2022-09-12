@@ -97,7 +97,7 @@ def miniclip_to_mmode(clip, bounding_box, height_width):
                              interpolation=cv2.INTER_CUBIC)
     mmode_image = mmode_image.reshape((new_height, cfg_full['PREPROCESS']['PARAMS']['M_MODE_WIDTH'], 1))
 
-    return mmode_image
+    return mmode_image, middle_pixel
 
 
 def video_to_frames_contig(orig_id, patient_id, df_rows, cap, seq_length=cfg['PARAMS']['WINDOW_SECONDS'],
@@ -137,8 +137,15 @@ def video_to_frames_contig(orig_id, patient_id, df_rows, cap, seq_length=cfg['PA
             if counter == 0:
                 # append to what will make output dataframes
                 df_rows.append([orig_id + '_' + str(mini_clip_num), patient_id])
+                pixel_idxs = set()
                 for i in range(1, n_mmodes + 1):
-                    mmode = miniclip_to_mmode(np.array(frames), box, (cap_height, cap_width))
+                    while True:
+                        mmode, pixel_idx = miniclip_to_mmode(np.array(frames), box, (cap_height, cap_width))
+                        if pixel_idx in pixel_idxs:
+                            continue
+                        else:
+                            pixel_idxs.add(pixel_idx)
+                            break
                     npz_path = write_path + '_' + str(mini_clip_num)
                     if i > 1:
                         npz_path = npz_path + f"_{i}"
@@ -187,7 +194,7 @@ def video_to_npz(path, orig_id, patient_id, df_rows, write_path='', fr=None, box
     if not fr:
         fr = round(cap.get(cv2.CAP_PROP_FPS))
 
-    video_to_frames_contig(orig_id, patient_id, df_rows, cap, write_path=write_path, box=box)
+    video_to_frames_contig(orig_id, patient_id, df_rows, cap, write_path=write_path, box=box, n_mmodes=5)
 
 
 def parse_args():
@@ -284,8 +291,8 @@ if __name__ == '__main__':
     out_df_sliding = pd.DataFrame(df_rows_sliding, columns=['id', 'patient_id'])
     out_df_no_sliding = pd.DataFrame(df_rows_no_sliding, columns=['id', 'patient_id'])
 
-    csv_out_path_sliding = os.path.join(csv_out_folder, 'sliding_mini_clips.csv')
-    csv_out_path_no_sliding = os.path.join(csv_out_folder, 'no_sliding_mini_clips.csv')
+    csv_out_path_sliding = os.path.join('../../' + csv_out_folder, 'sliding_mini_clips.csv')
+    csv_out_path_no_sliding = os.path.join('../../' + csv_out_folder, 'no_sliding_mini_clips.csv')
 
     out_df_sliding.to_csv(csv_out_path_sliding, index=False)
     out_df_no_sliding.to_csv(csv_out_path_no_sliding, index=False)
