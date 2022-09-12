@@ -314,7 +314,7 @@ def finetune_model(original_model_path, base_folder, full_train_df, mmode_prepro
     model = freeze_model_layers(model, 220)
 
     # Initialize optimizer, metrics, and compile model
-    optimizer = Adam(learning_rate=cfg['EXTERNAL_VAL']['FINETUNE']['LR'])
+    optimizer = Adam(learning_rate=cfg['EXTERNAL_VAL']['FINETUNE']['LR'] / 10.)
     metrics = [Recall(name='sensitivity'), Specificity(name='specificity')]
     model.compile(loss=SigmoidFocalCrossEntropy(reduction=tf.keras.losses.Reduction.AUTO,
                                                 alpha=hparams['ALPHA'], gamma=hparams['GAMMA']),
@@ -325,17 +325,17 @@ def finetune_model(original_model_path, base_folder, full_train_df, mmode_prepro
                 class_weight=class_weight,
                 callbacks=[tensorboard, lr_callback], verbose=1)
 
-    print("Unfreezing part of base model")
-    freeze_cutoff = -1 if hparams['LAYERS_FROZEN'] == 0 else hparams['LAYERS_FROZEN']
-    if freeze_cutoff > 0:
-        model = freeze_model_layers(model, freeze_cutoff)
-    optimizer = Adam(learning_rate=cfg['EXTERNAL_VAL']['FINETUNE']['LR'] / 10.)
-    model.compile(loss=SigmoidFocalCrossEntropy(reduction=tf.keras.losses.Reduction.AUTO,
-                                                alpha=hparams['ALPHA'], gamma=hparams['GAMMA']),
-                  optimizer=optimizer, metrics=metrics)
-    model.fit(train_set, epochs=cfg['EXTERNAL_VAL']['FINETUNE']['EPOCHS'], validation_data=val_set,
-                class_weight=class_weight, initial_epoch=10,
-                callbacks=[tensorboard, early_stopping, lr_callback], verbose=1)
+    # print("Unfreezing part of base model")
+    # freeze_cutoff = -1 if hparams['LAYERS_FROZEN'] == 0 else hparams['LAYERS_FROZEN']
+    # if freeze_cutoff > 0:
+    #     model = freeze_model_layers(model, freeze_cutoff)
+    # optimizer = Adam(learning_rate=cfg['EXTERNAL_VAL']['FINETUNE']['LR'] / 10.)
+    # model.compile(loss=SigmoidFocalCrossEntropy(reduction=tf.keras.losses.Reduction.AUTO,
+    #                                             alpha=hparams['ALPHA'], gamma=hparams['GAMMA']),
+    #               optimizer=optimizer, metrics=metrics)
+    # model.fit(train_set, epochs=cfg['EXTERNAL_VAL']['FINETUNE']['EPOCHS'], validation_data=val_set,
+    #             class_weight=class_weight, initial_epoch=10,
+    #             callbacks=[tensorboard, early_stopping, lr_callback], verbose=1)
 
     # Save and return best model's weights
     model_path = os.path.join(base_folder, f'model')
