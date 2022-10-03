@@ -284,7 +284,7 @@ EXTERNAL_VAL:
     FOLDS: '\generalizability\folds'  # Path to external data patient-wise fold .txt files.
     CSVS_SPLIT: '\generalizability\csvs_split'  # Path to train-test-val splits for external data.
     PREDICTIONS_OUT: '\generalizability\predictions'  # Path to predictions from fine-tuning experiments.
-    EXPERIMENTS: '\generalizability\results\experiments\300922'
+    EXPERIMENTS: '\generalizability\results\experiments\031022'
     DATA_CHARACTERISTICS: 'data\generalizability\external_data_with_characteristics.csv'
   FOLD_SAMPLE:
     SEED: 0  # Seed for sampling external patient ids into slices, which are used during fine-tuning to augment training data as necessary.
@@ -294,8 +294,8 @@ EXTERNAL_VAL:
     OVERWRITE_MODEL_DIR: True  # Set True if you want to clear existing contents in the model folder.
     METRIC_THRESHOLDS:  # Thresholds for assessing the performance of a fine-tuned model.
       LOWER_BOUNDS:
-        SENSITIVITY: 79.3
-        SPECIFICITY: 90.1
+        SENSITIVITY: 79.3 # Goal sensitivity for present lung sliding.
+        SPECIFICITY: 90.1 # Goal specificity (sensitivity for absent lung sliding).
       UPPER_BOUNDS:
     MIN_DELTA: 0.0001
     VAL_SPLIT: 0.2 # Specify the train-val data split for each fine-tune run.
@@ -307,11 +307,11 @@ EXTERNAL_VAL:
     MINORITY_FRAC: 0.25 # If minority upsampling, this is the desired fraction of the minority class in the training set
     LINEAR_FRAC: 0.25 # If upsampling linear probes, this is the desired fraction of linear probes in the training set
     SCHEME:
-      AB: False
-      UPSAMPLE: True
-      UPSAMPLE_LINEAR: False
-      FOCAL_LOSS: False
-      REINITIALIZE: False
-      CLASS_WEIGHT: True
+      AB: False # Set to True if you want to use the AB training scheme (finetune at full LR for 10 epochs, then LR/10)
+      UPSAMPLE: True # Set to True if you want to upsample from the minority class.
+      UPSAMPLE_LINEAR: False # Set to True if you want to upsample linear probe examples.
+      FOCAL_LOSS: False # Set to True if you want to use sigmoid focal cross entropy loss.
+      REINITIALIZE: False # Set to True if you want to randomly re-initialize the weights of the last 5 FC layers.
+      CLASS_WEIGHT: True # Set to True if you want to use the class_weight parameter in model.fit()
     # A value of False will run trials to completion, regardless of whether the model performance exceeds thresholds or not.
   PLOT_METRICS: ['loss', 'sensitivity', 'specificity']  # Specify metrics for which to generate plots (for each trial and trial-wise average).
