@@ -120,7 +120,7 @@ def get_external_clip_df(add_chars=False,drop_linear=False):
         ext_df['clip_id'] = ext_df.apply(lambda row: row['id'].split('_')[0], axis=1)
         char_df = pd.read_csv(cfg['EXTERNAL_VAL']['PATHS']['DATA_CHARACTERISTICS'])
         char_df.rename(columns={'id':'clip_id'}, inplace=True)
-        chars_to_include = cfg['EXTERNAL_VAL']['DATA_CHARACTERISTICS']
+        chars_to_include = cfg['EXTERNAL_VAL']['DATA_CHARACTERISTICS'].append('clip_id')
         char_df = char_df[chars_to_include]
         ext_df = ext_df.merge(char_df, how='left', on='clip_id')
         ext_df.drop('clip_id', axis=1, inplace=True)
@@ -504,7 +504,8 @@ def finetune_model(original_model_path, base_folder, full_train_df, mmode_prepro
     return model
 
 
-def TAAFT(clip_df, n_folds, experiment_path=None, seed=None, hparams=None, by_center=False, by_probe=False):
+def TAAFT(clip_df, n_folds, experiment_path=None, seed=None, hparams=None, stratify_by=None):
+          #by_center=False, by_probe=False):
     '''
     Executes a trial of TAAFT (Threshold-Aware Accumulative Fine-Tuning).
     Divides clips into random folds, then runs fine-tuning trials with progressively larger training sets. Evaluates
@@ -527,8 +528,6 @@ def TAAFT(clip_df, n_folds, experiment_path=None, seed=None, hparams=None, by_ce
 
     # This df will store trial results.
     trial_results_df = pd.DataFrame([])
-    trial_results_by_center_df = pd.DataFrame([])
-    trial_results_by_probe_df = pd.DataFrame([])
 
     # Initialize preprocessor for M-Mode images
     _, preprocessing_fn = get_model(cfg['EXTERNAL_VAL']['FINETUNE']['MODEL_DEF'])
@@ -569,24 +568,11 @@ def TAAFT(clip_df, n_folds, experiment_path=None, seed=None, hparams=None, by_ce
                                    set_class_weight=cfg['EXTERNAL_VAL']['FINETUNE']['SCHEME']['CLASS_WEIGHT'],
                                    upsample_linear=cfg['EXTERNAL_VAL']['FINETUNE']['SCHEME']['UPSAMPLE_LINEAR'])
 
-        # Evaluate model on fixed test set
+        # Evaluate model on variable test set
         results_row = {'variable_size_test_set': 1, 'train_data_prop': i / n_folds}
         results_dict = evaluate_model(model, variable_test_df, mmode_preprocessor, base_folder)
         results_row.update(results_dict)
         trial_results_df = trial_results_df.append(results_row, ignore_index=True)
-
-        if by_center:
-            results_by_center_row = {'variable_size_test_set': 1, 'train_data_prop': i / n_folds,
-                                     'center': 'combined_external'}
-            results_by_center_row.update(results_dict)
-            trial_results_by_center_df = trial_results_by_center_df.append(results_by_center_row, ignore_index=True)
-
-        if by_probe:
-            results_by_probe_row = {'variable_size_test_set': 1, 'train_data_prop': i / n_folds,
-                                     'probe': 'combined'}
-            results_by_probe_row.update(results_dict)
-            trial_results_by_probe_df = trial_results_by_probe_df.append(results_by_probe_row, ignore_index=True)
-
 
         # Evaluate model on variable test set
         results_row = {'variable_size_test_set': 0, 'train_data_prop': i / n_folds}
@@ -594,54 +580,32 @@ def TAAFT(clip_df, n_folds, experiment_path=None, seed=None, hparams=None, by_ce
         results_row.update(results_dict)
         trial_results_df = trial_results_df.append(results_row, ignore_index=True)
 
+        # Analyze metrics by subgroups/data characteristics
+        if stratify_by is not None:
 
-        if by_center:
-            results_by_center_row = {'variable_size_test_set': 0, 'train_data_prop': i / n_folds,
-                                     'center': 'combined_external'}
-            results_by_center_row.update(results_dict)
-            trial_results_by_center_df = trial_results_by_center_df.append(results_by_center_row, ignore_index=True)
+            for group in stratify_by: # For each data characteristic of interest, compute and save metrics
 
+                # Get results on combined dataset
+                trial_results_by_subgroup_df = trial_results_df.copy()
+                trial_results_by_subgroup_df[group] = 'combined_external'
 
-            # Evaluate model on a by-center basis
-            for center in cfg['EXTERNAL_VAL']['LOCATIONS']:
-                variable_test_by_center_df = variable_test_df.loc[variable_test_df['center'] == center]
-                fixed_test_by_center_df = fixed_test_df.loc[fixed_test_df['center'] == center]
-                # Evaluate model on fixed test set
-                results_by_center_row = {'variable_size_test_set': 1, 'train_data_prop': i / n_folds, 'center': center}
-                results_by_center_dict = evaluate_model(model, variable_test_by_center_df, mmode_preprocessor, base_folder)
-                results_by_center_row.update(results_by_center_dict)
-                trial_results_by_center_df = trial_results_by_center_df.append(results_by_center_row, ignore_index=True)
+                # Evaluate model on a by-subgroup basis
+                for subgroup in list(variable_test_df[group].unique()):
+                    variable_test_by_subgroup_df = variable_test_df.loc[variable_test_df[group] == subgroup]
+                    fixed_test_by_subgroup_df = fixed_test_df.loc[fixed_test_df[group] == subgroup]
+                    # Evaluate model on variable test set
+                    results_by_subgroup_row = {'variable_size_test_set': 1, 'train_data_prop': i / n_folds, group: subgroup}
+                    results_by_subgroup_dict = evaluate_model(model, variable_test_by_subgroup_df, mmode_preprocessor, base_folder)
+                    results_by_subgroup_row.update(results_by_subgroup_dict)
+                    trial_results_by_subgroup_df = trial_results_by_subgroup_df.append(results_by_subgroup_row, ignore_index=True)
 
-                # Evaluate model on variable test set
-                results_by_center_row = {'variable_size_test_set': 0, 'train_data_prop': i / n_folds, 'center': center}
-                results_by_center_dict = evaluate_model(model, fixed_test_by_center_df, mmode_preprocessor, base_folder)
-                results_by_center_row.update(results_by_center_dict)
-                trial_results_by_center_df = trial_results_by_center_df.append(results_by_center_row, ignore_index=True)
+                    # Evaluate model on fixed test set
+                    results_by_subgroup_row = {'variable_size_test_set': 0, 'train_data_prop': i / n_folds, group: subgroup}
+                    results_by_subgroup_dict = evaluate_model(model, fixed_test_by_subgroup_df, mmode_preprocessor, base_folder)
+                    results_by_subgroup_row.update(results_by_subgroup_dict)
+                    trial_results_by_subgroup_df = trial_results_by_subgroup_df.append(results_by_subgroup_row, ignore_index=True)
 
-        if by_probe:
-            results_by_probe_row = {'variable_size_test_set': 0, 'train_data_prop': i / n_folds,
-                                     'probe': 'combined'}
-            results_by_probe_row.update(results_dict)
-            trial_results_by_probe_df = trial_results_by_probe_df.append(results_by_probe_row, ignore_index=True)
-
-
-
-            # Evaluate model on a by-probe basis
-            for probe in list(variable_test_df.probe.unique()):
-                variable_test_by_probe_df = variable_test_df.loc[variable_test_df['probe'] == probe]
-                fixed_test_by_probe_df = fixed_test_df.loc[fixed_test_df['probe'] == probe]
-                # Evaluate model on fixed test set
-                results_by_probe_row = {'variable_size_test_set': 1, 'train_data_prop': i / n_folds, 'probe': probe}
-                results_by_probe_dict = evaluate_model(model, variable_test_by_probe_df, mmode_preprocessor, base_folder)
-                results_by_probe_row.update(results_by_probe_dict)
-                trial_results_by_probe_df = trial_results_by_probe_df.append(results_by_probe_row, ignore_index=True)
-
-                # Evaluate model on variable test set
-                results_by_probe_row = {'variable_size_test_set': 0, 'train_data_prop': i / n_folds, 'probe': probe}
-                results_by_probe_dict = evaluate_model(model, fixed_test_by_probe_df, mmode_preprocessor, base_folder)
-                results_by_probe_row.update(results_by_probe_dict)
-                trial_results_by_probe_df = trial_results_by_probe_df.append(results_by_probe_row, ignore_index=True)
-
+                trial_results_by_subgroup_df.to_csv(os.path.join(trial_folder, 'metrics_by_{}.csv'.format(group)), index=False)
 
         # Relase unused memory and reset the TF session
         gc.collect()
@@ -649,11 +613,6 @@ def TAAFT(clip_df, n_folds, experiment_path=None, seed=None, hparams=None, by_ce
         del model
 
     trial_results_df.to_csv(os.path.join(trial_folder, 'metrics.csv'), index=False)
-    if by_center:
-        trial_results_by_center_df.to_csv(os.path.join(trial_folder, 'metrics_by_center.csv'), index=False)
-
-    if by_probe:
-        trial_results_by_probe_df.to_csv(os.path.join(trial_folder, 'metrics_by_probe.csv'), index=False)
 
     return
 
@@ -668,8 +627,8 @@ if __name__ == '__main__':
     # If the generalizability folder has not been created, create the subdirectories for each of the
     # required data types (e.g. raw clips, .npzs, m-modes, etc.)
     for path in cfg['EXTERNAL_VAL']['PATHS']:
-        if not os.path.exists(os.getcwd() + cfg['EXTERNAL_VAL']['PATHS'][path]):
-            os.makedirs(os.getcwd() + cfg['EXTERNAL_VAL']['PATHS'][path])
+        if not os.path.exists(os.path.join(os.getcwd(),cfg['EXTERNAL_VAL']['PATHS'][path])):
+            os.makedirs(os.path.join(os.getcwd(),cfg['EXTERNAL_VAL']['PATHS'][path]))
 
     # Assemble miniclips from all external centres
     external_df = get_external_clip_df(add_chars=True, drop_linear=True)
@@ -677,7 +636,7 @@ if __name__ == '__main__':
     # Conduct fine-tuning experiment
     seed = args.seed if args.seed is not None else cfg['EXTERNAL_VAL']['FOLD_SAMPLE']['SEED']
     experiment_path = args.experiment
-    TAAFT(external_df, cfg['EXTERNAL_VAL']['FOLD_SAMPLE']['NUM_FOLDS'], experiment_path, seed, upsample=True, by_probe=True)
+    TAAFT(external_df, cfg['EXTERNAL_VAL']['FOLD_SAMPLE']['NUM_FOLDS'], experiment_path, seed, stratify_by=['center', 'probe'])
 
 
 

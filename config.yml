@@ -269,7 +269,7 @@ EXPLAINABILITY:
 
 EXTERNAL_VAL:
   LOCATIONS: ['chile', 'ottawa', 'alberta']  # List of centers involved in the multi-center study.
-  DATA_CHARACTERISTICS: ['clip_id','probe','location','patient_age','sex','depth_cat','manufacturer']
+  DATA_CHARACTERISTICS: ['probe','location','patient_age','sex','depth_cat','manufacturer']
   REFRESH_FOLDERS: True  # If you want to delete contents of generalizability-related folders before writing, set True.
   NEW_EXPERIMENT: True   # If set to True, creates a new folder for trial artefacts.
   FIXED_TEST_SIZE: 0.4  # Specify the minimum proportion of external data to set aside for testing purposes.
@@ -284,9 +284,9 @@ EXTERNAL_VAL:
     CSVS_SPLIT: '\generalizability\csvs_split'  # Path to train-test-val splits for external data.
     PREDICTIONS_OUT: '\generalizability\predictions'  # Path to predictions from fine-tuning experiments.
     EXPERIMENTS: '\generalizability\results\experiments\300922'
-    DATA_CHARACTERISTICS: 'data/generalizability/external_data_with_characteristics.csv'
+    DATA_CHARACTERISTICS: 'data\generalizability\external_data_with_characteristics.csv'
   FOLD_SAMPLE:
-    SEED: 4  # Seed for sampling external patient ids into slices, which are used during fine-tuning to augment training data as necessary.
+    SEED: 0  # Seed for sampling external patient ids into slices, which are used during fine-tuning to augment training data as necessary.
     NUM_FOLDS: 5  # Number of desired external patient slices for augmenting training data during fine-tuning.
   FINETUNE:
     MODEL_DEF: 'efficientnet'  # Set this equal to the model definition string used for the pre-trained model.
