@@ -17,13 +17,16 @@ from tensorflow.keras.metrics import Recall
 from tensorflow.keras.models import load_model
 from tensorflow.keras.optimizers import Adam
 from tensorflow_addons.losses import SigmoidFocalCrossEntropy, sigmoid_focal_crossentropy
-
+from tensorflow.keras.losses import BinaryCrossentropy
+from tensorflow.keras.initializers import HeNormal
 from models.models import get_model
 from src.custom.metrics import Specificity
 from src.data.sql_utils import add_date_to_filename
 from src.data.utils import refresh_folder
 from src.preprocessor import MModePreprocessor
 from train import log_train_params
+
+import matplotlib.pyplot as plt
 
 # cfg is the sub-dictionary of the config file pertaining to fine-tuning experiments. cfg_full is the full config file.
 cfg = yaml.full_load(open(os.path.join(os.getcwd(), "config.yml"), 'r'))
@@ -96,7 +99,7 @@ def check_performance(df):
     return True
 
 
-def get_external_clip_df():
+def get_external_clip_df(add_chars=False,drop_linear=False):
     '''
     Returns combined df containing results from raw external db pulls for all multi-center study locations.
     :returns: pd.DataFrame. Stores combined clip information as shown in external db.
@@ -105,8 +108,30 @@ def get_external_clip_df():
     for center in cfg['EXTERNAL_VAL']['LOCATIONS']:
         center_split_path = os.path.join(os.getcwd() + cfg['EXTERNAL_VAL']['PATHS']['CSVS_SPLIT'], center)
         for csv in ['train.csv', 'val.csv']:
-            ext_dfs.append(pd.read_csv(os.path.join(center_split_path, csv)))
+            df = pd.read_csv(os.path.join(center_split_path, csv))
+            df['center'] = center
+            ext_dfs.append(df)
     ext_df = pd.concat(ext_dfs, ignore_index=True)
+
+    if add_chars:
+        ext_df['clip_id'] = ext_df.apply(lambda row: row['id'].split('_')[0],axis=1)
+        char_df = pd.read_csv('data/generalizability/external_data_with_characteristics.csv') # Add to config
+        char_df.rename(columns={'id':'clip_id'},inplace=True)
+        chars_to_include = ['clip_id','probe','location','patient_age','sex','depth_cat','manufacturer'] # Add to config
+        char_df = char_df[chars_to_include]
+        ext_df = ext_df.merge(char_df,how='left',on='clip_id')
+        ext_df.drop('clip_id',axis=1,inplace=True)
+        ext_df.drop_duplicates(keep='first',inplace=True)
+        ext_df = ext_df.reset_index(drop=True)
+
+        # See what happens if linear probes are removed
+        if drop_linear:
+            ext_df.drop(ext_df.loc[ext_df['probe'] == 'linear'].index,axis=0,inplace=True)
+            #ext_df.drop(ext_df.loc[ext_df['probe'] == 'Unknown'].index, axis=0, inplace=True)
+            #ext_df.drop(ext_df.loc[ext_df['probe'] == 'curved_linear'].index, axis=0, inplace=True)
+
+
+
     labelled_ext_df_path = os.path.join(os.getcwd() + cfg['EXTERNAL_VAL']['PATHS']['CSV_OUT'], 'labelled_external_dfs/')
     if cfg['EXTERNAL_VAL']['REFRESH_FOLDERS']:
         refresh_folder(labelled_ext_df_path)
@@ -234,6 +259,81 @@ def freeze_model_layers(model, last_frozen_layer):
             model.layers[i].trainable = False           # Ensure all batch norm layers are frozen
     return model
 
+def minority_upsample(dataset, minority_frac):
+    '''
+    Upsamples examples from the minority class.
+    :param dataset (pd.DataFrame): Dataset to upsample
+    :param minority_frac (float): Desired fraction of the dataset composed of the minority class
+    :return (pd.DataFrame): Upsampled dataset
+    '''
+    counts = dataset['label'].value_counts()
+    n_additional = math.ceil((1. / (1. - minority_frac) - 1) * counts.max()) - counts.min()
+    absent_train_df = dataset.loc[dataset['label'] == 0].copy().sample(frac=1, random_state=seed)
+    extra_idx = 1
+    for i in range(n_additional):
+        if i % absent_train_df.shape[0] == 0:
+            extra_idx += 1
+        extra_absent_example = absent_train_df.iloc[i % absent_train_df.shape[0]]
+        extra_absent_example['filename'] = os.path.splitext(extra_absent_example['filename'])[0] + f'_{extra_idx}.npz'
+        dataset = dataset.append(extra_absent_example)
+    return dataset
+
+def linear_upsample(dataset, dataset_pre_upsample, linear_frac):
+    # print(dataset_pre_upsample.probe.unique())
+    # print(dataset.probe.unique())
+    linear_train_df = dataset.loc[dataset['probe'] == 'linear'].copy().sample(frac=1, random_state=seed)
+    num_linear = len(linear_train_df)
+    num_not_linear = len(dataset) - num_linear
+    n_additional = math.ceil((1. / (1. - linear_frac) - 1) * num_not_linear) - num_linear
+
+    track_used_clips = linear_train_df.copy().reset_index(drop=True)
+    for idx, row in track_used_clips.iterrows():
+        filename = os.path.splitext(row['filename'])[0].rsplit('/')[1]
+        split_filename = filename.split('_')
+        num = 1
+        if len(split_filename) > 2:
+            num = int(split_filename[2])
+        track_used_clips.loc[idx,'extra_clip_num'] = num
+
+    curr_idx = int(track_used_clips['extra_clip_num'].max())
+
+    clips_available = track_used_clips.loc[track_used_clips['extra_clip_num'] == (curr_idx-1)].copy().reset_index(drop=True)
+    clips_available.drop('extra_clip_num',axis=1,inplace=True)
+
+    if n_additional <= len(clips_available):
+        n_available = n_additional
+    else:
+        n_available = len(clips_available)
+
+    extra_idx = curr_idx
+    for i in range(n_available):
+        extra_linear_example = clips_available.iloc[i % clips_available.shape[0]]
+        if extra_idx > 2:
+            filename = os.path.splitext(extra_linear_example['filename'])[0][:-1] + f'{extra_idx}.npz'
+        else:
+            filename = os.path.splitext(extra_linear_example['filename'])[0] + f'_{extra_idx}.npz'
+        extra_linear_example['filename'] = filename
+        dataset = dataset.append(extra_linear_example)
+
+    n_remaining = n_additional - n_available
+
+    if n_remaining > 0:
+
+        clips_available = dataset_pre_upsample.loc[dataset_pre_upsample['probe'] == 'linear'].copy().sample(frac=1, random_state=seed)
+        # print(clips_available.probe.unique())
+        for i in range(n_remaining):
+            if i % clips_available.shape[0] == 0:
+                extra_idx += 1
+            extra_linear_example = clips_available.iloc[i % clips_available.shape[0]]
+            extra_linear_example['filename'] = os.path.splitext(extra_linear_example['filename'])[0] + f'_{extra_idx}.npz'
+            dataset = dataset.append(extra_linear_example)
+
+    return dataset
+
+
+def reinitialize_layer(model, initializer, layer_name):
+    layer = model.get_layer(layer_name)
+    layer.set_weights([initializer(shape=w.shape) for w in layer.get_weights()])
 
 def finetune_model(original_model_path, base_folder, full_train_df, mmode_preprocessor, hparams, upsample=True, seed=None):
     '''
@@ -257,19 +357,12 @@ def finetune_model(original_model_path, base_folder, full_train_df, mmode_prepro
     # Oversample the minority class in the training set
     minority_frac = cfg['EXTERNAL_VAL']['FINETUNE']['MINORITY_FRAC']
     if upsample and (train_df['label'].value_counts().min() / train_df.shape[0] < minority_frac):
-        # minority_ratio = 1. / (1. - minority_frac) - 1
-        # oversampler = RandomOverSampler(sampling_strategy=minority_ratio, random_state=seed)
-        # train_df, _ = oversampler.fit_resample(train_df, train_df['label'])
-        counts = train_df['label'].value_counts()
-        n_additional = math.ceil((1. / (1. - minority_frac) - 1) * counts.max()) - counts.min()
-        absent_train_df = train_df.loc[train_df['label'] == 0].copy().sample(frac=1, random_state=seed)
-        extra_idx = 1
-        for i in range(n_additional):
-            if i % absent_train_df.shape[0] == 0:
-                extra_idx += 1
-            extra_absent_example = absent_train_df.iloc[i % absent_train_df.shape[0]]
-            extra_absent_example['filename'] = os.path.splitext(extra_absent_example['filename'])[0] + f'_{extra_idx}.npz'
-            train_df = train_df.append(extra_absent_example)
+        # train_df1 = train_df.copy()
+        train_df = minority_upsample(train_df, minority_frac)
+        #train_df = linear_upsample(train_df,train_df1, 0.25)
+        #(len(train_df.loc[train_df['probe']=='linear'])/len(train_df))
+        #linear_upsample(train_df,0.25)
+        #val_df = minority_upsample(val_df, minority_frac)
 
     # Save training and validation sets
     splits_dir = os.path.join(base_folder, 'splits')
@@ -310,40 +403,83 @@ def finetune_model(original_model_path, base_folder, full_train_df, mmode_prepro
     # Restore weights of original model
     model = restore_model(original_model_path)
 
+    ### ------   Non-AB training scheme
     # Freeze model layers
-    model = freeze_model_layers(model, 220)
+    model = freeze_model_layers(model, 220)  # hparams['LAYERS_FROZEN']
+
+    # Re-initialize rest of layers randomly (new)
+    # initializer = HeNormal()
+    # layers_to_reinit = ['global_average_pooling2d','dropout', 'fc0', 'logits', 'output'] #
+    # for layer in layers_to_reinit:
+    #     reinitialize_layer(model, initializer, layer)
 
     # Initialize optimizer, metrics, and compile model
     optimizer = Adam(learning_rate=cfg['EXTERNAL_VAL']['FINETUNE']['LR'] / 10.)
     metrics = [Recall(name='sensitivity'), Specificity(name='specificity')]
-    model.compile(loss=SigmoidFocalCrossEntropy(reduction=tf.keras.losses.Reduction.AUTO,
-                                                alpha=hparams['ALPHA'], gamma=hparams['GAMMA']),
+    loss2 = BinaryCrossentropy(from_logits=False,
+                               reduction=tf.keras.losses.Reduction.AUTO)
+
+    loss = SigmoidFocalCrossEntropy(reduction=tf.keras.losses.Reduction.AUTO,
+                                    alpha=hparams['ALPHA'], gamma=hparams['GAMMA'])
+    model.compile(loss=loss2,
                   optimizer=optimizer, metrics=metrics)
 
     # Train top layer
-    model.fit(train_set, epochs=10, validation_data=val_set,
-                class_weight=class_weight,
-                callbacks=[tensorboard, lr_callback], verbose=1)
+    model.fit(train_set, epochs=cfg['EXTERNAL_VAL']['FINETUNE']['EPOCHS'], validation_data=val_set,
+              class_weight=class_weight,
+              callbacks=[tensorboard, early_stopping, lr_callback], verbose=1)
 
+    ### ------ AB training scheme
+    # # Freeze model layers
+    # model = freeze_model_layers(model, 220) # hparams['LAYERS_FROZEN']
+    #
+    # # # Re-initialize rest of layers randomly (new)
+    # # initializer = HeNormal()
+    # # layers_to_reinit = ['global_average_pooling2d', 'dropout', 'fc0', 'logits', 'output']  #
+    # # for layer in layers_to_reinit:
+    # #     reinitialize_layer(model, initializer, layer)
+    #
+    # # Initialize optimizer, metrics, and compile model
+    # optimizer = Adam(learning_rate=cfg['EXTERNAL_VAL']['FINETUNE']['LR'])
+    # metrics = [Recall(name='sensitivity'), Specificity(name='specificity')]
+    # loss2 = BinaryCrossentropy(from_logits=False,
+    #                            reduction=tf.keras.losses.Reduction.AUTO)
+    #
+    # loss = SigmoidFocalCrossEntropy(reduction=tf.keras.losses.Reduction.AUTO,
+    #                                 alpha=hparams['ALPHA'], gamma=hparams['GAMMA'])
+    # model.compile(loss=loss,
+    #               optimizer=optimizer, metrics=metrics)
+    #
+    # # Train top layer
+    # model.fit(train_set, epochs=10, validation_data=val_set,
+    #           # class_weight=class_weight,
+    #           callbacks=[tensorboard, lr_callback], verbose=1) #
+    #
+    # #stopped_epoch = early_stopping.stopped_epoch
+    #
+    # #metrics = [Recall(name='sensitivity'), Specificity(name='specificity')]
+    #
     # print("Unfreezing part of base model")
     # freeze_cutoff = -1 if hparams['LAYERS_FROZEN'] == 0 else hparams['LAYERS_FROZEN']
     # if freeze_cutoff > 0:
     #     model = freeze_model_layers(model, freeze_cutoff)
     # optimizer = Adam(learning_rate=cfg['EXTERNAL_VAL']['FINETUNE']['LR'] / 10.)
-    # model.compile(loss=SigmoidFocalCrossEntropy(reduction=tf.keras.losses.Reduction.AUTO,
-    #                                             alpha=hparams['ALPHA'], gamma=hparams['GAMMA']),
+    #
+    # model.compile(loss=loss,
     #               optimizer=optimizer, metrics=metrics)
     # model.fit(train_set, epochs=cfg['EXTERNAL_VAL']['FINETUNE']['EPOCHS'], validation_data=val_set,
-    #             class_weight=class_weight, initial_epoch=10,
-    #             callbacks=[tensorboard, early_stopping, lr_callback], verbose=1)
+    #           #class_weight=class_weight,
+    #           initial_epoch=10,
+    #           callbacks=[tensorboard, early_stopping, lr_callback], verbose=1)
 
     # Save and return best model's weights
     model_path = os.path.join(base_folder, f'model')
     model.save(model_path)
+
     return model
 
 
-def TAAFT(clip_df, n_folds, experiment_path=None, seed=None, hparams=None, lazy=True, upsample=True):
+def TAAFT(clip_df, n_folds, experiment_path=None, seed=None, hparams=None, lazy=True, upsample=True, by_center=False, by_probe=False):
     '''
     Executes a trial of TAAFT (Threshold-Aware Accumulative Fine-Tuning).
     Divides clips into random folds, then runs fine-tuning trials with progressively larger training sets. Evaluates
@@ -368,6 +504,8 @@ def TAAFT(clip_df, n_folds, experiment_path=None, seed=None, hparams=None, lazy=
 
     # This df will store trial results.
     trial_results_df = pd.DataFrame([])
+    trial_results_by_center_df = pd.DataFrame([])
+    trial_results_by_probe_df = pd.DataFrame([])
 
     # Initialize preprocessor for M-Mode images
     _, preprocessing_fn = get_model(cfg['EXTERNAL_VAL']['FINETUNE']['MODEL_DEF'])
@@ -407,11 +545,74 @@ def TAAFT(clip_df, n_folds, experiment_path=None, seed=None, hparams=None, lazy=
         results_row.update(results_dict)
         trial_results_df = trial_results_df.append(results_row, ignore_index=True)
 
+        if by_center:
+            results_by_center_row = {'variable_size_test_set': 1, 'train_data_prop': i / n_folds,
+                                     'center': 'combined_external'}
+            results_by_center_row.update(results_dict)
+            trial_results_by_center_df = trial_results_by_center_df.append(results_by_center_row, ignore_index=True)
+
+        if by_probe:
+            results_by_probe_row = {'variable_size_test_set': 1, 'train_data_prop': i / n_folds,
+                                     'probe': 'combined'}
+            results_by_probe_row.update(results_dict)
+            trial_results_by_probe_df = trial_results_by_probe_df.append(results_by_probe_row, ignore_index=True)
+
+
         # Evaluate model on variable test set
         results_row = {'variable_size_test_set': 0, 'train_data_prop': i / n_folds}
         results_dict = evaluate_model(model, fixed_test_df, mmode_preprocessor, base_folder)
         results_row.update(results_dict)
         trial_results_df = trial_results_df.append(results_row, ignore_index=True)
+
+
+        if by_center:
+            results_by_center_row = {'variable_size_test_set': 0, 'train_data_prop': i / n_folds,
+                                     'center': 'combined_external'}
+            results_by_center_row.update(results_dict)
+            trial_results_by_center_df = trial_results_by_center_df.append(results_by_center_row, ignore_index=True)
+
+
+
+            # Evaluate model on a by-center basis
+            for center in cfg['EXTERNAL_VAL']['LOCATIONS']:
+                variable_test_by_center_df = variable_test_df.loc[variable_test_df['center'] == center]
+                fixed_test_by_center_df = fixed_test_df.loc[fixed_test_df['center'] == center]
+                # Evaluate model on fixed test set
+                results_by_center_row = {'variable_size_test_set': 1, 'train_data_prop': i / n_folds, 'center': center}
+                results_by_center_dict = evaluate_model(model, variable_test_by_center_df, mmode_preprocessor, base_folder)
+                results_by_center_row.update(results_by_center_dict)
+                trial_results_by_center_df = trial_results_by_center_df.append(results_by_center_row, ignore_index=True)
+
+                # Evaluate model on variable test set
+                results_by_center_row = {'variable_size_test_set': 0, 'train_data_prop': i / n_folds, 'center': center}
+                results_by_center_dict = evaluate_model(model, fixed_test_by_center_df, mmode_preprocessor, base_folder)
+                results_by_center_row.update(results_by_center_dict)
+                trial_results_by_center_df = trial_results_by_center_df.append(results_by_center_row, ignore_index=True)
+
+        if by_probe:
+            results_by_probe_row = {'variable_size_test_set': 0, 'train_data_prop': i / n_folds,
+                                     'probe': 'combined'}
+            results_by_probe_row.update(results_dict)
+            trial_results_by_probe_df = trial_results_by_probe_df.append(results_by_probe_row, ignore_index=True)
+
+
+
+            # Evaluate model on a by-probe basis
+            for probe in list(variable_test_df.probe.unique()):
+                variable_test_by_probe_df = variable_test_df.loc[variable_test_df['probe'] == probe]
+                fixed_test_by_probe_df = fixed_test_df.loc[fixed_test_df['probe'] == probe]
+                # Evaluate model on fixed test set
+                results_by_probe_row = {'variable_size_test_set': 1, 'train_data_prop': i / n_folds, 'probe': probe}
+                results_by_probe_dict = evaluate_model(model, variable_test_by_probe_df, mmode_preprocessor, base_folder)
+                results_by_probe_row.update(results_by_probe_dict)
+                trial_results_by_probe_df = trial_results_by_probe_df.append(results_by_probe_row, ignore_index=True)
+
+                # Evaluate model on variable test set
+                results_by_probe_row = {'variable_size_test_set': 0, 'train_data_prop': i / n_folds, 'probe': probe}
+                results_by_probe_dict = evaluate_model(model, fixed_test_by_probe_df, mmode_preprocessor, base_folder)
+                results_by_probe_row.update(results_by_probe_dict)
+                trial_results_by_probe_df = trial_results_by_probe_df.append(results_by_probe_row, ignore_index=True)
+
 
         # Relase unused memory and reset the TF session
         gc.collect()
@@ -419,6 +620,12 @@ def TAAFT(clip_df, n_folds, experiment_path=None, seed=None, hparams=None, lazy=
         del model
 
     trial_results_df.to_csv(os.path.join(trial_folder, 'metrics.csv'), index=False)
+    if by_center:
+        trial_results_by_center_df.to_csv(os.path.join(trial_folder, 'metrics_by_center.csv'), index=False)
+
+    if by_probe:
+        trial_results_by_probe_df.to_csv(os.path.join(trial_folder, 'metrics_by_probe.csv'), index=False)
+
     return
 
 
@@ -436,9 +643,12 @@ if __name__ == '__main__':
             os.makedirs(os.getcwd() + cfg['EXTERNAL_VAL']['PATHS'][path])
 
     # Assemble miniclips from all external centres
-    external_df = get_external_clip_df()
+    external_df = get_external_clip_df(add_chars=True, drop_linear=True)
 
     # Conduct fine-tuning experiment
     seed = args.seed if args.seed is not None else cfg['EXTERNAL_VAL']['FOLD_SAMPLE']['SEED']
     experiment_path = args.experiment
-    TAAFT(external_df, cfg['EXTERNAL_VAL']['FOLD_SAMPLE']['NUM_FOLDS'], experiment_path, seed, upsample=True)
+    TAAFT(external_df, cfg['EXTERNAL_VAL']['FOLD_SAMPLE']['NUM_FOLDS'], experiment_path, seed, upsample=True, by_probe=True)
+
+
+
