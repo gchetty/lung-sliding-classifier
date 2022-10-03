@@ -99,7 +99,7 @@ def check_performance(df):
     return True
 
 
-def get_external_clip_df(add_chars=False,drop_linear=False):
+def get_external_clip_df(add_groups=False,drop_linear=False):
     '''
     Returns combined df containing results from raw external db pulls for all multi-center study locations.
     :param add_chars: If True, adds meta-data characteristics to dataset for facilitate subgroup analysis.
@@ -116,11 +116,11 @@ def get_external_clip_df(add_chars=False,drop_linear=False):
     ext_df = pd.concat(ext_dfs, ignore_index=True)
 
     # Add data characteristics to dataset to facilitate subgroup analysis
-    if add_chars:
+    if add_groups:
         ext_df['clip_id'] = ext_df.apply(lambda row: row['id'].split('_')[0], axis=1)
         char_df = pd.read_csv(cfg['EXTERNAL_VAL']['PATHS']['DATA_CHARACTERISTICS'])
         char_df.rename(columns={'id':'clip_id'}, inplace=True)
-        chars_to_include = cfg['EXTERNAL_VAL']['DATA_CHARACTERISTICS'].append('clip_id')
+        chars_to_include = cfg['EXTERNAL_VAL']['DATA_CHARACTERISTICS'] + ['clip_id']
         char_df = char_df[chars_to_include]
         ext_df = ext_df.merge(char_df, how='left', on='clip_id')
         ext_df.drop('clip_id', axis=1, inplace=True)
@@ -631,7 +631,7 @@ if __name__ == '__main__':
             os.makedirs(os.path.join(os.getcwd(),cfg['EXTERNAL_VAL']['PATHS'][path]))
 
     # Assemble miniclips from all external centres
-    external_df = get_external_clip_df(add_chars=True, drop_linear=True)
+    external_df = get_external_clip_df(add_groups=True, drop_linear=True)
 
     # Conduct fine-tuning experiment
     seed = args.seed if args.seed is not None else cfg['EXTERNAL_VAL']['FOLD_SAMPLE']['SEED']
