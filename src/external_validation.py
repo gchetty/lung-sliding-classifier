@@ -332,10 +332,18 @@ def linear_upsample(dataset, dataset_pre_upsample, linear_frac):
 
 
 def reinitialize_layer(model, initializer, layer_name):
+    '''
+    Re-initializes the weights of a specific layer of the model froma  desired distirbution.
+    :param model: model with the layer to be re-initialized
+    :param initializer: desired Tensorflow initializer used to initilize the weights
+    :param layer_name: name of the layer to be re-initialized
+    '''
     layer = model.get_layer(layer_name)
     layer.set_weights([initializer(shape=w.shape) for w in layer.get_weights()])
 
-def finetune_model(original_model_path, base_folder, full_train_df, mmode_preprocessor, hparams, upsample=True, seed=None):
+
+def finetune_model(original_model_path, base_folder, full_train_df, mmode_preprocessor, hparams, upsample=True,
+                   seed=None, AB_scheme=False, reinitialize=False, focal_loss=False, set_class_weight=True):
     '''
     Fine-tunes the model on a training set.
     :param original_model_path: Path to SavedModel constituting the original weights
@@ -345,6 +353,10 @@ def finetune_model(original_model_path, base_folder, full_train_df, mmode_prepro
     :param hparams: Model hyperparameters
     :param upsample: If set to True, upsamples the minority class in the training set according to the configured ratio
     :param seed: Random seed for fold sampling
+    :param AB_scheme: If True, fine-tunes using the approach from our AB manuscript (10 epochs at LR, n epochs at LR/10)
+    :param reinitialize: If True, final 5 FC layers are re-initialized from a truncated normal distribution with mean 0
+    :param focal_loss: If True, sigmoid focal loss entropy is used for the loss Otherwise, binary cross entropy is used.
+    :param set_class_weight: If True, the class_weight parameter is set in model.fit().
     '''
 
     # Split dataset into training and validation sets
@@ -357,12 +369,7 @@ def finetune_model(original_model_path, base_folder, full_train_df, mmode_prepro
     # Oversample the minority class in the training set
     minority_frac = cfg['EXTERNAL_VAL']['FINETUNE']['MINORITY_FRAC']
     if upsample and (train_df['label'].value_counts().min() / train_df.shape[0] < minority_frac):
-        # train_df1 = train_df.copy()
         train_df = minority_upsample(train_df, minority_frac)
-        #train_df = linear_upsample(train_df,train_df1, 0.25)
-        #(len(train_df.loc[train_df['probe']=='linear'])/len(train_df))
-        #linear_upsample(train_df,0.25)
-        #val_df = minority_upsample(val_df, minority_frac)
 
     # Save training and validation sets
     splits_dir = os.path.join(base_folder, 'splits')
@@ -403,74 +410,74 @@ def finetune_model(original_model_path, base_folder, full_train_df, mmode_prepro
     # Restore weights of original model
     model = restore_model(original_model_path)
 
-    ### ------   Non-AB training scheme
-    # Freeze model layers
-    model = freeze_model_layers(model, 220)  # hparams['LAYERS_FROZEN']
+    # Re-initialize final 5 FC layers
+    if reinitialize:
+        initializer = HeNormal()
+        layers_to_reinit = ['global_average_pooling2d', 'dropout', 'fc0', 'logits', 'output']  #
+        for layer in layers_to_reinit:
+            reinitialize_layer(model, initializer, layer)
 
-    # Re-initialize rest of layers randomly (new)
-    # initializer = HeNormal()
-    # layers_to_reinit = ['global_average_pooling2d','dropout', 'fc0', 'logits', 'output'] #
-    # for layer in layers_to_reinit:
-    #     reinitialize_layer(model, initializer, layer)
+    # Define loss function
+    if focal_loss:
+        loss = SigmoidFocalCrossEntropy(reduction=tf.keras.losses.Reduction.AUTO,
+                                        alpha=hparams['ALPHA'], gamma=hparams['GAMMA'])
+    else:
+        loss = BinaryCrossentropy(from_logits=False,
+                                  reduction=tf.keras.losses.Reduction.AUTO)
 
-    # Initialize optimizer, metrics, and compile model
-    optimizer = Adam(learning_rate=cfg['EXTERNAL_VAL']['FINETUNE']['LR'] / 10.)
-    metrics = [Recall(name='sensitivity'), Specificity(name='specificity')]
-    loss2 = BinaryCrossentropy(from_logits=False,
-                               reduction=tf.keras.losses.Reduction.AUTO)
+    # Define training scheme
+    if AB_scheme:
+        # Freeze model layers
+        model = freeze_model_layers(model, 220)
 
-    loss = SigmoidFocalCrossEntropy(reduction=tf.keras.losses.Reduction.AUTO,
-                                    alpha=hparams['ALPHA'], gamma=hparams['GAMMA'])
-    model.compile(loss=loss2,
-                  optimizer=optimizer, metrics=metrics)
+        # Initialize optimizer, metrics, and compile model
+        optimizer = Adam(learning_rate=cfg['EXTERNAL_VAL']['FINETUNE']['LR'])
+        metrics = [Recall(name='sensitivity'), Specificity(name='specificity')]
 
-    # Train top layer
-    model.fit(train_set, epochs=cfg['EXTERNAL_VAL']['FINETUNE']['EPOCHS'], validation_data=val_set,
-              class_weight=class_weight,
-              callbacks=[tensorboard, early_stopping, lr_callback], verbose=1)
+        model.compile(loss=loss, optimizer=optimizer, metrics=metrics)
 
-    ### ------ AB training scheme
-    # # Freeze model layers
-    # model = freeze_model_layers(model, 220) # hparams['LAYERS_FROZEN']
-    #
-    # # # Re-initialize rest of layers randomly (new)
-    # # initializer = HeNormal()
-    # # layers_to_reinit = ['global_average_pooling2d', 'dropout', 'fc0', 'logits', 'output']  #
-    # # for layer in layers_to_reinit:
-    # #     reinitialize_layer(model, initializer, layer)
-    #
-    # # Initialize optimizer, metrics, and compile model
-    # optimizer = Adam(learning_rate=cfg['EXTERNAL_VAL']['FINETUNE']['LR'])
-    # metrics = [Recall(name='sensitivity'), Specificity(name='specificity')]
-    # loss2 = BinaryCrossentropy(from_logits=False,
-    #                            reduction=tf.keras.losses.Reduction.AUTO)
-    #
-    # loss = SigmoidFocalCrossEntropy(reduction=tf.keras.losses.Reduction.AUTO,
-    #                                 alpha=hparams['ALPHA'], gamma=hparams['GAMMA'])
-    # model.compile(loss=loss,
-    #               optimizer=optimizer, metrics=metrics)
-    #
-    # # Train top layer
-    # model.fit(train_set, epochs=10, validation_data=val_set,
-    #           # class_weight=class_weight,
-    #           callbacks=[tensorboard, lr_callback], verbose=1) #
-    #
-    # #stopped_epoch = early_stopping.stopped_epoch
-    #
-    # #metrics = [Recall(name='sensitivity'), Specificity(name='specificity')]
-    #
-    # print("Unfreezing part of base model")
-    # freeze_cutoff = -1 if hparams['LAYERS_FROZEN'] == 0 else hparams['LAYERS_FROZEN']
-    # if freeze_cutoff > 0:
-    #     model = freeze_model_layers(model, freeze_cutoff)
-    # optimizer = Adam(learning_rate=cfg['EXTERNAL_VAL']['FINETUNE']['LR'] / 10.)
-    #
-    # model.compile(loss=loss,
-    #               optimizer=optimizer, metrics=metrics)
-    # model.fit(train_set, epochs=cfg['EXTERNAL_VAL']['FINETUNE']['EPOCHS'], validation_data=val_set,
-    #           #class_weight=class_weight,
-    #           initial_epoch=10,
-    #           callbacks=[tensorboard, early_stopping, lr_callback], verbose=1)
+        # Train top layer
+        if set_class_weight:
+            model.fit(train_set, epochs=10, validation_data=val_set,
+                      class_weight=class_weight,
+                      callbacks=[tensorboard, lr_callback], verbose=1)
+        else:
+            model.fit(train_set, epochs=10, validation_data=val_set,
+                      callbacks=[tensorboard, lr_callback], verbose=1)
+
+        print("Unfreezing part of base model")
+        freeze_cutoff = -1 if hparams['LAYERS_FROZEN'] == 0 else hparams['LAYERS_FROZEN']
+        if freeze_cutoff > 0:
+            model = freeze_model_layers(model, freeze_cutoff)
+        optimizer = Adam(learning_rate=cfg['EXTERNAL_VAL']['FINETUNE']['LR'] / 10.)
+
+        model.compile(loss=loss,
+                    optimizer=optimizer, metrics=metrics)
+
+        if set_class_weight:
+            model.fit(train_set, epochs=cfg['EXTERNAL_VAL']['FINETUNE']['EPOCHS'], validation_data=val_set,  verbose=1,
+                      class_weight=class_weight, initial_epoch=10, callbacks=[tensorboard, early_stopping, lr_callback])
+        else:
+            model.fit(train_set, epochs=cfg['EXTERNAL_VAL']['FINETUNE']['EPOCHS'], validation_data=val_set,  verbose=1,
+                      initial_epoch=10, callbacks=[tensorboard, early_stopping, lr_callback])
+    else:
+        # Freeze model layers
+        model = freeze_model_layers(model, hparams['LAYERS_FROZEN'])
+
+        # Initialize optimizer, metrics, and compile model
+        optimizer = Adam(learning_rate=cfg['EXTERNAL_VAL']['FINETUNE']['LR'] / 10.)
+        metrics = [Recall(name='sensitivity'), Specificity(name='specificity')]
+
+        model.compile(loss=loss,
+                      optimizer=optimizer, metrics=metrics)
+
+        # Train top layer
+        if set_class_weight:
+            model.fit(train_set, epochs=cfg['EXTERNAL_VAL']['FINETUNE']['EPOCHS'], validation_data=val_set,
+                      class_weight=class_weight, callbacks=[tensorboard, early_stopping, lr_callback], verbose=1)
+        else:
+            model.fit(train_set, epochs=cfg['EXTERNAL_VAL']['FINETUNE']['EPOCHS'], validation_data=val_set,
+                      callbacks=[tensorboard, early_stopping, lr_callback], verbose=1)
 
     # Save and return best model's weights
     model_path = os.path.join(base_folder, f'model')
