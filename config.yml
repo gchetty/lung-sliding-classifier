@@ -29,12 +29,12 @@ PREPROCESS:
   # The paths to save files. After running the preprocess pipeline, the npzs and csvs are usually all that are needed to train.
   # You shouldn't *have* to edit these, as they are stored as relative and not absolute paths.
   PATHS:
-    UNMASKED_VIDEOS: '\generalizability\raw_videos\alberta'  # Path to the videos that are downloaded from the dataset and stored without transformation.
-    MASKED_VIDEOS: '\generalizability\masked_videos\alberta'  # Path to the videos that result from running the masking tool on UNMASKED_VIDEOS.
-    SMOOTHED_VIDEOS: '\results\data\smoothed_videos\'  # Path to the videos that result from applying a median filter to MASKED_VIDEOS (optional).
+    UNMASKED_VIDEOS: 'data\generalizability\raw_videos'  # Path to the videos that are downloaded from the dataset and stored without transformation.
+    MASKED_VIDEOS: 'data\generalizability\masked_videos\alberta'  # Path to the videos that result from running the masking tool on UNMASKED_VIDEOS.
+    SMOOTHED_VIDEOS: 'data\results\data\smoothed_videos\'  # Path to the videos that result from applying a median filter to MASKED_VIDEOS (optional).
     FLOW_VIDEOS: 'flow_videos\'   # Path to the optical flow video frames (optional).
     CSVS_OUTPUT: 'generalizability\csvs\alberta'  # Path to any CSVs that are generated / taken from the database.
-    NPZ: 'generalizability\npzs\alberta'  # Path to the mini-clip videos.
+    NPZ: 'data\generalizability\npzs\alberta'  # Path to the mini-clip videos.
     FLOW_NPZ: 'flow_npzs\'  # Path to the .npzs containing optical flow mini-clips.
     MASKING_TOOL: 'auto_masking_deeper.h5'  # Path to the masking tool. Currently only works with the older version!!!
 
@@ -97,7 +97,7 @@ TRAIN:
       LR_DECAY_VAL: 0.05642  # Learning rate decay
       LR_DECAY_EPOCH: 15 # Epoch to start lr decay
       DROPOUT: 0.2151 # Dropout probability
-      LAYERS_FROZEN: 161 #118 #161 # Number of blocks to freeze - MUST be 0 or positive
+      LAYERS_FROZEN: 220 #118 #161 # Number of blocks to freeze - MUST be 0 or positive
       L2_REG: 0.008629 # L2 regularization penalty
       WEIGHT_INITIALIZER: 'he_normal'  # Method to initialize weights for convolutional and FC layers - see https://www.tensorflow.org/api_docs/python/tf/keras/initializers
       ALPHA: 0.105 # focal loss parameter
@@ -275,16 +275,16 @@ EXTERNAL_VAL:
   PARAMS:
     OVERWRITE_FOLDS: True  # Set this to True if you want to overwrite existing fold .txt files.
   PATHS:
-    NPZS: 'src\data\generalizability\npzs'
+    NPZS: '\src\data\generalizability\npzs'
     MMODES: '\generalizability\mmodes'  # Path to external data M-mode images.
     CSV_OUT: '\generalizability\csvs'  # Path to external data csvs.
     MODEL_OUT: '\generalizability\results\models'  # Path to fine-tuned models.
     FOLDS: '\generalizability\folds'  # Path to external data patient-wise fold .txt files.
     CSVS_SPLIT: '\generalizability\csvs_split'  # Path to train-test-val splits for external data.
     PREDICTIONS_OUT: '\generalizability\predictions'  # Path to predictions from fine-tuning experiments.
-    EXPERIMENTS: '\generalizability\results\experiments'
+    EXPERIMENTS: '\generalizability\results\experiments\300922'
   FOLD_SAMPLE:
-    SEED: 0  # Seed for sampling external patient ids into slices, which are used during fine-tuning to augment training data as necessary.
+    SEED: 4  # Seed for sampling external patient ids into slices, which are used during fine-tuning to augment training data as necessary.
     NUM_FOLDS: 5  # Number of desired external patient slices for augmenting training data during fine-tuning.
   FINETUNE:
     MODEL_DEF: 'efficientnet'  # Set this equal to the model definition string used for the pre-trained model.
@@ -296,11 +296,12 @@ EXTERNAL_VAL:
       UPPER_BOUNDS:
     MIN_DELTA: 0.0001
     VAL_SPLIT: 0.2 # Specify the train-val data split for each fine-tune run.
-    EPOCHS: 100
+    EPOCHS: 200
     PRED_PROBS:
       SAVE_PRED_PROBABILITIES: True # Set to True to save prediction labels for each clip when evaluating fine-tuned models.
     LAZY: False # Set this to True if you want fine-tuning trials to terminate once model performance exceeds thresholds.
     LR: 0.000171 #0.0000171  # For now, divide the original (efficientnet) lr by 10.
     MINORITY_FRAC: 0.25 # If minority upsampling, this is the desired fraction of the minority class in the training set
+    LINEAR_FRAC: 0.25 # If upsampling linear probes, this is the desired fraction of linear probes in the training set
     # A value of False will run trials to completion, regardless of whether the model performance exceeds thresholds or not.
   PLOT_METRICS: ['loss', 'sensitivity', 'specificity']  # Specify metrics for which to generate plots (for each trial and trial-wise average).

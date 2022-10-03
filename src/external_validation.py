@@ -278,14 +278,22 @@ def minority_upsample(dataset, minority_frac):
         dataset = dataset.append(extra_absent_example)
     return dataset
 
-def linear_upsample(dataset, dataset_pre_upsample, linear_frac):
-    # print(dataset_pre_upsample.probe.unique())
-    # print(dataset.probe.unique())
+def linear_upsample(dataset, raw_dataset, linear_frac):
+    '''
+    Upsamples linear probe examples, following the upsampling of the minority class.
+    :param dataset (pd.DataFrame): Dataset to upsample
+    :param raw_dataset (pd.DataFrame): Dataset before any minority class upsampling.
+    :param linear_frac (float): Desired fraction of the dataset composed of linear probe examples.
+    :return (pd.DataFrame): Upsampled dataset
+    '''
+    # Sample all linear probe examples
     linear_train_df = dataset.loc[dataset['probe'] == 'linear'].copy().sample(frac=1, random_state=seed)
     num_linear = len(linear_train_df)
     num_not_linear = len(dataset) - num_linear
+    # How many extra linear probe examples are required to meet desired dataset proportion
     n_additional = math.ceil((1. / (1. - linear_frac) - 1) * num_not_linear) - num_linear
 
+    # Track which (minority class) linear probe examples have already been upsampled and how many times
     track_used_clips = linear_train_df.copy().reset_index(drop=True)
     for idx, row in track_used_clips.iterrows():
         filename = os.path.splitext(row['filename'])[0].rsplit('/')[1]
@@ -295,16 +303,17 @@ def linear_upsample(dataset, dataset_pre_upsample, linear_frac):
             num = int(split_filename[2])
         track_used_clips.loc[idx,'extra_clip_num'] = num
 
+    # First upsample the clips that have been upsampled the minimum number of times
     curr_idx = int(track_used_clips['extra_clip_num'].max())
-
     clips_available = track_used_clips.loc[track_used_clips['extra_clip_num'] == (curr_idx-1)].copy().reset_index(drop=True)
     clips_available.drop('extra_clip_num',axis=1,inplace=True)
 
-    if n_additional <= len(clips_available):
+    if n_additional <= len(clips_available): # Determine whether we have enough clips available to upsample from,
         n_available = n_additional
-    else:
+    else: # or whether we will need to loop through the dataset once again
         n_available = len(clips_available)
 
+    # Upsample from the clips available (those that have been upsampled the minimum number of times)
     extra_idx = curr_idx
     for i in range(n_available):
         extra_linear_example = clips_available.iloc[i % clips_available.shape[0]]
@@ -315,12 +324,12 @@ def linear_upsample(dataset, dataset_pre_upsample, linear_frac):
         extra_linear_example['filename'] = filename
         dataset = dataset.append(extra_linear_example)
 
+    # Determine how many remaining clips we need to meet our desired proportions
     n_remaining = n_additional - n_available
 
-    if n_remaining > 0:
-
-        clips_available = dataset_pre_upsample.loc[dataset_pre_upsample['probe'] == 'linear'].copy().sample(frac=1, random_state=seed)
-        # print(clips_available.probe.unique())
+    if n_remaining > 0: # If we need to upsample more clips
+        # Loop through the original dataset again
+        clips_available = raw_dataset.loc[raw_dataset['probe'] == 'linear'].copy().sample(frac=1, random_state=seed)
         for i in range(n_remaining):
             if i % clips_available.shape[0] == 0:
                 extra_idx += 1
@@ -335,7 +344,7 @@ def reinitialize_layer(model, initializer, layer_name):
     '''
     Re-initializes the weights of a specific layer of the model froma  desired distirbution.
     :param model: model with the layer to be re-initialized
-    :param initializer: desired Tensorflow initializer used to initilize the weights
+    :param initializer: desired Tensorflow initializer used to initialize the weights
     :param layer_name: name of the layer to be re-initialized
     '''
     layer = model.get_layer(layer_name)
@@ -343,7 +352,8 @@ def reinitialize_layer(model, initializer, layer_name):
 
 
 def finetune_model(original_model_path, base_folder, full_train_df, mmode_preprocessor, hparams, upsample=True,
-                   seed=None, AB_scheme=False, reinitialize=False, focal_loss=False, set_class_weight=True):
+                   seed=None, AB_scheme=False, reinitialize=False, focal_loss=False, set_class_weight=True,
+                   upsample_linear=False):
     '''
     Fine-tunes the model on a training set.
     :param original_model_path: Path to SavedModel constituting the original weights
@@ -366,10 +376,18 @@ def finetune_model(original_model_path, base_folder, full_train_df, mmode_prepro
     train_df = full_train_df.iloc[train_idx]
     val_df = full_train_df.iloc[val_idx]
 
+    # Save a copy of the training set before minority upsampling to use in linear_upsample()
+    raw_train_df = train_df.copy()
+
     # Oversample the minority class in the training set
     minority_frac = cfg['EXTERNAL_VAL']['FINETUNE']['MINORITY_FRAC']
     if upsample and (train_df['label'].value_counts().min() / train_df.shape[0] < minority_frac):
         train_df = minority_upsample(train_df, minority_frac)
+
+    # Oversample linear probe data in the training set
+    linear_frac = cfg['EXTERNAL_VAL']['FINETUNE']['LINEAR_FRAC']
+    if upsample_linear and (len(train_df.loc[train_df['probe']=='linear']) / train_df.shape[0] < linear_frac):
+        linear_upsample(train_df, raw_train_df, linear_frac)
 
     # Save training and validation sets
     splits_dir = os.path.join(base_folder, 'splits')
