@@ -276,7 +276,8 @@ EXTERNAL_VAL:
   PARAMS:
     OVERWRITE_FOLDS: True  # Set this to True if you want to overwrite existing fold .txt files.
   PATHS:
-    NPZS: '\src\data\generalizability\npzs'
+    NPZS: '\data\generalizability\npzs'
+    PNGS: '\data\generalizability\pngs'
     MMODES: '\generalizability\mmodes'  # Path to external data M-mode images.
     CSV_OUT: '\generalizability\csvs'  # Path to external data csvs.
     MODEL_OUT: '\generalizability\results\models'  # Path to fine-tuned models.
