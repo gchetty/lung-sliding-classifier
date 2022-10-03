@@ -569,27 +569,45 @@ def TAAFT(clip_df, n_folds, experiment_path=None, seed=None, hparams=None, strat
                                    upsample_linear=cfg['EXTERNAL_VAL']['FINETUNE']['SCHEME']['UPSAMPLE_LINEAR'])
 
         # Evaluate model on variable test set
-        results_row = {'variable_size_test_set': 1, 'train_data_prop': i / n_folds}
+        results_row_variable = {'variable_size_test_set': 1, 'train_data_prop': i / n_folds}
         results_dict = evaluate_model(model, variable_test_df, mmode_preprocessor, base_folder)
-        results_row.update(results_dict)
-        trial_results_df = trial_results_df.append(results_row, ignore_index=True)
+        results_row_variable.update(results_dict)
+        trial_results_df = trial_results_df.append(results_row_variable, ignore_index=True)
 
-        # Evaluate model on variable test set
-        results_row = {'variable_size_test_set': 0, 'train_data_prop': i / n_folds}
+        # Evaluate model on fixed test set
+        results_row_fixed = {'variable_size_test_set': 0, 'train_data_prop': i / n_folds}
         results_dict = evaluate_model(model, fixed_test_df, mmode_preprocessor, base_folder)
-        results_row.update(results_dict)
-        trial_results_df = trial_results_df.append(results_row, ignore_index=True)
+        results_row_fixed.update(results_dict)
+        trial_results_df = trial_results_df.append(results_row_fixed, ignore_index=True)
 
         # Analyze metrics by subgroups/data characteristics
         if stratify_by is not None:
 
-            for group in stratify_by: # For each data characteristic of interest, compute and save metrics
+            for group in stratify_by:  # For each data characteristic of interest, compute and save metrics
 
-                # Get results on combined dataset
-                trial_results_by_subgroup_df = trial_results_df.copy()
-                trial_results_by_subgroup_df[group] = 'combined_external'
+                # Load metrics saved for previous train proportions if they exist
+                if os.path.exists(os.path.join(trial_folder, 'metrics_by_{}.csv'.format(group))):
+                    trial_results_by_subgroup_df = pd.read_csv(os.path.join(trial_folder, 'metrics_by_{}.csv'.format(group)))
+                else:
+                    trial_results_by_subgroup_df = pd.DataFrame([])
 
-                # Evaluate model on a by-subgroup basis
+                # Record combined results on variable test set for current train proportion
+                if 'combined_external' in results_row_variable.values():  # remove previous subgroup as heading
+                    position = list(results_row_variable.values()).index('combined_external')
+                    results_row_variable[group] = results_row_variable.pop(list(results_row_variable.keys())[position])
+                else:
+                    results_row_variable.update({group: 'combined_external'})
+                trial_results_by_subgroup_df = trial_results_by_subgroup_df.append(results_row_variable, ignore_index=True)
+
+                # Record combined results on fixed test set for current train proportion
+                if 'combined_external' in results_row_fixed.values():  # remove previous subgroup as heading
+                    position = list(results_row_fixed.values()).index('combined_external')
+                    results_row_fixed[group] = results_row_fixed.pop(list(results_row_fixed.keys())[position])
+                else:
+                    results_row_fixed.update({group: 'combined_external'})
+                trial_results_by_subgroup_df = trial_results_by_subgroup_df.append(results_row_fixed, ignore_index=True)
+
+                # Evaluate model on a by-subgroup basis at current train proportion
                 for subgroup in list(variable_test_df[group].unique()):
                     variable_test_by_subgroup_df = variable_test_df.loc[variable_test_df[group] == subgroup]
                     fixed_test_by_subgroup_df = fixed_test_df.loc[fixed_test_df[group] == subgroup]
@@ -607,7 +625,7 @@ def TAAFT(clip_df, n_folds, experiment_path=None, seed=None, hparams=None, strat
 
                 trial_results_by_subgroup_df.to_csv(os.path.join(trial_folder, 'metrics_by_{}.csv'.format(group)), index=False)
 
-        # Relase unused memory and reset the TF session
+        # Release unused memory and reset the TF session
         gc.collect()
         tf.keras.backend.clear_session()
         del model
