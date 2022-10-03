@@ -102,6 +102,8 @@ def check_performance(df):
 def get_external_clip_df(add_chars=False,drop_linear=False):
     '''
     Returns combined df containing results from raw external db pulls for all multi-center study locations.
+    :param add_chars: If True, adds meta-data characteristics to dataset for facilitate subgroup analysis.
+    :param drop_linear: If True, all linear probe examples are dropped from the dataset.
     :returns: pd.DataFrame. Stores combined clip information as shown in external db.
     '''
     ext_dfs = []
@@ -113,25 +115,23 @@ def get_external_clip_df(add_chars=False,drop_linear=False):
             ext_dfs.append(df)
     ext_df = pd.concat(ext_dfs, ignore_index=True)
 
+    # Add data characteristics to dataset to facilitate subgroup analysis
     if add_chars:
-        ext_df['clip_id'] = ext_df.apply(lambda row: row['id'].split('_')[0],axis=1)
-        char_df = pd.read_csv('data/generalizability/external_data_with_characteristics.csv') # Add to config
-        char_df.rename(columns={'id':'clip_id'},inplace=True)
-        chars_to_include = ['clip_id','probe','location','patient_age','sex','depth_cat','manufacturer'] # Add to config
+        ext_df['clip_id'] = ext_df.apply(lambda row: row['id'].split('_')[0], axis=1)
+        char_df = pd.read_csv(cfg['EXTERNAL_VAL']['PATHS']['DATA_CHARACTERISTICS'])
+        char_df.rename(columns={'id':'clip_id'}, inplace=True)
+        chars_to_include = cfg['EXTERNAL_VAL']['DATA_CHARACTERISTICS']
         char_df = char_df[chars_to_include]
-        ext_df = ext_df.merge(char_df,how='left',on='clip_id')
-        ext_df.drop('clip_id',axis=1,inplace=True)
-        ext_df.drop_duplicates(keep='first',inplace=True)
+        ext_df = ext_df.merge(char_df, how='left', on='clip_id')
+        ext_df.drop('clip_id', axis=1, inplace=True)
+        ext_df.drop_duplicates(keep='first', inplace=True)
         ext_df = ext_df.reset_index(drop=True)
 
-        # See what happens if linear probes are removed
+        # Drop linear probe examples
         if drop_linear:
             ext_df.drop(ext_df.loc[ext_df['probe'] == 'linear'].index,axis=0,inplace=True)
-            #ext_df.drop(ext_df.loc[ext_df['probe'] == 'Unknown'].index, axis=0, inplace=True)
-            #ext_df.drop(ext_df.loc[ext_df['probe'] == 'curved_linear'].index, axis=0, inplace=True)
 
-
-
+    # Save dataset
     labelled_ext_df_path = os.path.join(os.getcwd() + cfg['EXTERNAL_VAL']['PATHS']['CSV_OUT'], 'labelled_external_dfs/')
     if cfg['EXTERNAL_VAL']['REFRESH_FOLDERS']:
         refresh_folder(labelled_ext_df_path)
@@ -504,7 +504,7 @@ def finetune_model(original_model_path, base_folder, full_train_df, mmode_prepro
     return model
 
 
-def TAAFT(clip_df, n_folds, experiment_path=None, seed=None, hparams=None, lazy=True, upsample=True, by_center=False, by_probe=False):
+def TAAFT(clip_df, n_folds, experiment_path=None, seed=None, hparams=None, by_center=False, by_probe=False):
     '''
     Executes a trial of TAAFT (Threshold-Aware Accumulative Fine-Tuning).
     Divides clips into random folds, then runs fine-tuning trials with progressively larger training sets. Evaluates
@@ -513,8 +513,6 @@ def TAAFT(clip_df, n_folds, experiment_path=None, seed=None, hparams=None, lazy=
     :param experiment_path: Absolute path to folder corresponding to the current experiment
     :param seed: Random seed for experiment replicability
     :param hparams: Specifies the set of hyperparameters for fine-tuning the model.
-    :param lazy: When True, trial will terminate once model performance exceeds minimum thresholds.
-    :param upsample: When True, upsamples absent sliding mini-clips in each training set during fine-tuning.
     '''
 
     # Set random seeds
@@ -558,11 +556,18 @@ def TAAFT(clip_df, n_folds, experiment_path=None, seed=None, hparams=None, lazy=
         # Restore the model's weights and fine-tune the model
         if i == 0:
             model = restore_model(original_model_path)
+            # Need to add evaluation on proper loss function
         else:
             print(f"**** TRAINING RUN {i}: train_frac={train_frac} ****\n" + 100 * '*')
             train_df = pd.concat(folds[:i])
             model = finetune_model(original_model_path, base_folder, train_df, mmode_preprocessor, hparams,
-                                   upsample=upsample, seed=seed)
+                                   seed=seed,
+                                   upsample=cfg['EXTERNAL_VAL']['FINETUNE']['SCHEME']['UPSAMPLE'],
+                                   AB_scheme=cfg['EXTERNAL_VAL']['FINETUNE']['SCHEME']['AB'],
+                                   reinitialize=cfg['EXTERNAL_VAL']['FINETUNE']['SCHEME']['REINITIALIZE'],
+                                   focal_loss=cfg['EXTERNAL_VAL']['FINETUNE']['SCHEME']['FOCAL_LOSS'],
+                                   set_class_weight=cfg['EXTERNAL_VAL']['FINETUNE']['SCHEME']['CLASS_WEIGHT'],
+                                   upsample_linear=cfg['EXTERNAL_VAL']['FINETUNE']['SCHEME']['UPSAMPLE_LINEAR'])
 
         # Evaluate model on fixed test set
         results_row = {'variable_size_test_set': 1, 'train_data_prop': i / n_folds}
@@ -595,7 +600,6 @@ def TAAFT(clip_df, n_folds, experiment_path=None, seed=None, hparams=None, lazy=
                                      'center': 'combined_external'}
             results_by_center_row.update(results_dict)
             trial_results_by_center_df = trial_results_by_center_df.append(results_by_center_row, ignore_index=True)
-
 
 
             # Evaluate model on a by-center basis

@@ -269,6 +269,7 @@ EXPLAINABILITY:
 
 EXTERNAL_VAL:
   LOCATIONS: ['chile', 'ottawa', 'alberta']  # List of centers involved in the multi-center study.
+  DATA_CHARACTERISTICS: ['clip_id','probe','location','patient_age','sex','depth_cat','manufacturer']
   REFRESH_FOLDERS: True  # If you want to delete contents of generalizability-related folders before writing, set True.
   NEW_EXPERIMENT: True   # If set to True, creates a new folder for trial artefacts.
   FIXED_TEST_SIZE: 0.4  # Specify the minimum proportion of external data to set aside for testing purposes.
@@ -283,6 +284,7 @@ EXTERNAL_VAL:
     CSVS_SPLIT: '\generalizability\csvs_split'  # Path to train-test-val splits for external data.
     PREDICTIONS_OUT: '\generalizability\predictions'  # Path to predictions from fine-tuning experiments.
     EXPERIMENTS: '\generalizability\results\experiments\300922'
+    DATA_CHARACTERISTICS: 'data/generalizability/external_data_with_characteristics.csv'
   FOLD_SAMPLE:
     SEED: 4  # Seed for sampling external patient ids into slices, which are used during fine-tuning to augment training data as necessary.
     NUM_FOLDS: 5  # Number of desired external patient slices for augmenting training data during fine-tuning.
@@ -303,5 +305,12 @@ EXTERNAL_VAL:
     LR: 0.000171 #0.0000171  # For now, divide the original (efficientnet) lr by 10.
     MINORITY_FRAC: 0.25 # If minority upsampling, this is the desired fraction of the minority class in the training set
     LINEAR_FRAC: 0.25 # If upsampling linear probes, this is the desired fraction of linear probes in the training set
+    SCHEME:
+      AB: False
+      UPSAMPLE: True
+      UPSAMPLE_LINEAR: False
+      FOCAL_LOSS: False
+      REINITIALIZE: False
+      CLASS_WEIGHT: True
     # A value of False will run trials to completion, regardless of whether the model performance exceeds thresholds or not.
   PLOT_METRICS: ['loss', 'sensitivity', 'specificity']  # Specify metrics for which to generate plots (for each trial and trial-wise average).
