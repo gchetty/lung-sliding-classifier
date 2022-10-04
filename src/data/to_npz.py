@@ -8,8 +8,8 @@ from utils import refresh_folder
 from tqdm import tqdm
 from src.preprocessor import get_middle_pixel_index
 
-cfg = yaml.full_load(open(os.path.join(os.getcwd(), "../../config.yml"), 'r'))['PREPROCESS']
-cfg_full = yaml.full_load(open(os.path.join(os.getcwd(), "../../config.yml"), 'r'))
+cfg = yaml.full_load(open(os.path.join(os.getcwd(), "config.yml"), 'r'))['PREPROCESS']
+cfg_full = yaml.full_load(open(os.path.join(os.getcwd(), "config.yml"), 'r'))
 
 # PIPELINE UPDATE FOR BOX AND ORIG DIMS NOT APPLIED FOR FLOW!!!
 
@@ -76,7 +76,7 @@ def video_to_frames_downsampled(orig_id, patient_id, df_rows, cap, fr, seq_lengt
     return
 
 
-def miniclip_to_mmode(clip, bounding_box, height_width):
+def miniclip_to_mmode(clip, bounding_box, height_width,method=None):
     '''
     Convert LUS mini-clip to M-mode image
     :param clip: LUS clip
@@ -85,7 +85,8 @@ def miniclip_to_mmode(clip, bounding_box, height_width):
     '''
     # Extract m-mode
     num_frames, new_height, new_width = clip.shape[0], clip.shape[1], clip.shape[2]
-    method = cfg_full['TRAIN']['M_MODE_SLICE_METHOD']
+    if method is None:
+        method = cfg_full['TRAIN']['M_MODE_SLICE_METHOD']
     middle_pixel = get_middle_pixel_index(clip[0], bounding_box, height_width, method=method)
 
     # Fix bad bounding box
@@ -95,6 +96,9 @@ def miniclip_to_mmode(clip, bounding_box, height_width):
     mmode = np.median(three_slice, axis=2).T
     mmode_image = cv2.resize(mmode, (cfg_full['PREPROCESS']['PARAMS']['M_MODE_WIDTH'], new_height),
                              interpolation=cv2.INTER_CUBIC)
+    # Clamp pixel values between 0 and 255 after cubic interpolation to avoid negative pixels
+    mmode_image = np.clip(mmode_image,a_min=0,a_max=255)
+
     mmode_image = mmode_image.reshape((new_height, cfg_full['PREPROCESS']['PARAMS']['M_MODE_WIDTH'], 1))
 
     return mmode_image, middle_pixel
@@ -140,12 +144,15 @@ def video_to_frames_contig(orig_id, patient_id, df_rows, cap, seq_length=cfg['PA
                 pixel_idxs = set()
                 for i in range(1, n_mmodes + 1):
                     while True:
-                        mmode, pixel_idx = miniclip_to_mmode(np.array(frames), box, (cap_height, cap_width))
+                        if i == 1: # Always have first m-mode generated with the brightest pixel
+                            mmode, pixel_idx = miniclip_to_mmode(np.array(frames), box, (cap_height, cap_width), method='brightest')
+                        else:
+                            mmode, pixel_idx = miniclip_to_mmode(np.array(frames), box, (cap_height, cap_width))
                         if pixel_idx in pixel_idxs:
                             continue
                         else:
                             pixel_idxs.add(pixel_idx)
-                            break
+                        break
                     npz_path = write_path + '_' + str(mini_clip_num)
                     if i > 1:
                         npz_path = npz_path + f"_{i}"
@@ -194,7 +201,7 @@ def video_to_npz(path, orig_id, patient_id, df_rows, write_path='', fr=None, box
     if not fr:
         fr = round(cap.get(cv2.CAP_PROP_FPS))
 
-    video_to_frames_contig(orig_id, patient_id, df_rows, cap, write_path=write_path, box=box, n_mmodes=5)
+    video_to_frames_contig(orig_id, patient_id, df_rows, cap, write_path=write_path, box=box, n_mmodes=10)
 
 
 def parse_args():
@@ -251,8 +258,8 @@ if __name__ == '__main__':
 
     # Iterate through clips and extract & download mini-clips
 
+    print('sliding')
     for file in tqdm(os.listdir(sliding_input)):
-
         f = os.path.join(sliding_input, file)
         patient_id = ((sliding_df[sliding_df['id'] == file[:-4]])['patient_id']).values[0]
 
@@ -269,8 +276,8 @@ if __name__ == '__main__':
             video_to_npz(f, orig_id=file[:-4], patient_id=patient_id, df_rows=df_rows_sliding,
                          write_path=(sliding_npz_folder + file[:-4]))
 
+    print('no sliding')
     for file in tqdm(os.listdir(no_sliding_input)):
-
         f = os.path.join(no_sliding_input, file)
         patient_id = ((no_sliding_df[no_sliding_df['id'] == file[:-4]])['patient_id']).values[0]
 
@@ -291,8 +298,8 @@ if __name__ == '__main__':
     out_df_sliding = pd.DataFrame(df_rows_sliding, columns=['id', 'patient_id'])
     out_df_no_sliding = pd.DataFrame(df_rows_no_sliding, columns=['id', 'patient_id'])
 
-    csv_out_path_sliding = os.path.join('../../' + csv_out_folder, 'sliding_mini_clips.csv')
-    csv_out_path_no_sliding = os.path.join('../../' + csv_out_folder, 'no_sliding_mini_clips.csv')
+    csv_out_path_sliding = os.path.join(cfg['PATHS']['CSVS_OUTPUT'], 'sliding_mini_clips.csv')
+    csv_out_path_no_sliding = os.path.join(cfg['PATHS']['CSVS_OUTPUT'], 'no_sliding_mini_clips.csv')
 
     out_df_sliding.to_csv(csv_out_path_sliding, index=False)
     out_df_no_sliding.to_csv(csv_out_path_no_sliding, index=False)
