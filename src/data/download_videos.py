@@ -7,6 +7,7 @@ import cv2
 import tqdm
 from utils import refresh_folder
 from sql_utils import get_clips_from_db
+import argparse
 
 # Load dictionary of constants stored in config.yml & db credentials in database_config.yml
 cfg = yaml.full_load(open(os.path.join(os.getcwd(), "..\\..\\config.yml"), 'r'))['PREPROCESS']
@@ -76,68 +77,68 @@ def download(df, sliding, fr_rows, video_out_root_folder=cfg['PATHS']['UNMASKED_
         fr_rows.append([row['id'], fr])
 
 
-# Get database configs
-# USERNAME = database_cfg['USERNAME']
-# PASSWORD = database_cfg['PASSWORD']
-# HOST = database_cfg['HOST']
-# DATABASE = database_cfg['DATABASE']
-#
-# # Establish connection to database
-# cnx = mysql.connector.connect(user=USERNAME, password=PASSWORD,
-#                               host=HOST,
-#                               database=DATABASE)
-#
-# # Query Database for sliding and no_sliding labeled data but excluding significant probe movement and B lines
-# # and pleural effusion or consolidation
-# sliding_df = get_clips_from_db(cfg['PARAMS']['DB_TABLE'], sliding=True)
-# no_sliding_df = get_clips_from_db(cfg['PARAMS']['DB_TABLE'], sliding=-False)
+if __name__ == '__main__':
 
-sliding_df = pd.read_csv('../../generalizability/csvs/ottawa/sliding.csv')
-no_sliding_df = pd.read_csv('../../generalizability/csvs/ottawa/no_sliding.csv')
+    parser = argparse.ArgumentParser(description="Use pre-defined sliding and no_sliding CSVs")
+    parser.add_argument('--use_csvs', default=True, type=bool)  # Directory with pre-defined sliding and no_sliding csvs
+    args = parser.parse_args()
+    print(args.use_csvs)
 
-# sliding_df = pd.read_sql('''select * from clips_chile where view='parenchymal' and a_or_b_lines='a_lines'
-#                               and (quality NOT LIKE '%significant_probe_movement%' or quality is null)
-#  and (pleural_line_findings='' or pleural_line_findings='thickened');''', cnx)
-# no_sliding_df = pd.read_sql('''select * from clips_chile where view='parenchymal' and a_or_b_lines='a_lines'
-#                               and (quality NOT LIKE '%significant_probe_movement%' or quality is null)
-#  and (pleural_line_findings = 'absent_lung_sliding');''', cnx)
+    if args.use_csvs:
+        sliding_df = pd.read_csv(os.path.join(cfg['PATHS']['CSVS_OUTPUT'], 'sliding.csv'))
+        no_sliding_df = pd.read_csv(os.path.join(cfg['PATHS']['CSVS_OUTPUT'], 'no_sliding.csv'))
+    else:
+        database_cfg = yaml.full_load(open(os.path.join(os.getcwd(), "database_config.yml"), 'r'))
 
-# Query database for extra negative examples from sprints
-# no_sliding_extra_df = pd.read_sql('''SELECT * FROM clips_ottawa WHERE (pleural_line_findings='absent_lung_sliding'
-#                                       OR pleural_line_findings='thickened|absent_lung_sliding') AND
-#                                (quality NOT LIKE '%significant_probe_movement%' OR quality is null) AND
-#                                (a_or_b_lines='a_lines' OR a_or_b_lines='non_a_non_b' OR a_or_b_lines is null) AND
-#                                (pleural_effusion is null) AND (consolidation is null);''', cnx)
+        # Get database configs
+        USERNAME = database_cfg['USERNAME']
+        PASSWORD = database_cfg['PASSWORD']
+        HOST = database_cfg['HOST']
+        DATABASE = database_cfg['DATABASE']
 
-# load extra infusion of sliding clips
-# see code block from sliding_clip_infusion.py
+        # Establish connection to database
+        cnx = mysql.connector.connect(user=USERNAME, password=PASSWORD,
+                                      host=HOST,
+                                      database=DATABASE)
 
-# If we're just asking the amount of videos available, the program will terminate after logging this information
-AMOUNT_ONLY = cfg['PARAMS']['AMOUNT_ONLY']
-if AMOUNT_ONLY:
-    print('AMOUNT_ONLY is set to True in the config file; set this to False if you wanted to download the videos.')
+        # Query Database for labeled data excluding probe movement, B lines, and pleural effusion or consolidation
+        sliding_df = get_clips_from_db(cfg['PARAMS']['DB_TABLE'], sliding=True)
+        no_sliding_df = get_clips_from_db(cfg['PARAMS']['DB_TABLE'], sliding=-False)
+
+        # Query database for extra negative examples from sprints
+        no_sliding_extra_df = pd.read_sql('''SELECT * FROM {} WHERE (pleural_line_findings='absent_lung_sliding'
+                                                 OR pleural_line_findings='thickened|absent_lung_sliding') AND
+                                                 (quality NOT LIKE '%significant_probe_movement%' OR quality is null) AND
+                                                 (a_or_b_lines='a_lines' OR a_or_b_lines='non_a_non_b' 
+                                                 OR a_or_b_lines is null) AND (pleural_effusion is null) AND 
+                                                 (consolidation is null);'''.format(cfg['PARAMS']['DB_TABLE']), cnx)
+
+    # If we're just asking the amount of videos available, the program will terminate after logging this information
+    AMOUNT_ONLY = cfg['PARAMS']['AMOUNT_ONLY']
+    if AMOUNT_ONLY:
+        print('AMOUNT_ONLY is set to True in the config file; set this to False if you wanted to download the videos.')
+        print('In total, there are ' + str(len(sliding_df)) + ' available videos with sliding,' +
+              ' and ' + str(len(no_sliding_df)) + ' without.')
+        exit()
+
     print('In total, there are ' + str(len(sliding_df)) + ' available videos with sliding,' +
-      ' and ' + str(len(no_sliding_df)) + ' without.')
-    exit()
+          ' and ' + str(len(no_sliding_df)) + ' without.')
 
-print('In total, there are ' + str(len(sliding_df)) + ' available videos with sliding,' +
-      ' and ' + str(len(no_sliding_df)) + ' without.')
+    # Store rows for frame rate csv
+    fr_sliding_rows = []
+    fr_no_sliding_rows = []
 
-# Store rows for frame rate csv
-fr_sliding_rows = []
-fr_no_sliding_rows = []
+    # Call download with each dataframe
+    download(sliding_df, sliding=True, fr_rows=fr_sliding_rows)
+    download(no_sliding_df, sliding=False, fr_rows=fr_no_sliding_rows)
 
-# Call download with each dataframe
-download(sliding_df, sliding=True, fr_rows=fr_sliding_rows)
-download(no_sliding_df, sliding=False, fr_rows=fr_no_sliding_rows)
+    # Save frame rate CSVs
+    csv_out_folder = cfg['PATHS']['CSVS_OUTPUT']
 
-# Save frame rate CSVs
-csv_out_folder = cfg['PATHS']['CSVS_OUTPUT']
+    out_df_sliding = pd.DataFrame(fr_sliding_rows, columns=['id', 'frame_rate'])
+    csv_out_path_sliding = os.path.join(csv_out_folder, 'sliding_frame_rates.csv')
+    out_df_sliding.to_csv(csv_out_path_sliding, index=False)
 
-out_df_sliding = pd.DataFrame(fr_sliding_rows, columns=['id', 'frame_rate'])
-csv_out_path_sliding = os.path.join(csv_out_folder, 'sliding_frame_rates.csv')
-out_df_sliding.to_csv(csv_out_path_sliding, index=False)
-
-out_df_no_sliding = pd.DataFrame(fr_no_sliding_rows, columns=['id', 'frame_rate'])
-csv_out_path_no_sliding = os.path.join(csv_out_folder, 'no_sliding_frame_rates.csv')
-out_df_no_sliding.to_csv(csv_out_path_no_sliding, index=False)
+    out_df_no_sliding = pd.DataFrame(fr_no_sliding_rows, columns=['id', 'frame_rate'])
+    csv_out_path_no_sliding = os.path.join(csv_out_folder, 'no_sliding_frame_rates.csv')
+    out_df_no_sliding.to_csv(csv_out_path_no_sliding, index=False)
