@@ -82,6 +82,8 @@ def miniclip_to_mmode(clip, bounding_box, height_width,method=None):
     :param clip: LUS clip
     :param bounding_box: Tuple of (ymin, xmin, ymax, xmax) of pleural line ROI
     :param height_width: original LUS frame dimensions before resizing
+    :param method: If not None, specifies the method to use for the miniclip to mmode conversion. If None, method
+                   used defaults to that specified in the config under 'TRAIN' > M_MODE_SLICE_METHOD
     '''
     # Extract m-mode
     num_frames, new_height, new_width = clip.shape[0], clip.shape[1], clip.shape[2]

@@ -342,7 +342,7 @@ def linear_upsample(dataset, raw_dataset, linear_frac):
 
 def reinitialize_layer(model, initializer, layer_name):
     '''
-    Re-initializes the weights of a specific layer of the model froma  desired distirbution.
+    Re-initializes the weights of a specific layer of the model from a desired distirbution.
     :param model: model with the layer to be re-initialized
     :param initializer: desired Tensorflow initializer used to initialize the weights
     :param layer_name: name of the layer to be re-initialized
@@ -364,6 +364,7 @@ def finetune_model(original_model_path, base_folder, full_train_df, mmode_prepro
     :param upsample: If set to True, upsamples the minority class in the training set according to the configured ratio
     :param seed: Random seed for fold sampling
     :param AB_scheme: If True, fine-tunes using the approach from our AB manuscript (10 epochs at LR, n epochs at LR/10)
+                      Manuscript link: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC8621216/pdf/diagnostics-11-02049.pdf
     :param reinitialize: If True, final 5 FC layers are re-initialized from a truncated normal distribution with mean 0
     :param focal_loss: If True, sigmoid focal loss entropy is used for the loss Otherwise, binary cross entropy is used.
     :param set_class_weight: If True, the class_weight parameter is set in model.fit().
@@ -505,7 +506,6 @@ def finetune_model(original_model_path, base_folder, full_train_df, mmode_prepro
 
 
 def TAAFT(clip_df, n_folds, experiment_path=None, seed=None, hparams=None, stratify_by=None):
-          #by_center=False, by_probe=False):
     '''
     Executes a trial of TAAFT (Threshold-Aware Accumulative Fine-Tuning).
     Divides clips into random folds, then runs fine-tuning trials with progressively larger training sets. Evaluates

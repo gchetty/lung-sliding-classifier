@@ -772,8 +772,7 @@ def efficientnet(model_config, input_shape, metrics, class_counts):
     freeze_cutoff = -1 if model_config['LAYERS_FROZEN'] == 0 else model_config['LAYERS_FROZEN']
 
     X_input = Input(input_shape, name='input')
-    X_gray = ToGrayscale(name='to_grayscale')(X_input)
-    base_model = EfficientNet(include_top=False, weights='imagenet', input_shape=input_shape, input_tensor=X_gray)
+    base_model = EfficientNet(include_top=False, weights='imagenet', input_shape=input_shape, input_tensor=X_input)
 
     output_bias = None
     kernel_init = model_config['WEIGHT_INITIALIZER']

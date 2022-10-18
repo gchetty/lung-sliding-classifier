@@ -111,18 +111,3 @@ if __name__ == '__main__':
     project_dir = '\\'.join(os.getcwd().split('\\')[:-2])
     external_m_mode_peek(30, project_dir + cfg_full['EXTERNAL_VAL']['PATHS']['NPZS'],
                          project_dir + '\\mmode_sample')
-    # raw_clips_dir = cfg['PATHS']['MASKED_VIDEOS']
-    # short_clips = []
-    # for clip_class in os.listdir(raw_clips_dir):
-    #     clip_class_dir = os.path.join(raw_clips_dir, clip_class)
-    #     for clip in os.listdir(clip_class_dir):
-    #         # Get clip length.
-    #         l = get_clip_length(os.path.join(clip_class_dir, clip))
-    #         if l < 3.0:
-    #             short_clips.append(os.path.join(clip_class_dir, clip))
-    # # Show the filenames of all clips less than the mini-clip window specified in the config file.
-    # for clip in short_clips:
-    #     print(clip)
-    # print(len(short_clips))
-    #
-    # save_m_modes(npz_dir, mmode_dir)
