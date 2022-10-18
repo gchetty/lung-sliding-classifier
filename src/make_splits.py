@@ -110,6 +110,8 @@ if (s > 1.0) or (train_prop < 0) or (val_prop < 0) or (test_prop < 0):
 
 # CSV paths
 csv_path = os.path.join(os.getcwd(), 'data/', cfg['PREPROCESS']['PATHS']['CSVS_OUTPUT'])
+if cfg['PREPROCESS']['PATHS']['CSVS_OUTPUT'].split('\\')[0] == 'generalizability':
+    csv_path = os.path.join(os.getcwd(), cfg['PREPROCESS']['PATHS']['CSVS_OUTPUT'])
 
 flow = cfg['PREPROCESS']['PARAMS']['FLOW']
 
@@ -148,8 +150,8 @@ elif flow == 'Yes':
 else:
     sliding_df = df_splits_two_stream(sliding_df, flow_sliding_df, train_prop, val_prop, test_prop)
     no_sliding_df = df_splits_two_stream(no_sliding_df, flow_no_sliding_df, train_prop, val_prop, test_prop)
-
-# Add label to dataframes
+    
+# Add label to dataframes.
 l1 = [1] * len(sliding_df)
 sliding_df['label'] = l1
 l0 = [0] * len(no_sliding_df)
@@ -164,12 +166,12 @@ else:
 
 paths1 = []
 for index, row in sliding_df.iterrows():
-    paths1.append(os.path.join(os.getcwd(), 'data/', npz_dir, 'sliding/', row['id'] + '.npz'))
+    paths1.append(os.path.join(os.getcwd(), npz_dir, 'sliding/', row['id'] + '.npz'))
 sliding_df['filename'] = paths1
 
 paths0 = []
 for index, row in no_sliding_df.iterrows():
-    paths0.append(os.path.join(os.getcwd(), 'data/', npz_dir, 'no_sliding/', row['id'] + '.npz'))
+    paths0.append(os.path.join(os.getcwd(), npz_dir, 'no_sliding/', row['id'] + '.npz'))
 no_sliding_df['filename'] = paths0
 
 # Add flow paths if two-stream
@@ -179,12 +181,12 @@ if flow == 'Both':
 
     paths1 = []
     for index, row in sliding_df.iterrows():
-        paths1.append(os.path.join(os.getcwd(), 'data/', npz_dir, 'sliding/', row['id'] + '.npz'))
+        paths1.append(os.path.join(os.getcwd(), npz_dir, 'sliding/', row['id'] + '.npz'))
     sliding_df['flow_filename'] = paths1
 
     paths0 = []
     for index, row in no_sliding_df.iterrows():
-        paths0.append(os.path.join(os.getcwd(), 'data/', npz_dir, 'no_sliding/', row['id'] + '.npz'))
+        paths0.append(os.path.join(os.getcwd(),  npz_dir, 'no_sliding/', row['id'] + '.npz'))
     no_sliding_df['flow_filename'] = paths0
 
 # Duplicate the no_sliding_df until it's approximately the same size as sliding_df, if desired
@@ -210,7 +212,7 @@ val_df = final_df[final_df['split']==1]
 test_df = final_df[final_df['split']==2]
 
 # Write each to csv
-csv_dir = cfg['TRAIN']['PATHS']['CSVS']
+csv_dir = os.getcwd() + cfg['TRAIN']['PATHS']['CSVS']
 if not os.path.exists(csv_dir):
     os.makedirs(csv_dir)
 

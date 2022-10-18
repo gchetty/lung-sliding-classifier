@@ -32,6 +32,8 @@ from tensorflow.keras.applications.efficientnet import EfficientNetB0 as Efficie
 from tensorflow.keras.applications.efficientnet import preprocess_input as efficientnet_preprocess
 import tensorflow_addons as tfa
 
+from src.custom.layers import ToGrayscale
+
 cfg = yaml.full_load(open(os.path.join(os.getcwd(), 'config.yml'), 'r'))
 
 
@@ -767,7 +769,7 @@ def efficientnet(model_config, input_shape, metrics, class_counts):
     l2_reg = model_config['L2_REG']
     fc0_nodes = model_config['FC0_NODES']
 
-    freeze_cutoff = -1 if model_config['BLOCKS_FROZEN'] == 0 else model_config['BLOCKS_FROZEN']
+    freeze_cutoff = -1 if model_config['LAYERS_FROZEN'] == 0 else model_config['LAYERS_FROZEN']
 
     X_input = Input(input_shape, name='input')
     base_model = EfficientNet(include_top=False, weights='imagenet', input_shape=input_shape, input_tensor=X_input)
